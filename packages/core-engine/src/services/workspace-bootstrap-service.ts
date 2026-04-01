@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import type { DeploymentTargetName, LockFile, Manifest } from "@skill-flow/domain/types";
 import { getManagedDeployments } from "@skill-flow/domain/projection-compat";
-import { getTargetScanRoots, TARGET_DEFINITIONS, TARGET_ORDER } from "@skill-flow/integration/utils/constants";
+import {
+  getTargetScanRoots,
+  resolveTargetSupportFilePath,
+  TARGET_DEFINITIONS,
+  TARGET_ORDER,
+} from "@skill-flow/integration/utils/constants";
 import { hashDirectory, pathExists, readJsonFile } from "@skill-flow/integration/utils/fs";
 import { deriveSourceId } from "@skill-flow/integration/utils/source-id";
 import { StateStore } from "@skill-flow/storage/store";
@@ -218,7 +223,8 @@ export class WorkspaceBootstrapService {
   }
 
   private async readAgentsOrigins(): Promise<Map<string, AgentsOrigin>> {
-    const lockPath = path.join(os.homedir(), ".agents", ".skill-lock.json");
+    const lockPath = resolveTargetSupportFilePath("cline", ".skill-lock.json")
+      ?? path.join(os.homedir(), ".agents", ".skill-lock.json");
     const lockFile = await readJsonFile<AgentsLockFile>(lockPath, {});
     const results = new Map<string, AgentsOrigin>();
 

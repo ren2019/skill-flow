@@ -1381,14 +1381,27 @@ export class SourceService {
 
   private async extractZipArchive(archivePath: string, extractPath: string): Promise<void> {
     await ensureDir(extractPath);
-    const command =
-      process.platform === "darwin"
-        ? { file: "ditto", args: ["-x", "-k", archivePath, extractPath] }
-        : { file: "unzip", args: ["-q", archivePath, "-d", extractPath] };
+    const command = this.buildArchiveExtractionCommand(archivePath, extractPath);
     await execFileAsync(command.file, command.args, {
       encoding: "utf8",
       env: process.env,
     });
+  }
+
+  private buildArchiveExtractionCommand(
+    archivePath: string,
+    extractPath: string,
+    platform: NodeJS.Platform = process.platform,
+  ) {
+    if (platform === "darwin") {
+      return { file: "ditto", args: ["-x", "-k", archivePath, extractPath] };
+    }
+
+    if (platform === "win32") {
+      return { file: "tar", args: ["-xf", archivePath, "-C", extractPath] };
+    }
+
+    return { file: "unzip", args: ["-q", archivePath, "-d", extractPath] };
   }
 
   private async copyExtractedArchive(

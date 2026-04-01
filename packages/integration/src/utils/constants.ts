@@ -20,6 +20,7 @@ export type TargetDefinition = {
   writerKey: string;
   writeRootTemplates: TargetPathTemplate[];
   compatReadRootTemplates: TargetPathTemplate[];
+  observationHomeTemplates?: TargetPathTemplate[];
   writeRootCandidates: string[];
   compatReadRootCandidates: string[];
   // Reserved for future project-scope installs. Current runtime still writes via writeRootCandidates.
@@ -135,6 +136,7 @@ export const TARGET_DEFINITIONS: Record<DeploymentTargetName, TargetDefinition> 
     writerKey: "claude-home",
     writeRootTemplates: ["~/.claude/skills"],
     compatReadRootTemplates: [],
+    observationHomeTemplates: ["~/.claude"],
     documentedProjectPath: ".claude/skills/",
     documentedGlobalPath: "~/.claude/skills/",
     iconAssetName: "claude-code.svg",
@@ -150,6 +152,7 @@ export const TARGET_DEFINITIONS: Record<DeploymentTargetName, TargetDefinition> 
       "~/.codex/.agents/skills",
       { value: "/etc/codex/skills", platforms: ["linux", "darwin"] },
     ],
+    observationHomeTemplates: ["~/.codex"],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.codex/skills/",
     iconAssetName: "codex.svg",
@@ -190,6 +193,7 @@ export const TARGET_DEFINITIONS: Record<DeploymentTargetName, TargetDefinition> 
     writerKey: "gemini-home",
     writeRootTemplates: ["~/.gemini/skills"],
     compatReadRootTemplates: ["~/.agents/skills"],
+    observationHomeTemplates: ["~/.gemini"],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.gemini/skills/",
     iconAssetName: "gemini.svg",
@@ -204,6 +208,10 @@ export const TARGET_DEFINITIONS: Record<DeploymentTargetName, TargetDefinition> 
       "~/.opencode/skills",
       "~/.claude/skills",
       "~/.agents/skills",
+    ],
+    observationHomeTemplates: [
+      "~/.config/opencode",
+      "~/.opencode",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.config/opencode/skills/",
@@ -425,4 +433,52 @@ export function getTargetPathPolicy(
     ),
     documentedGlobalPath: expandPathTemplate(definition.documentedGlobalPath, resolvedOptions),
   };
+}
+
+export function resolveTargetSupportFilePath(
+  target: DeploymentTargetName,
+  fileName: string,
+  options?: TargetPathOptions,
+): string | null {
+  const resolvedOptions: Required<TargetPathOptions> = {
+    ...currentTargetPathOptions(),
+    ...options,
+  };
+  const pathApi = resolvedOptions.platform === "win32" ? path.win32 : path.posix;
+  const explicitRootPath = options
+    ? undefined
+    : process.env[TARGET_DEFINITIONS[target].envVar]?.trim();
+  const rootPath = explicitRootPath || getTargetPathPolicy(target, resolvedOptions).writeRootCandidates[0];
+
+  if (!rootPath) {
+    return null;
+  }
+
+  return pathApi.join(pathApi.dirname(rootPath), fileName);
+}
+
+export function getTargetHomePathCandidates(
+  target: DeploymentTargetName,
+  options?: TargetPathOptions,
+): string[] {
+  const resolvedOptions: Required<TargetPathOptions> = {
+    ...currentTargetPathOptions(),
+    ...options,
+  };
+  const pathApi = resolvedOptions.platform === "win32" ? path.win32 : path.posix;
+  const explicitRootPath = options
+    ? undefined
+    : process.env[TARGET_DEFINITIONS[target].envVar]?.trim();
+  const definition = TARGET_DEFINITIONS[target];
+  const homeTemplates = definition.observationHomeTemplates;
+
+  if (explicitRootPath) {
+    return [pathApi.dirname(explicitRootPath)];
+  }
+
+  if (homeTemplates && homeTemplates.length > 0) {
+    return [...new Set(resolveTemplateCandidates(homeTemplates, resolvedOptions))];
+  }
+
+  return [...new Set(getTargetPathPolicy(target, resolvedOptions).writeRootCandidates.map((rootPath) => pathApi.dirname(rootPath)))];
 }

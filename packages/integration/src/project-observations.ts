@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { getTargetHomePathCandidates } from "./utils/constants.js";
 
 export type ProjectObservation = {
   tool: "claude-code" | "codex" | "gemini-cli" | "opencode";
@@ -252,18 +253,20 @@ async function readSessionPayloadFromJsonl(filePath: string): Promise<{
 }
 
 async function collectCodexObservations(homeDir: string): Promise<ProjectObservation[]> {
-  const sessionsDir = path.join(homeDir, ".codex", "archived_sessions");
-  const entries = await readDirSafe(sessionsDir);
-  const jsonlFiles = entries.filter((entry) => entry.endsWith(".jsonl"));
-
   const sessions: Array<{ payload?: SessionPayload; observedAt?: string }> = [];
-  for (const fileName of jsonlFiles) {
-    const filePath = path.join(sessionsDir, fileName);
-    const session = await readSessionPayloadFromJsonl(filePath);
-    if (!session?.payload) {
-      continue;
+  for (const codexHome of getTargetHomePathCandidates("codex", { homeDir })) {
+    const sessionsDir = path.join(codexHome, "archived_sessions");
+    const entries = await readDirSafe(sessionsDir);
+    const jsonlFiles = entries.filter((entry) => entry.endsWith(".jsonl"));
+
+    for (const fileName of jsonlFiles) {
+      const filePath = path.join(sessionsDir, fileName);
+      const session = await readSessionPayloadFromJsonl(filePath);
+      if (!session?.payload) {
+        continue;
+      }
+      sessions.push(session);
     }
-    sessions.push(session);
   }
 
   return collectProjectObservationsFromSessionPayloads(sessions, "codex");
@@ -276,52 +279,54 @@ type ClaudeLogLine = {
 };
 
 async function collectClaudeObservations(homeDir: string): Promise<ProjectObservation[]> {
-  const projectsRoot = path.join(homeDir, ".claude", "projects");
-  const projectDirs = await readDirSafe(projectsRoot);
-
   const observations: ProjectObservation[] = [];
-  for (const projectDir of projectDirs) {
-    const sessionsDir = path.join(projectsRoot, projectDir);
-    const sessionFiles = (await readDirSafe(sessionsDir)).filter((f) => f.endsWith(".jsonl"));
+  for (const claudeHome of getTargetHomePathCandidates("claude-code", { homeDir })) {
+    const projectsRoot = path.join(claudeHome, "projects");
+    const projectDirs = await readDirSafe(projectsRoot);
 
-    for (const fileName of sessionFiles) {
-      const filePath = path.join(sessionsDir, fileName);
-      const content = await readFileSafe(filePath);
-      if (!content) continue;
+    for (const projectDir of projectDirs) {
+      const sessionsDir = path.join(projectsRoot, projectDir);
+      const sessionFiles = (await readDirSafe(sessionsDir)).filter((f) => f.endsWith(".jsonl"));
 
-      let lastTimestamp: string | null = null;
-      let lastCwd: string | null = null;
-      let lastRepoUrl: string | null = null;
-      for (const line of content.split("\n")) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        try {
-          const parsed = JSON.parse(trimmed) as ClaudeLogLine;
-          const ts = toIsoString(parsed.timestamp);
-          if (ts) lastTimestamp = ts;
-          if (typeof parsed.cwd === "string") lastCwd = parsed.cwd;
-          const repoUrl = parsed.git?.repository_url;
-          if (typeof repoUrl === "string") lastRepoUrl = repoUrl;
-        } catch {
-          // Ignore malformed lines.
+      for (const fileName of sessionFiles) {
+        const filePath = path.join(sessionsDir, fileName);
+        const content = await readFileSafe(filePath);
+        if (!content) continue;
+
+        let lastTimestamp: string | null = null;
+        let lastCwd: string | null = null;
+        let lastRepoUrl: string | null = null;
+        for (const line of content.split("\n")) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const parsed = JSON.parse(trimmed) as ClaudeLogLine;
+            const ts = toIsoString(parsed.timestamp);
+            if (ts) lastTimestamp = ts;
+            if (typeof parsed.cwd === "string") lastCwd = parsed.cwd;
+            const repoUrl = parsed.git?.repository_url;
+            if (typeof repoUrl === "string") lastRepoUrl = repoUrl;
+          } catch {
+            // Ignore malformed lines.
+          }
         }
+
+        const observedAt =
+          lastTimestamp ?? (await statMtimeIso(filePath)) ?? new Date(0).toISOString();
+        const project = deriveProjectIdentity({
+          repositoryUrl: lastRepoUrl ?? undefined,
+          projectPath: lastCwd ?? undefined,
+        });
+        if (!project) continue;
+
+        observations.push({
+          tool: "claude-code",
+          projectId: project.projectId,
+          title: project.title,
+          observedAt,
+          ...(lastCwd ? { projectPath: lastCwd } : {}),
+        });
       }
-
-      const observedAt =
-        lastTimestamp ?? (await statMtimeIso(filePath)) ?? new Date(0).toISOString();
-      const project = deriveProjectIdentity({
-        repositoryUrl: lastRepoUrl ?? undefined,
-        projectPath: lastCwd ?? undefined,
-      });
-      if (!project) continue;
-
-      observations.push({
-        tool: "claude-code",
-        projectId: project.projectId,
-        title: project.title,
-        observedAt,
-        ...(lastCwd ? { projectPath: lastCwd } : {}),
-      });
     }
   }
 
@@ -329,35 +334,34 @@ async function collectClaudeObservations(homeDir: string): Promise<ProjectObserv
 }
 
 async function collectGeminiObservations(homeDir: string): Promise<ProjectObservation[]> {
-  const historyRoot = path.join(homeDir, ".gemini", "history");
-  const entries = await readDirSafe(historyRoot);
-
   const observations: ProjectObservation[] = [];
-  for (const entry of entries) {
-    const projectRootFile = path.join(historyRoot, entry, ".project_root");
-    const content = await readFileSafe(projectRootFile);
-    if (!content) continue;
+  for (const geminiHome of getTargetHomePathCandidates("gemini-cli", { homeDir })) {
+    const historyRoot = path.join(geminiHome, "history");
+    const entries = await readDirSafe(historyRoot);
 
-    const projectRoot = normalizeProjectPath(content.trim());
-    if (!projectRoot) continue;
+    for (const entry of entries) {
+      const projectRootFile = path.join(historyRoot, entry, ".project_root");
+      const content = await readFileSafe(projectRootFile);
+      if (!content) continue;
 
-    observations.push({
-      tool: "gemini-cli",
-      projectId: projectRoot,
-      title: basenameMaybe(projectRoot) ?? projectRoot,
-      observedAt: (await statMtimeIso(projectRootFile)) ?? new Date(0).toISOString(),
-      projectPath: projectRoot,
-    });
+      const projectRoot = normalizeProjectPath(content.trim());
+      if (!projectRoot) continue;
+
+      observations.push({
+        tool: "gemini-cli",
+        projectId: projectRoot,
+        title: basenameMaybe(projectRoot) ?? projectRoot,
+        observedAt: (await statMtimeIso(projectRootFile)) ?? new Date(0).toISOString(),
+        projectPath: projectRoot,
+      });
+    }
   }
 
   return observations;
 }
 
-async function collectOpencodeObservations(_homeDir: string): Promise<ProjectObservation[]> {
-  const candidateRoots = [
-    path.join(_homeDir, ".config", "opencode"),
-    path.join(_homeDir, ".opencode"),
-  ];
+async function collectOpencodeObservations(homeDir: string): Promise<ProjectObservation[]> {
+  const candidateRoots = getTargetHomePathCandidates("opencode", { homeDir });
   const observations: ProjectObservation[] = [];
   const seen = new Set<string>();
 

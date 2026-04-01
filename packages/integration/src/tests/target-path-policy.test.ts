@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { getTargetPathPolicy } from "../utils/constants.js";
+import { getTargetHomePathCandidates, getTargetPathPolicy, resolveTargetSupportFilePath } from "../utils/constants.js";
 
 describe("target path policy", () => {
   test("expands documented global and compatibility paths for Windows fixtures", () => {
@@ -41,6 +41,21 @@ describe("target path policy", () => {
     expect(getTargetPathPolicy("openclaw", { platform: "linux", homeDir: linuxHome }).compatReadRootCandidates).toEqual([
       "/home/test/.clawdbot/skills",
       "/home/test/.moltbot/skills",
+    ]);
+  });
+
+  test("derives support-file and home candidates from the same target policy", () => {
+    expect(resolveTargetSupportFilePath("cline", ".skill-lock.json", {
+      platform: "linux",
+      homeDir: "/home/test",
+    })).toBe("/home/test/.agents/.skill-lock.json");
+
+    expect(getTargetHomePathCandidates("opencode", {
+      platform: "linux",
+      homeDir: "/home/test",
+    })).toEqual([
+      "/home/test/.config/opencode",
+      "/home/test/.opencode",
     ]);
   });
 });

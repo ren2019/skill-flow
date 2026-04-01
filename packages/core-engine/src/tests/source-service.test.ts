@@ -288,6 +288,35 @@ describe.sequential("source service", () => {
     );
   });
 
+  test("zip archive extraction command varies by platform", () => {
+    const sourceService = createSourceService() as unknown as {
+      buildArchiveExtractionCommand: (
+        archivePath: string,
+        extractPath: string,
+        platform?: NodeJS.Platform,
+      ) => { file: string; args: string[] };
+    };
+
+    expect(
+      sourceService.buildArchiveExtractionCommand("/tmp/repo.zip", "/tmp/out", "darwin"),
+    ).toEqual({
+      file: "ditto",
+      args: ["-x", "-k", "/tmp/repo.zip", "/tmp/out"],
+    });
+    expect(
+      sourceService.buildArchiveExtractionCommand("/tmp/repo.zip", "/tmp/out", "linux"),
+    ).toEqual({
+      file: "unzip",
+      args: ["-q", "/tmp/repo.zip", "-d", "/tmp/out"],
+    });
+    expect(
+      sourceService.buildArchiveExtractionCommand("C:\\repo.zip", "C:\\out", "win32"),
+    ).toEqual({
+      file: "tar",
+      args: ["-xf", "C:\\repo.zip", "-C", "C:\\out"],
+    });
+  });
+
   test("non-github git sources still fail when git is unavailable", async () => {
     const sourceService = createSourceService();
     vi.spyOn(gitUtils, "isGitAvailable").mockResolvedValue(false);
