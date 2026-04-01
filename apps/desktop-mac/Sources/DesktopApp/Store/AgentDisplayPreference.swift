@@ -57,6 +57,22 @@ enum AgentDisplayCatalog {
         "kiro": "KI",
     ]
 
+    private static let globalPathSuffixByTargetId: [String: String] = [
+        "claude-code": ".claude/skills",
+        "codex": ".codex/skills",
+        "cursor": ".cursor/skills",
+        "github-copilot": ".copilot/skills",
+        "gemini-cli": ".gemini/skills",
+        "opencode": ".config/opencode/skills",
+        "openclaw": ".openclaw/skills",
+        "pi": ".pi/agent/skills",
+        "windsurf": ".codeium/windsurf/skills",
+        "roo-code": ".roo/skills",
+        "cline": ".agents/skills",
+        "amp": ".config/agents/skills",
+        "kiro": ".kiro/skills",
+    ]
+
     static func defaultPreferences() -> [AgentDisplayPreference] {
         defaultTargetOrder.enumerated().map { index, targetId in
             AgentDisplayPreference(targetId: targetId, isVisible: true, sortOrder: index)
@@ -97,38 +113,13 @@ enum AgentDisplayCatalog {
     }
 
     static func mountPath(for targetId: String) -> String {
-        let homeDirectory = FileManager.default.homeDirectoryForCurrentUser
-
-        switch targetId {
-        case "claude-code":
-            return homeDirectory.appendingPathComponent(".claude/skills", isDirectory: true).path
-        case "codex":
-            return homeDirectory.appendingPathComponent(".codex/skills", isDirectory: true).path
-        case "cursor":
-            return homeDirectory.appendingPathComponent(".cursor/skills", isDirectory: true).path
-        case "github-copilot":
-            return homeDirectory.appendingPathComponent(".copilot/skills", isDirectory: true).path
-        case "gemini-cli":
-            return homeDirectory.appendingPathComponent(".gemini/skills", isDirectory: true).path
-        case "opencode":
-            return homeDirectory.appendingPathComponent(".config/opencode/skills", isDirectory: true).path
-        case "openclaw":
-            return homeDirectory.appendingPathComponent(".openclaw/skills", isDirectory: true).path
-        case "pi":
-            return homeDirectory.appendingPathComponent(".pi/agent/skills", isDirectory: true).path
-        case "windsurf":
-            return homeDirectory.appendingPathComponent(".codeium/windsurf/skills", isDirectory: true).path
-        case "roo-code":
-            return homeDirectory.appendingPathComponent(".roo/skills", isDirectory: true).path
-        case "cline":
-            return homeDirectory.appendingPathComponent(".agents/skills", isDirectory: true).path
-        case "amp":
-            return homeDirectory.appendingPathComponent(".config/agents/skills", isDirectory: true).path
-        case "kiro":
-            return homeDirectory.appendingPathComponent(".kiro/skills", isDirectory: true).path
-        default:
+        guard let suffix = globalPathSuffixByTargetId[targetId] else {
             return targetId
         }
+
+        return FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(suffix, isDirectory: true)
+            .path
     }
 
     static func orderedTargetIds(in targetIds: some Sequence<String>) -> [String] {

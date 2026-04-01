@@ -18,6 +18,8 @@ export type TargetDefinition = {
   strategy: DeploymentStrategy;
   envVar: string;
   writerKey: string;
+  writeRootTemplates: TargetPathTemplate[];
+  compatReadRootTemplates: TargetPathTemplate[];
   writeRootCandidates: string[];
   compatReadRootCandidates: string[];
   // Reserved for future project-scope installs. Current runtime still writes via writeRootCandidates.
@@ -27,6 +29,87 @@ export type TargetDefinition = {
   iconAssetName?: string;
   documentedAgentIds?: string[];
 };
+
+type TargetPathTemplate = string | {
+  value: string;
+  platforms: NodeJS.Platform[];
+};
+
+type TargetPathOptions = {
+  platform?: NodeJS.Platform;
+  homeDir?: string;
+};
+
+export type TargetPathPolicy = Omit<TargetDefinition, "writeRootCandidates" | "compatReadRootCandidates"> & {
+  writeRootCandidates: string[];
+  compatReadRootCandidates: string[];
+  documentedGlobalPath: string;
+};
+
+function currentTargetPathOptions(): Required<TargetPathOptions> {
+  return {
+    platform: process.platform,
+    homeDir: os.homedir(),
+  };
+}
+
+function isTemplateEnabled(
+  template: TargetPathTemplate,
+  platform: NodeJS.Platform,
+): boolean {
+  return typeof template === "string" || template.platforms.includes(platform);
+}
+
+function getTemplateValue(template: TargetPathTemplate): string {
+  return typeof template === "string" ? template : template.value;
+}
+
+function trimTrailingSeparator(value: string, pathApi: typeof path.posix | typeof path.win32): string {
+  const parsed = pathApi.parse(value);
+  if (value.length <= parsed.root.length || !value.endsWith(pathApi.sep)) {
+    return value;
+  }
+
+  return value.slice(0, -pathApi.sep.length);
+}
+
+function expandPathTemplate(template: string, options: Required<TargetPathOptions>): string {
+  const pathApi = options.platform === "win32" ? path.win32 : path.posix;
+  const normalizedTemplate = options.platform === "win32"
+    ? template.replace(/\//g, "\\")
+    : template.replace(/\\/g, "/");
+  const normalizedHomeDir = options.platform === "win32"
+    ? options.homeDir.replace(/\//g, "\\")
+    : options.homeDir.replace(/\\/g, "/");
+  const withHome = normalizedTemplate.replace(/^~(?=[\\/]|$)/, normalizedHomeDir);
+
+  return trimTrailingSeparator(pathApi.normalize(withHome), pathApi);
+}
+
+function resolveTemplateCandidates(
+  templates: TargetPathTemplate[],
+  options: Required<TargetPathOptions>,
+): string[] {
+  return templates.flatMap((template) => {
+    if (!isTemplateEnabled(template, options.platform)) {
+      return [];
+    }
+
+    return [expandPathTemplate(getTemplateValue(template), options)];
+  });
+}
+
+function defineTargetDefinition(
+  definition: Omit<TargetDefinition, "writeRootCandidates" | "compatReadRootCandidates">,
+): TargetDefinition {
+  const options = currentTargetPathOptions();
+
+  return {
+    ...definition,
+    writeRootCandidates: resolveTemplateCandidates(definition.writeRootTemplates, options),
+    compatReadRootCandidates: resolveTemplateCandidates(definition.compatReadRootTemplates, options),
+  };
+}
 
 export const TARGET_ORDER: DeploymentTargetName[] = [
   "claude-code",
@@ -45,183 +128,180 @@ export const TARGET_ORDER: DeploymentTargetName[] = [
 ];
 
 export const TARGET_DEFINITIONS: Record<DeploymentTargetName, TargetDefinition> = {
-  "claude-code": {
+  "claude-code": defineTargetDefinition({
     label: "Claude Code",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_CLAUDE_CODE",
     writerKey: "claude-home",
-    writeRootCandidates: [path.join(os.homedir(), ".claude", "skills")],
-    compatReadRootCandidates: [],
+    writeRootTemplates: ["~/.claude/skills"],
+    compatReadRootTemplates: [],
     documentedProjectPath: ".claude/skills/",
     documentedGlobalPath: "~/.claude/skills/",
     iconAssetName: "claude-code.svg",
-  },
-  codex: {
+  }),
+  codex: defineTargetDefinition({
     label: "Codex",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_CODEX",
     writerKey: "agents-skills",
-    writeRootCandidates: [
-      path.join(os.homedir(), ".codex", "skills"),
-    ],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".agents", "skills"),
-      path.join(os.homedir(), ".codex", ".agents", "skills"),
-      path.join("/etc", "codex", "skills"),
+    writeRootTemplates: ["~/.codex/skills"],
+    compatReadRootTemplates: [
+      "~/.agents/skills",
+      "~/.codex/.agents/skills",
+      { value: "/etc/codex/skills", platforms: ["linux", "darwin"] },
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.codex/skills/",
     iconAssetName: "codex.svg",
-  },
-  cursor: {
+  }),
+  cursor: defineTargetDefinition({
     label: "Cursor",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_CURSOR",
     writerKey: "cursor-home",
-    writeRootCandidates: [path.join(os.homedir(), ".cursor", "skills")],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".agents", "skills"),
-      path.join(os.homedir(), ".claude", "skills"),
-      path.join(os.homedir(), ".codex", "skills"),
+    writeRootTemplates: ["~/.cursor/skills"],
+    compatReadRootTemplates: [
+      "~/.agents/skills",
+      "~/.claude/skills",
+      "~/.codex/skills",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.cursor/skills/",
     iconAssetName: "cursor.svg",
-  },
-  "github-copilot": {
+  }),
+  "github-copilot": defineTargetDefinition({
     label: "GitHub Copilot",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_GITHUB_COPILOT",
     writerKey: "copilot-home",
-    writeRootCandidates: [path.join(os.homedir(), ".copilot", "skills")],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".claude", "skills"),
-      path.join(os.homedir(), ".agents", "skills"),
+    writeRootTemplates: ["~/.copilot/skills"],
+    compatReadRootTemplates: [
+      "~/.claude/skills",
+      "~/.agents/skills",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.copilot/skills/",
     iconAssetName: "copilot.svg",
-  },
-  "gemini-cli": {
+  }),
+  "gemini-cli": defineTargetDefinition({
     label: "Gemini CLI",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_GEMINI_CLI",
     writerKey: "gemini-home",
-    writeRootCandidates: [path.join(os.homedir(), ".gemini", "skills")],
-    compatReadRootCandidates: [path.join(os.homedir(), ".agents", "skills")],
+    writeRootTemplates: ["~/.gemini/skills"],
+    compatReadRootTemplates: ["~/.agents/skills"],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.gemini/skills/",
     iconAssetName: "gemini.svg",
-  },
-  opencode: {
+  }),
+  opencode: defineTargetDefinition({
     label: "OpenCode",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_OPENCODE",
     writerKey: "opencode-home",
-    writeRootCandidates: [
-      path.join(os.homedir(), ".config", "opencode", "skills"),
-    ],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".opencode", "skills"),
-      path.join(os.homedir(), ".claude", "skills"),
-      path.join(os.homedir(), ".agents", "skills"),
+    writeRootTemplates: ["~/.config/opencode/skills"],
+    compatReadRootTemplates: [
+      "~/.opencode/skills",
+      "~/.claude/skills",
+      "~/.agents/skills",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.config/opencode/skills/",
     iconAssetName: "opencode.svg",
-  },
-  openclaw: {
+  }),
+  openclaw: defineTargetDefinition({
     label: "OpenClaw",
     strategy: "copy",
     envVar: "SKILL_FLOW_TARGET_OPENCLAW",
     writerKey: "openclaw-home",
-    writeRootCandidates: [path.join(os.homedir(), ".openclaw", "skills")],
-    compatReadRootCandidates: [],
+    writeRootTemplates: ["~/.openclaw/skills"],
+    compatReadRootTemplates: [
+      "~/.clawdbot/skills",
+      "~/.moltbot/skills",
+    ],
     documentedProjectPath: "skills/",
     documentedGlobalPath: "~/.openclaw/skills/",
     iconAssetName: "clawdbot.svg",
-  },
-  pi: {
+  }),
+  pi: defineTargetDefinition({
     label: "Pi",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_PI",
     writerKey: "pi-home",
-    writeRootCandidates: [path.join(os.homedir(), ".pi", "agent", "skills")],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".agents", "skills"),
-      path.join(os.homedir(), ".claude", "skills"),
-      path.join(os.homedir(), ".codex", "skills"),
+    writeRootTemplates: ["~/.pi/agent/skills"],
+    compatReadRootTemplates: [
+      "~/.agents/skills",
+      "~/.claude/skills",
+      "~/.codex/skills",
     ],
     documentedProjectPath: ".pi/skills/",
     documentedGlobalPath: "~/.pi/agent/skills/",
-  },
-  windsurf: {
+  }),
+  windsurf: defineTargetDefinition({
     label: "Windsurf",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_WINDSURF",
     writerKey: "windsurf-home",
-    writeRootCandidates: [path.join(os.homedir(), ".codeium", "windsurf", "skills")],
-    compatReadRootCandidates: [
-      path.join("/Library", "Application Support", "Windsurf", "skills"),
+    writeRootTemplates: ["~/.codeium/windsurf/skills"],
+    compatReadRootTemplates: [
+      { value: "/Library/Application Support/Windsurf/skills", platforms: ["darwin"] },
     ],
     documentedProjectPath: ".windsurf/skills/",
     documentedGlobalPath: "~/.codeium/windsurf/skills/",
     iconAssetName: "windsurf.svg",
-  },
-  "roo-code": {
+  }),
+  "roo-code": defineTargetDefinition({
     label: "Roo Code",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_ROO_CODE",
     writerKey: "roo-home",
-    writeRootCandidates: [path.join(os.homedir(), ".roo", "skills")],
-    compatReadRootCandidates: [],
+    writeRootTemplates: ["~/.roo/skills"],
+    compatReadRootTemplates: [],
     documentedProjectPath: ".roo/skills/",
     documentedGlobalPath: "~/.roo/skills/",
     iconAssetName: "roo.svg",
     documentedAgentIds: ["roo"],
-  },
-  cline: {
+  }),
+  cline: defineTargetDefinition({
     label: "Cline",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_CLINE",
     writerKey: "cline-home",
-    writeRootCandidates: [path.join(os.homedir(), ".agents", "skills")],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".cline", "skills"),
-      path.join(os.homedir(), ".claude", "skills"),
+    writeRootTemplates: ["~/.agents/skills"],
+    compatReadRootTemplates: [
+      "~/.cline/skills",
+      "~/.claude/skills",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.agents/skills/",
     iconAssetName: "cline.svg",
-  },
-  amp: {
+  }),
+  amp: defineTargetDefinition({
     label: "Amp",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_AMP",
     writerKey: "amp-home",
-    writeRootCandidates: [
-      path.join(os.homedir(), ".config", "agents", "skills"),
-    ],
-    compatReadRootCandidates: [
-      path.join(os.homedir(), ".config", "amp", "skills"),
-      path.join(os.homedir(), ".claude", "skills"),
+    writeRootTemplates: ["~/.config/agents/skills"],
+    compatReadRootTemplates: [
+      "~/.config/amp/skills",
+      "~/.claude/skills",
     ],
     documentedProjectPath: ".agents/skills/",
     documentedGlobalPath: "~/.config/agents/skills/",
     iconAssetName: "amp.svg",
-  },
-  kiro: {
+  }),
+  kiro: defineTargetDefinition({
     label: "Kiro",
     strategy: "symlink",
     envVar: "SKILL_FLOW_TARGET_KIRO",
     writerKey: "kiro-home",
-    writeRootCandidates: [path.join(os.homedir(), ".kiro", "skills")],
-    compatReadRootCandidates: [],
+    writeRootTemplates: ["~/.kiro/skills"],
+    compatReadRootTemplates: [],
     documentedProjectPath: ".kiro/skills/",
     documentedGlobalPath: "~/.kiro/skills/",
     iconAssetName: "kiro-cli.svg",
     documentedAgentIds: ["kiro-cli"],
-  },
+  }),
 };
 
 export const TARGET_LABELS: Record<DeploymentTargetName, string> = Object.fromEntries(
@@ -324,4 +404,25 @@ export function getTargetScanRoots(target: DeploymentTargetName): string[] {
       ...definition.compatReadRootCandidates,
     ]),
   ];
+}
+
+export function getTargetPathPolicy(
+  target: DeploymentTargetName,
+  options?: TargetPathOptions,
+): TargetPathPolicy {
+  const definition = TARGET_DEFINITIONS[target];
+  const resolvedOptions: Required<TargetPathOptions> = {
+    ...currentTargetPathOptions(),
+    ...options,
+  };
+
+  return {
+    ...definition,
+    writeRootCandidates: resolveTemplateCandidates(definition.writeRootTemplates, resolvedOptions),
+    compatReadRootCandidates: resolveTemplateCandidates(
+      definition.compatReadRootTemplates,
+      resolvedOptions,
+    ),
+    documentedGlobalPath: expandPathTemplate(definition.documentedGlobalPath, resolvedOptions),
+  };
 }
