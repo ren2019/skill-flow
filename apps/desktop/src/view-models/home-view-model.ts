@@ -47,6 +47,10 @@ export class HomeViewModel {
     return this.state.settings.recentProjectScopes;
   }
 
+  get toastMessage(): string | undefined {
+    return this.state.view.toastMessage;
+  }
+
   async refresh(): Promise<void> {
     await this.refreshList();
     this.onChange();
@@ -62,6 +66,8 @@ export class HomeViewModel {
   async updateCurrentGroup(): Promise<boolean> {
     const sourceId = this.state.view.selectedSourceId?.trim();
     if (!sourceId) {
+      this.state.view.toastMessage = "No group selected.";
+      this.onChange();
       return false;
     }
     await this.updateSource(sourceId);
@@ -74,6 +80,7 @@ export class HomeViewModel {
     if (!normalizedSourceId) {
       return;
     }
+    this.state.view.toastMessage = undefined;
     this.state.view.selectedSourceId = normalizedSourceId;
     await this.updateGroup(normalizedSourceId);
     this.onChange();

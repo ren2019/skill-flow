@@ -61,6 +61,20 @@ describe("home view model", () => {
     expect(viewModel.isPinned("beta")).toBe(false);
   });
 
+  it("records an error toast when update-current runs without a selection", async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "beta"] },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    const didUpdate = await viewModel.updateCurrentGroup();
+
+    expect(didUpdate).toBe(false);
+    expect(updateGroup).not.toHaveBeenCalled();
+    expect(viewModel.toastMessage).toBe("No group selected.");
+  });
+
   it("switches project scope through shared settings state", async () => {
     const state = createDesktopAppState();
     const viewModel = new HomeViewModel(state);

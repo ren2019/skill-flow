@@ -37,6 +37,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
   return (
     <main>
       <h1>Installed Skills</h1>
+      {viewModel.toastMessage ? <p role="status">{viewModel.toastMessage}</p> : null}
       <p>Scope: {viewModel.selectedProjectScope.kind === "project" ? viewModel.selectedProjectScope.projectId : "global"}</p>
       <nav>
         <button

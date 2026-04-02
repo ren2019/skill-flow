@@ -44,6 +44,21 @@ describe("home screen", () => {
     expect(markup).toContain("Loading workspace");
   });
 
+  it("renders the home toast message when present", () => {
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha"] },
+      view: {
+        toastMessage: "No group selected.",
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("No group selected.");
+  });
+
   it("wires refresh, update-all, pin, and project scope actions", async () => {
     const refreshList = vi.fn().mockResolvedValue(undefined);
     const updateGroup = vi.fn().mockResolvedValue(undefined);
