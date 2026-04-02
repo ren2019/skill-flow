@@ -77,7 +77,7 @@ describe("import view model", () => {
       groups: [
         expect.objectContaining({
           id: "search-result",
-          recommendationDescription: undefined,
+          title: "Search Result",
         }),
       ],
     });

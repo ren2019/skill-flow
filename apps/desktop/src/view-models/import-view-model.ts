@@ -102,17 +102,26 @@ export class ImportViewModel {
 
   async loadImportPageIfNeeded(): Promise<void> {
     if (this.state.importState.recommendedGroups.length === 0) {
-      this.state.importState.recommendedGroups = this.recommendationsLoader().map((entry) => ({
-        id: entry.id,
-        title: entry.title,
-        locator: entry.locator,
-        categoryId: entry.categoryId,
-        categoryTitle: entry.categoryTitle,
-        recommendationDescription: entry.recommendationDescription,
-        previewPhase: { kind: "idle" },
-        skills: [],
-        targets: [],
-      }));
+      this.state.importState.recommendedGroups = this.recommendationsLoader().map((entry) => {
+        const group: ImportGroupState = {
+          id: entry.id,
+          title: entry.title,
+          locator: entry.locator,
+          previewPhase: { kind: "idle" },
+          skills: [],
+          targets: [],
+        };
+        if (entry.categoryId) {
+          group.categoryId = entry.categoryId;
+        }
+        if (entry.categoryTitle) {
+          group.categoryTitle = entry.categoryTitle;
+        }
+        if (entry.recommendationDescription) {
+          group.recommendationDescription = entry.recommendationDescription;
+        }
+        return group;
+      });
     }
 
     this.state.importState.importSubmittedQuery = "";
@@ -170,8 +179,9 @@ function findImportGroup(state: DesktopAppState, groupId: string): ImportGroupSt
 }
 
 function stripRecommendationFields(group: ImportGroupState): ImportGroupState {
-  return {
+  const stripped: ImportGroupState = {
     ...group,
-    recommendationDescription: undefined,
   };
+  delete stripped.recommendationDescription;
+  return stripped;
 }
