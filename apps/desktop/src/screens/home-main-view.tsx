@@ -132,7 +132,16 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
             </section>
           ) : null}
 
-          {visibleCards.length === 0 ? (
+          {viewModel.homeBootstrapPhase.kind === "loading" ? (
+            <div data-view="home-loading-state" style={loadingStateStyle}>
+              <div aria-hidden="true" style={spinnerStyle} />
+              <span>{t("page.home.loading_workspace")}</span>
+            </div>
+          ) : viewModel.homeBootstrapPhase.kind === "failed" ? (
+            <div data-view="home-empty-state" style={emptyStateStyle}>
+              {viewModel.homeBootstrapPhase.message}
+            </div>
+          ) : visibleCards.length === 0 ? (
             <div data-view="home-empty-state" style={emptyStateStyle}>
               {t("page.home.empty")}
             </div>
@@ -281,11 +290,33 @@ const scopeBarStyle: CSSProperties = {
 };
 
 const emptyStateStyle: CSSProperties = {
-  minHeight: "180px",
+  minHeight: "220px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  padding: "24px",
+  borderRadius: "14px",
+  background: "rgba(248, 250, 252, 0.92)",
   color: "#64748b",
+};
+
+const loadingStateStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "10px",
+  minHeight: "220px",
+  color: "#334155",
+  textAlign: "center",
+};
+
+const spinnerStyle: CSSProperties = {
+  width: "20px",
+  height: "20px",
+  borderRadius: "999px",
+  border: "2px solid rgba(148, 163, 184, 0.25)",
+  borderTopColor: "#3b82f6",
 };
 
 const inventoryGridStyle: CSSProperties = {

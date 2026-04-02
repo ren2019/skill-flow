@@ -110,6 +110,8 @@ describe("home screen", () => {
       <HomeScreen viewModel={new HomeViewModel(state)} />,
     );
 
+    expect(markup).toContain("data-view=\"home-top-bar\"");
+    expect(markup).toContain("data-view=\"home-loading-state\"");
     expect(markup).toContain("Loading workspace");
   });
 
@@ -126,6 +128,23 @@ describe("home screen", () => {
     );
 
     expect(markup).toContain("No group selected.");
+  });
+
+  it("renders the empty state inside the shared home shell", () => {
+    const state = createDesktopAppState({
+      workspace: { sourceIds: [] },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"home-top-bar\"");
+    expect(markup).toContain("data-view=\"home-empty-state\"");
+    expect(markup).not.toContain("</main><p>");
   });
 
   it("wires refresh, update-all, pin, and project scope actions", async () => {
