@@ -11,6 +11,7 @@
     "test:watch": "npm run -w skill-flow test:watch",
     "desktop:dev": "npm run -w @skill-flow/desktop dev",
     "desktop:build": "npm run -w @skill-flow/desktop build",
-    "desktop:test": "npm run -w @skill-flow/desktop test"
+    "desktop:test": "npm run -w @skill-flow/desktop test",
+    "desktop:test:cross-platform": "npm run -w @skill-flow/desktop test -- src/tests/desktop-integration.test.ts src/tests/desktop-smoke.test.ts"
   }
 }
