@@ -36,6 +36,11 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
   return (
     <main>
       <h1>Installed Skills</h1>
+      <p>Scope: {viewModel.selectedProjectScope.kind === "project" ? viewModel.selectedProjectScope.projectId : "global"}</p>
+      <nav>
+        <button type="button">Refresh</button>
+        <button type="button">Update All</button>
+      </nav>
       <GroupCard
         title="Inventory"
         subtitle={`Current route: ${viewModel.currentRoute.kind}`}
@@ -43,7 +48,10 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
       >
         <ul>
           {viewModel.sourceIds.map((sourceId) => (
-            <li key={sourceId}>{sourceId}</li>
+            <li key={sourceId}>
+              {sourceId}
+              {viewModel.isPinned(sourceId) ? " Pinned" : ""}
+            </li>
           ))}
         </ul>
       </GroupCard>

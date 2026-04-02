@@ -7,7 +7,10 @@ import { HomeScreen } from "../screens/home-screen";
 describe("home screen", () => {
   it("renders installed inventory groups and source ids", () => {
     const state = createDesktopAppState({
-      workspace: { sourceIds: ["alpha", "beta"] },
+      workspace: { sourceIds: ["alpha", "beta"], pinnedSourceIds: ["beta"] },
+      settings: {
+        selectedProjectScope: { kind: "project", projectId: "repo-a" },
+      },
     });
 
     const markup = ReactDOMServer.renderToStaticMarkup(
@@ -17,6 +20,10 @@ describe("home screen", () => {
     expect(markup).toContain("Installed Skills");
     expect(markup).toContain("alpha");
     expect(markup).toContain("beta");
+    expect(markup).toContain("Refresh");
+    expect(markup).toContain("Update All");
+    expect(markup).toContain("Pinned");
+    expect(markup).toContain("repo-a");
   });
 
   it("renders a loading state while bootstrap is in flight", () => {
