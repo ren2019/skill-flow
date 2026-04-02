@@ -17,6 +17,7 @@ type HomeViewModelOptions = {
 
 export class HomeViewModel {
   private internalSearchQuery = "";
+  private internalShowsProjectScopeBar = false;
   private readonly refreshList: () => Promise<void>;
   private readonly updateGroup: (sourceId: string) => Promise<void>;
   private readonly mutationCoordinator: MutationCoordinator;
@@ -70,6 +71,19 @@ export class HomeViewModel {
     this.onChange();
   }
 
+  get showsProjectScopeBar(): boolean {
+    return this.internalShowsProjectScopeBar;
+  }
+
+  get filteredSourceIds(): string[] {
+    const query = this.internalSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return this.sourceIds;
+    }
+
+    return this.sourceIds.filter((sourceId) => sourceId.toLowerCase().includes(query));
+  }
+
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
   }
@@ -81,6 +95,11 @@ export class HomeViewModel {
 
   showSettings(): void {
     this.state.view.currentRoute = { kind: "settings" };
+    this.onChange();
+  }
+
+  toggleProjectScopeBar(): void {
+    this.internalShowsProjectScopeBar = !this.internalShowsProjectScopeBar;
     this.onChange();
   }
 
