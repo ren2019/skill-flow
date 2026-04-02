@@ -15,10 +15,18 @@ export type InventorySummaryState = {
   groupPath?: string;
 };
 
+export type WorkspaceTagPreference = {
+  id: string;
+  title: string;
+  accent?: string;
+};
+
 export type WorkspaceState = {
   sourceIds: string[];
   pinnedSourceIds: string[];
   inventorySummaries: InventorySummaryState[];
+  customTagsBySourceId: Record<string, WorkspaceTagPreference[]>;
+  selectedHomeTagFilterId: string | undefined;
 };
 
 export function createWorkspaceState(seed: Partial<WorkspaceState> = {}): WorkspaceState {
@@ -26,5 +34,9 @@ export function createWorkspaceState(seed: Partial<WorkspaceState> = {}): Worksp
     sourceIds: [...(seed.sourceIds ?? [])],
     pinnedSourceIds: [...(seed.pinnedSourceIds ?? [])],
     inventorySummaries: [...(seed.inventorySummaries ?? [])],
+    customTagsBySourceId: Object.fromEntries(
+      Object.entries(seed.customTagsBySourceId ?? {}).map(([sourceId, tags]) => [sourceId, [...tags]]),
+    ),
+    selectedHomeTagFilterId: seed.selectedHomeTagFilterId,
   };
 }

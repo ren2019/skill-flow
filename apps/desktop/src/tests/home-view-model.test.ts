@@ -175,4 +175,45 @@ describe("home view model", () => {
       }),
     ]);
   });
+
+  it("filters inventory cards by selected home tag", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        customTagsBySourceId: {
+          alpha: [{ id: "official", title: "Official" }],
+          beta: [{ id: "community", title: "Community" }],
+        },
+        selectedHomeTagFilterId: "official",
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+          },
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+    });
+
+    const viewModel = new HomeViewModel(state);
+
+    expect(viewModel.inventoryCards.map((card) => card.sourceId)).toEqual(["alpha"]);
+  });
 });

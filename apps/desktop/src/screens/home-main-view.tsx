@@ -82,6 +82,34 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
             </section>
           ) : null}
 
+          {viewModel.homeTagFilters.length > 0 ? (
+            <section data-view="home-tag-filter-bar" style={tagFilterBarStyle}>
+              <button
+                type="button"
+                data-home-tag-filter="all"
+                onClick={() => {
+                  viewModel.selectHomeTagFilter(undefined);
+                }}
+                style={tagFilterPillStyle(!viewModel.selectedHomeTagFilterId)}
+              >
+                #All
+              </button>
+              {viewModel.homeTagFilters.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  data-home-tag-filter={tag.id}
+                  onClick={() => {
+                    viewModel.selectHomeTagFilter(tag.id);
+                  }}
+                  style={tagFilterPillStyle(viewModel.selectedHomeTagFilterId === tag.id)}
+                >
+                  #{tag.title}
+                </button>
+              ))}
+            </section>
+          ) : null}
+
           {viewModel.homeBootstrapPhase.kind === "loading" ? (
             <div data-view="home-loading-state" style={loadingStateStyle}>
               <div aria-hidden="true" style={spinnerStyle} />
@@ -175,6 +203,12 @@ const scopeBarStyle: CSSProperties = {
   border: "1px solid rgba(148, 163, 184, 0.16)",
 };
 
+const tagFilterBarStyle: CSSProperties = {
+  display: "flex",
+  gap: "6px",
+  flexWrap: "wrap",
+};
+
 const emptyStateStyle: CSSProperties = {
   minHeight: "220px",
   display: "flex",
@@ -235,5 +269,19 @@ function projectScopeButtonStyle(active: boolean): CSSProperties {
     color: "#0f172a",
     fontSize: "12px",
     fontWeight: active ? 700 : 500,
+  };
+}
+
+function tagFilterPillStyle(active: boolean): CSSProperties {
+  return {
+    height: "28px",
+    padding: "0 10px",
+    borderRadius: "999px",
+    border: "none",
+    background: active ? "rgba(59, 130, 246, 0.16)" : "rgba(59, 130, 246, 0.12)",
+    color: "#2563eb",
+    opacity: active ? 1 : 0.6,
+    fontSize: "12px",
+    fontWeight: active ? 600 : 400,
   };
 }

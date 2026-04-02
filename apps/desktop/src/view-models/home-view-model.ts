@@ -3,7 +3,7 @@ import { localize } from "../i18n";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
-import type { InventorySummaryState } from "../store/workspace-state";
+import type { InventorySummaryState, WorkspaceTagPreference } from "../store/workspace-state";
 import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 import {
   createPassthroughMutationCoordinator,
@@ -42,7 +42,9 @@ export class HomeViewModel {
 
   get inventoryCards(): InventorySummaryState[] {
     if (this.state.workspace.inventorySummaries.length > 0) {
-      return this.state.workspace.inventorySummaries.filter((card) => this.matchesSearch(card));
+      return this.state.workspace.inventorySummaries
+        .filter((card) => this.matchesSelectedTag(card.sourceId))
+        .filter((card) => this.matchesSearch(card));
     }
 
     return this.filteredSourceIds.map((sourceId) => ({
@@ -106,6 +108,22 @@ export class HomeViewModel {
 
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
+  }
+
+  get homeTagFilters(): WorkspaceTagPreference[] {
+    const values = Object.values(this.state.workspace.customTagsBySourceId).flat();
+    const seen = new Set<string>();
+    return values.filter((tag) => {
+      if (seen.has(tag.id)) {
+        return false;
+      }
+      seen.add(tag.id);
+      return true;
+    });
+  }
+
+  get selectedHomeTagFilterId(): string | undefined {
+    return this.state.workspace.selectedHomeTagFilterId;
   }
 
   get themeMode(): DesktopThemeMode {
@@ -206,6 +224,11 @@ export class HomeViewModel {
     this.onChange();
   }
 
+  selectHomeTagFilter(tagId?: string): void {
+    this.state.workspace.selectedHomeTagFilterId = tagId;
+    this.onChange();
+  }
+
   private async runWithToast(action: () => Promise<void>): Promise<void> {
     try {
       this.state.view.toastMessage = undefined;
@@ -234,5 +257,13 @@ export class HomeViewModel {
     ]
       .filter((value): value is string => typeof value === "string" && value.length > 0)
       .some((value) => value.toLowerCase().includes(query));
+  }
+
+  private matchesSelectedTag(sourceId: string): boolean {
+    const selectedTagId = this.state.workspace.selectedHomeTagFilterId;
+    if (!selectedTagId) {
+      return true;
+    }
+    return (this.state.workspace.customTagsBySourceId[sourceId] ?? []).some((tag) => tag.id === selectedTagId);
   }
 }

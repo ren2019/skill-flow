@@ -108,6 +108,69 @@ describe("home screen", () => {
     expect(markup).not.toContain("Current route");
   });
 
+  it("renders the home tag filter bar and filters visible cards", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        customTagsBySourceId: {
+          alpha: [{ id: "official", title: "Official" }],
+          beta: [{ id: "community", title: "Community" }],
+        },
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+          },
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "home-tag-filter-bar" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
+
+    const officialTag = renderer!.root.findByProps({ "data-home-tag-filter": "official" });
+    await act(async () => {
+      officialTag.props.onClick();
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(0);
+  });
+
   it("renders a loading state while bootstrap is in flight", () => {
     const state = createDesktopAppState({
       asyncResources: {
