@@ -9,4 +9,4 @@ Minimal React + Vite renderer and Tauri 2 shell scaffold for the cross-platform 
 - `npm run -w @skill-flow/desktop test`
 - `npm run desktop:test:cross-platform`
 
-Import mutations refresh the desktop inventory through the shared home refresh hook.
+Import mutations refresh the desktop inventory through the shared home refresh hook, and the cross-platform CI entry also builds the renderer before running the full desktop test suite.
