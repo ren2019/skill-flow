@@ -68,6 +68,8 @@ describe("detail screen", () => {
     );
 
     expect(markup).toContain("data-view=\"detail-sidebar\"");
+    expect(markup).toContain("data-view=\"detail-document-tabs\"");
+    expect(markup).toContain("data-view=\"detail-fact-rail\"");
     expect(markup).toContain("Overview");
     expect(markup).toContain("Skills");
     expect(markup).toContain("Alpha");
@@ -117,6 +119,7 @@ describe("detail screen", () => {
     );
 
     expect(markup).toContain("data-view=\"detail-header\"");
+    expect(markup).toContain("data-view=\"detail-meta-grid\"");
     expect(markup).toContain("Version");
     expect(markup).toContain("Targets");
     expect(markup).toContain("# Alpha");
@@ -263,6 +266,7 @@ describe("detail screen", () => {
     expect(text).toContain("Browse");
     expect(text).toContain("SKILL.md");
     expect(text).toContain("# Skill");
+    expect(text).toContain("detail-tree-panel");
     expect(updateSelection).toHaveBeenCalledWith("alpha", {
       enabledTargetIds: [],
       selectedSkillIds: ["skill-a"],
