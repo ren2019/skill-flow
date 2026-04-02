@@ -27,6 +27,10 @@ describe("home screen", () => {
     expect(markup).toContain("Settings");
     expect(markup).toContain("data-view=\"home-top-bar\"");
     expect(markup).toContain("data-view=\"home-brand\"");
+    expect(markup).toContain("data-menu-bar-icon=\"true\"");
+    expect(markup).toContain("data-action-icon=\"project\"");
+    expect(markup).toContain("data-action-icon=\"import\"");
+    expect(markup).toContain("data-action-icon=\"settings\"");
     expect(markup).toContain("data-view=\"home-inventory-panel\"");
     expect(markup).toContain("alpha");
     expect(markup).toContain("beta");

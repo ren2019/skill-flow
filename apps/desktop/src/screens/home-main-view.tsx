@@ -2,6 +2,7 @@ import { startTransition, type CSSProperties } from "react";
 import { GroupCard } from "../components/group-card";
 import { DesktopTopBar } from "../components/desktop-top-bar";
 import { localize, localizeRouteKind } from "../i18n";
+import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
 
 type HomeMainViewProps = {
@@ -17,6 +18,8 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
       <DesktopTopBar
         routeKind={viewModel.currentRoute.kind}
         desktopLanguage={viewModel.desktopLanguage}
+        themeMode={viewModel.themeMode}
+        themeAccent={viewModel.themeAccent}
         searchValue={viewModel.searchQuery}
         showsProjectScopeBar={viewModel.showsProjectScopeBar}
         onSearchChange={(value) => {
@@ -27,6 +30,11 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
         }}
         onImport={() => {
           viewModel.showImportPage();
+        }}
+        onUpdate={() => {
+          startTransition(() => {
+            void viewModel.updateAllGroupsFromHome();
+          });
         }}
         onSettings={() => {
           viewModel.showSettings();
@@ -189,8 +197,8 @@ function stateTransition(action: () => Promise<unknown> | unknown) {
 
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
-  color: "#0f172a",
+  background: desktopTheme.pageBackground("light"),
+  color: desktopTheme.textPrimary("light"),
 };
 
 const contentStyle: CSSProperties = {
@@ -214,9 +222,9 @@ const panelStyle: CSSProperties = {
   gap: "14px",
   padding: "18px",
   borderRadius: "20px",
-  border: "1px solid rgba(148, 163, 184, 0.22)",
-  background: "rgba(255, 255, 255, 0.84)",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
+  border: `1px solid ${desktopTheme.cardBorder("light")}`,
+  background: desktopTheme.surface("light"),
+  boxShadow: `0 18px 40px ${desktopTheme.cardShadow("light")}`,
   backdropFilter: "blur(12px)",
 };
 

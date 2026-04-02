@@ -1,26 +1,35 @@
 import type { CSSProperties } from "react";
+import { resolveActionIcon, resolveMenuBarIcon } from "../icons/action-icons";
 import { localize } from "../i18n";
 import type { DesktopRoute } from "../navigation/desktop-route";
+import { desktopTheme, type DesktopAccentColor, type DesktopThemeMode } from "../theme/app-theme";
+import { IconButton } from "./icon-button";
 
 type DesktopTopBarProps = {
   routeKind: DesktopRoute["kind"];
   desktopLanguage: string;
+  themeMode: DesktopThemeMode;
+  themeAccent: DesktopAccentColor;
   searchValue: string;
   showsProjectScopeBar?: boolean;
   onSearchChange: (value: string) => void;
   onToggleProjectScope?: () => void;
   onImport: () => void;
+  onUpdate: () => void;
   onSettings: () => void;
 };
 
 export function DesktopTopBar({
   routeKind,
   desktopLanguage,
+  themeMode,
+  themeAccent,
   searchValue,
   showsProjectScopeBar = false,
   onSearchChange,
   onToggleProjectScope,
   onImport,
+  onUpdate,
   onSettings,
 }: DesktopTopBarProps) {
   const t = (key: string) => localize(key, desktopLanguage);
@@ -31,62 +40,59 @@ export function DesktopTopBar({
       style={{
         display: "flex",
         alignItems: "center",
-        gap: "16px",
+        gap: "12px",
         justifyContent: "space-between",
-        padding: "16px 20px",
-        borderBottom: "1px solid rgba(15, 23, 42, 0.08)",
-        background: "linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(241, 245, 249, 0.92))",
+        padding: "10px 16px",
+        minHeight: "52px",
+        background: desktopTheme.headerBackground(themeMode),
       }}
     >
       <div
         data-view="home-brand"
-        style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: "164px" }}
+        style={{ display: "flex", alignItems: "center", gap: "8px", width: "182px" }}
       >
-        <a
-          href="https://github.com/VintLin/skill-flow"
-          aria-label={t("app.name")}
+        <a href="https://github.com/VintLin/skill-flow" aria-label={t("app.name")} style={brandAnchorStyle}>
+          <img
+            src={resolveMenuBarIcon()}
+            alt=""
+            aria-hidden="true"
+            data-menu-bar-icon="true"
+            style={{ width: "30px", height: "30px", objectFit: "contain" }}
+          />
+        </a>
+        <strong
           style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "32px",
-            height: "32px",
-            borderRadius: "10px",
-            background: "linear-gradient(135deg, #0f172a, #334155)",
-            color: "#f8fafc",
-            fontSize: "11px",
-            fontWeight: 700,
-            textDecoration: "none",
-            letterSpacing: "0.08em",
+            fontSize: "17px",
+            fontWeight: 600,
+            color: desktopTheme.textPrimary(themeMode),
           }}
         >
-          SF
-        </a>
-        <strong style={{ fontSize: "17px", fontWeight: 600 }}>{t("app.name")}</strong>
+          {t("app.name")}
+        </strong>
       </div>
       {routeKind === "home" ? (
-        <div
-          data-view="home-top-bar-actions"
-          style={{ display: "flex", alignItems: "center", gap: "10px", flex: 1 }}
-        >
+        <>
           <label
             data-view="home-search-shell"
             style={{
               display: "flex",
               alignItems: "center",
               gap: "8px",
-              minWidth: "320px",
-              maxWidth: "420px",
-              flex: 1,
+              width: "384px",
+              height: "34px",
               padding: "0 12px",
-              height: "36px",
-              borderRadius: "10px",
-              border: "1px solid rgba(148, 163, 184, 0.3)",
-              background: "rgba(255, 255, 255, 0.92)",
-              boxShadow: "0 6px 18px rgba(15, 23, 42, 0.06)",
+              borderRadius: "8px",
+              background: desktopTheme.headerControlFill(themeMode),
+              boxShadow: `0 2px 4px ${desktopTheme.controlShadow(themeMode)}`,
+              border: `0.5px solid ${desktopTheme.cardBorder(themeMode)}`,
             }}
           >
-            <span style={{ fontSize: "12px", color: "#64748b" }}>⌕</span>
+            <img
+              src={resolveActionIcon("search")}
+              alt=""
+              aria-hidden="true"
+              style={{ width: "11px", height: "11px", opacity: 0.7 }}
+            />
             <input
               data-testid="home-search-input"
               aria-label={t("page.home.search_placeholder")}
@@ -101,41 +107,45 @@ export function DesktopTopBar({
                 background: "transparent",
                 outline: "none",
                 fontSize: "12px",
+                fontWeight: 400,
                 textTransform: "uppercase",
-                letterSpacing: "0.06em",
+                color: desktopTheme.textPrimary(themeMode),
               }}
             />
           </label>
-          <button
-            data-testid="home-scope-toggle"
-            type="button"
-            aria-pressed={showsProjectScopeBar}
-            onClick={onToggleProjectScope}
-            style={toolbarButtonStyle(showsProjectScopeBar)}
-          >
-            {t("page.home.scope")}
-          </button>
-          <button type="button" onClick={onImport} style={toolbarButtonStyle()}>
-            {t("route.importPage")}
-          </button>
-          <button type="button" onClick={onSettings} style={toolbarButtonStyle()}>
-            {t("route.settings")}
-          </button>
-        </div>
+          <div data-view="home-top-bar-actions" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <IconButton
+              data-testid="home-scope-toggle"
+              icon={showsProjectScopeBar ? "project-warning" : "project"}
+              label={t("page.home.scope")}
+              active={showsProjectScopeBar}
+              onClick={onToggleProjectScope}
+            />
+            <IconButton
+              icon="import"
+              label={t("route.importPage")}
+              onClick={onImport}
+            />
+            <IconButton
+              icon="update"
+              label={t("action.update_all")}
+              onClick={onUpdate}
+            />
+            <IconButton
+              icon="settings"
+              label={t("route.settings")}
+              onClick={onSettings}
+            />
+          </div>
+        </>
       ) : null}
     </header>
   );
 }
 
-function toolbarButtonStyle(active = false): CSSProperties {
-  return {
-    height: "36px",
-    padding: "0 12px",
-    borderRadius: "10px",
-    border: active ? "1px solid rgba(14, 116, 144, 0.32)" : "1px solid rgba(148, 163, 184, 0.28)",
-    background: active ? "rgba(224, 242, 254, 0.92)" : "rgba(255, 255, 255, 0.88)",
-    color: "#0f172a",
-    fontSize: "12px",
-    fontWeight: 600,
-  };
-}
+const brandAnchorStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  textDecoration: "none",
+};
