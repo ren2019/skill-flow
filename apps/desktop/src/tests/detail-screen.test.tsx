@@ -12,6 +12,51 @@ describe("detail screen", () => {
         currentRoute: desktopRoute.detail("alpha"),
         selectedSourceId: "alpha",
       },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Claude Code", "Codex"],
+            fileTree: [
+              {
+                id: "root/skill-a",
+                title: "skill-a",
+                path: "/alpha/skill-a",
+                isDirectory: true,
+                isSkillRoot: true,
+                isSkillDocument: false,
+                skillId: "skill-a",
+                children: [],
+              },
+            ],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [
+              {
+                id: "skill-a",
+                title: "Browse",
+                isEnabled: true,
+                documents: [],
+              },
+            ],
+            sourceFacts: ["Updated yesterday"],
+            deploymentFacts: ["Claude Code -> ~/.claude"],
+            skillSelection: "partial",
+            targetSelection: "full",
+          },
+        },
+      },
     });
 
     const markup = ReactDOMServer.renderToStaticMarkup(
@@ -19,9 +64,11 @@ describe("detail screen", () => {
     );
 
     expect(markup).toContain("Source Detail");
-    expect(markup).toContain("alpha");
+    expect(markup).toContain("Alpha");
     expect(markup).toContain("README");
-    expect(markup).toContain("No detail content loaded yet.");
+    expect(markup).toContain("Claude Code");
+    expect(markup).toContain("skill-a");
+    expect(markup).toContain("# Alpha");
   });
 
   it("renders an empty detail state when no source is selected", () => {
