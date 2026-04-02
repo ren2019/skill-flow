@@ -23,6 +23,10 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             <dt>Log Level</dt>
             <dd>{viewModel.logLevel}</dd>
           </div>
+          <div>
+            <dt>Current Version</dt>
+            <dd>{viewModel.currentVersion}</dd>
+          </div>
         </dl>
       </section>
       <section>

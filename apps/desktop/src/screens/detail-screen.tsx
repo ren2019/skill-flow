@@ -7,7 +7,16 @@ type DetailScreenProps = {
 };
 
 export function DetailScreen({ viewModel }: DetailScreenProps) {
-  const sourceId = viewModel.sourceId ?? "Unknown";
+  const sourceId = viewModel.sourceId;
+
+  if (!sourceId) {
+    return (
+      <main>
+        <h1>Source Detail</h1>
+        <p>No source selected</p>
+      </main>
+    );
+  }
 
   return (
     <main>

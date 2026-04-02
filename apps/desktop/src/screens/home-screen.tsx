@@ -6,6 +6,33 @@ type HomeScreenProps = {
 };
 
 export function HomeScreen({ viewModel }: HomeScreenProps) {
+  if (viewModel.homeBootstrapPhase.kind === "loading") {
+    return (
+      <main>
+        <h1>Installed Skills</h1>
+        <p>Loading workspace</p>
+      </main>
+    );
+  }
+
+  if (viewModel.homeBootstrapPhase.kind === "failed") {
+    return (
+      <main>
+        <h1>Installed Skills</h1>
+        <p>{viewModel.homeBootstrapPhase.message}</p>
+      </main>
+    );
+  }
+
+  if (viewModel.sourceIds.length === 0) {
+    return (
+      <main>
+        <h1>Installed Skills</h1>
+        <p>No installed sources yet.</p>
+      </main>
+    );
+  }
+
   return (
     <main>
       <h1>Installed Skills</h1>

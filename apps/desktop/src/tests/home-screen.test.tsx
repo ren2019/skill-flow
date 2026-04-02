@@ -18,4 +18,18 @@ describe("home screen", () => {
     expect(markup).toContain("alpha");
     expect(markup).toContain("beta");
   });
+
+  it("renders a loading state while bootstrap is in flight", () => {
+    const state = createDesktopAppState({
+      asyncResources: {
+        homeBootstrapPhase: { kind: "loading" },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Loading workspace");
+  });
 });

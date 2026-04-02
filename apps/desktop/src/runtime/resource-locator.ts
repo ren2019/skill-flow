@@ -9,6 +9,10 @@ export type ResourceDirectoryOptions = {
   sourceRoot?: string;
 };
 
+export type RuntimeResourceBundleOptions = {
+  candidateRoots?: string[];
+};
+
 export function resourceDirectories(options: ResourceDirectoryOptions): string[] {
   const seen = new Set<string>();
   const directories: string[] = [];
@@ -23,6 +27,17 @@ export function resourceDirectories(options: ResourceDirectoryOptions): string[]
 
   addCandidate(directories, seen, options.sourceRoot, options.subdirectory);
   return directories;
+}
+
+export function runtimeResourceBundle(
+  options: RuntimeResourceBundleOptions = {},
+): string | undefined {
+  for (const candidate of options.candidateRoots ?? []) {
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 function addCandidate(

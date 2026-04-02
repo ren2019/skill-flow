@@ -21,7 +21,15 @@ export class DesktopGroupTagStore {
     }
 
     try {
-      return JSON.parse(raw) as Record<string, GroupTagPreference[]>;
+      const decoded = JSON.parse(raw) as
+        | Record<string, GroupTagPreference[]>
+        | Record<string, GroupTagPreference>;
+      return Object.fromEntries(
+        Object.entries(decoded).map(([sourceId, value]) => [
+          sourceId,
+          Array.isArray(value) ? value : [value],
+        ]),
+      );
     } catch {
       return {};
     }

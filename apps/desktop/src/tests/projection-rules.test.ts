@@ -25,14 +25,12 @@ describe("projection rules", () => {
     });
 
     expect(names).toEqual({
-      "alpha-a": "browse",
-      "alpha-b": "AlphaHub-browse",
-      "beta-a": "BetaHub-browse",
-      "beta-b": "acme-BetaHub-browse",
+      "beta-a": "browse",
+      "beta-b": "BetaHub-browse",
     });
   });
 
-  it("keeps current-source names when no other targets overlap", () => {
+  it("excludes the current source when resolving projected names", () => {
     const drafts: Record<string, ProjectionDraftState> = {
       alpha: {
         enabledTargets: ["codex"],
@@ -50,9 +48,7 @@ describe("projection rules", () => {
         drafts,
         sourceId: "alpha",
       }),
-    ).toEqual({
-      "alpha-a": "browse",
-    });
+    ).toEqual({});
   });
 });
 

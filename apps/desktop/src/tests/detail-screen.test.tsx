@@ -23,4 +23,12 @@ describe("detail screen", () => {
     expect(markup).toContain("README");
     expect(markup).toContain("No detail content loaded yet.");
   });
+
+  it("renders an empty detail state when no source is selected", () => {
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(createDesktopAppState())} />,
+    );
+
+    expect(markup).toContain("No source selected");
+  });
 });

@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { resourceDirectories } from "../runtime/resource-locator";
+import { resourceDirectories, runtimeResourceBundle } from "../runtime/resource-locator";
 
 describe("resource locator", () => {
   const tempRoots: string[] = [];
@@ -41,5 +41,23 @@ describe("resource locator", () => {
       path.join(sourceRoot, "AgentIcons"),
       sourceRoot,
     ]);
+  });
+
+  it("finds the first existing runtime resource bundle candidate", () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-resource-bundle-"));
+    tempRoots.push(tempRoot);
+
+    const bundled = path.join(tempRoot, "Contents", "Resources", "SkillFlowDesktop_SkillFlowDesktop.bundle");
+    fs.mkdirSync(bundled, { recursive: true });
+
+    const result = runtimeResourceBundle({
+      candidateRoots: [
+        path.join(tempRoot, "missing"),
+        bundled,
+        path.join(tempRoot, "later"),
+      ],
+    });
+
+    expect(result).toBe(bundled);
   });
 });

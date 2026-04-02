@@ -43,6 +43,7 @@ export function buildProjectionNameMap(input: {
   const candidates = selectedLeafCandidates({
     summaries: input.summaries,
     drafts: input.drafts,
+    excludedSourceId: input.sourceId,
     enabledTargets,
   });
 
@@ -52,9 +53,13 @@ export function buildProjectionNameMap(input: {
 function selectedLeafCandidates(input: {
   summaries: ProjectionSourceSummary[];
   drafts: Record<string, ProjectionDraftState>;
+  excludedSourceId: string;
   enabledTargets: Set<string>;
 }): ProjectionCandidate[] {
   return input.summaries.flatMap((summary) => {
+    if (summary.sourceId === input.excludedSourceId) {
+      return [];
+    }
     const draft = input.drafts[summary.sourceId] ?? {
       enabledTargets: [],
       selectedLeafIds: [],
