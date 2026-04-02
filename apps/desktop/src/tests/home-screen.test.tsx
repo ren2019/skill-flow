@@ -26,6 +26,10 @@ describe("home screen", () => {
             enabledSkillCount: 2,
             activeTargetCount: 2,
             byline: "by obra",
+            downloadCount: 5045,
+            starCount: 1200,
+            repoUrl: "https://github.com/obra/alpha",
+            groupPath: "/groups/alpha",
           },
           {
             sourceId: "beta",
@@ -38,6 +42,7 @@ describe("home screen", () => {
             enabledSkillCount: 1,
             activeTargetCount: 1,
             byline: "by beta",
+            groupPath: "/groups/beta",
           },
         ],
       },
@@ -66,6 +71,10 @@ describe("home screen", () => {
     expect(markup).toContain("data-view=\"shared-group-card-stats\"");
     expect(markup).toContain("data-view=\"shared-group-card-agents\"");
     expect(markup).toContain("data-view=\"shared-group-card-skills\"");
+    expect(markup).toContain("data-group-card-stat=\"download\"");
+    expect(markup).toContain("data-group-card-stat=\"star\"");
+    expect(markup).toContain("data-group-card-stat=\"github\"");
+    expect(markup).toContain("data-group-card-stat=\"local-file\"");
     expect(markup).toContain("Alpha Starter");
     expect(markup).toContain("Beta Tools");
     expect(markup).toContain("by obra");

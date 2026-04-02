@@ -9,6 +9,10 @@ export type InventorySummaryState = {
   enabledSkillCount: number;
   activeTargetCount: number;
   byline?: string;
+  downloadCount?: number;
+  starCount?: number;
+  repoUrl?: string;
+  groupPath?: string;
 };
 
 export type WorkspaceState = {

@@ -44,8 +44,15 @@ type DesktopInventoryListResult = {
       status?: string;
       data?: {
         ownerHandle?: string;
+        starCount?: number;
       };
     };
+    sourceSnapshot?: {
+      totalInstalls?: number;
+      repoStars?: number;
+      repoUrl?: string;
+    };
+    groupPath?: string;
   }>;
 };
 
@@ -152,6 +159,18 @@ function toInventorySummary(
   const ownerHandle = enrichment?.sourceMetadata?.status === "ready"
     ? enrichment.sourceMetadata.data?.ownerHandle
     : undefined;
+  const downloadCount = typeof enrichment?.sourceSnapshot?.totalInstalls === "number"
+    ? enrichment.sourceSnapshot.totalInstalls
+    : undefined;
+  const starCount = typeof enrichment?.sourceSnapshot?.repoStars === "number"
+    ? enrichment.sourceSnapshot.repoStars
+    : typeof enrichment?.sourceMetadata?.data?.starCount === "number"
+    ? enrichment.sourceMetadata.data.starCount
+    : undefined;
+  const repoUrl = typeof enrichment?.sourceSnapshot?.repoUrl === "string"
+    ? enrichment.sourceSnapshot.repoUrl
+    : undefined;
+  const groupPath = typeof enrichment?.groupPath === "string" ? enrichment.groupPath : undefined;
 
   return [{
     sourceId,
@@ -163,6 +182,10 @@ function toInventorySummary(
     skillCount: Array.isArray(summary.leafs) ? summary.leafs.length : 0,
     enabledSkillCount: selectedLeafIds.length,
     activeTargetCount,
+    ...(downloadCount !== undefined ? { downloadCount } : {}),
+    ...(starCount !== undefined ? { starCount } : {}),
+    ...(repoUrl ? { repoUrl } : {}),
+    ...(groupPath ? { groupPath } : {}),
     ...(ownerHandle ? { byline: `by ${ownerHandle}` } : {}),
   }];
 }

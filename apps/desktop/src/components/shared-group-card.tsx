@@ -53,7 +53,19 @@ export function SharedGroupCard({
       </header>
 
       <div data-view="shared-group-card-stats" style={statsRowStyle(themeMode)}>
-        <MetadataIcon icon="skills" label={`${card.skillCount} skills`} />
+        <MetadataIcon icon="skills" label={`${card.skillCount} skills`} statId="skills" />
+        {card.downloadCount !== undefined ? (
+          <MetadataIcon icon="download" label={formatCount(card.downloadCount)} statId="download" />
+        ) : null}
+        {card.starCount !== undefined ? (
+          <MetadataIcon icon="star" label={formatCount(card.starCount)} statId="star" />
+        ) : null}
+        {card.repoUrl ? (
+          <MetadataLink icon="github" href={card.repoUrl} statId="github" />
+        ) : null}
+        {card.groupPath ? (
+          <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" />
+        ) : null}
         <MetadataPill label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
         {card.warningCount > 0 ? (
           <MetadataPill label={`${card.warningCount} warnings`} themeMode={themeMode} tone="warning" />
@@ -107,12 +119,26 @@ export function SharedGroupCard({
   );
 }
 
-function MetadataIcon({ icon, label }: { icon: GroupCardIconId; label: string }) {
+function MetadataIcon({ icon, label, statId }: { icon: GroupCardIconId; label: string; statId: string }) {
   return (
-    <span style={metadataIconWrapStyle}>
+    <span data-group-card-stat={statId} style={metadataIconWrapStyle}>
       <img src={resolveGroupCardIcon(icon)} alt="" aria-hidden="true" style={metadataIconStyle} />
       <span>{label}</span>
     </span>
+  );
+}
+
+function MetadataLink({ icon, href, statId }: { icon: GroupCardIconId; href: string; statId: string }) {
+  return (
+    <a
+      data-group-card-stat={statId}
+      href={href}
+      style={metadataLinkStyle}
+      target="_blank"
+      rel="noreferrer"
+    >
+      <img src={resolveGroupCardIcon(icon)} alt="" aria-hidden="true" style={metadataIconStyle} />
+    </a>
   );
 }
 
@@ -198,6 +224,14 @@ const metadataIconWrapStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   gap: "4px",
+};
+
+const metadataLinkStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "14px",
+  height: "14px",
 };
 
 const metadataIconStyle: CSSProperties = {
@@ -287,3 +321,13 @@ const secondaryButtonStyle = (active: boolean, themeMode: DesktopThemeMode): CSS
   fontSize: "12px",
   fontWeight: 600,
 });
+
+function formatCount(value: number): string {
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1).replace(/\.0$/, "")}m`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(1).replace(/\.0$/, "")}k`;
+  }
+  return String(value);
+}

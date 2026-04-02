@@ -42,8 +42,26 @@ describe("desktop integration runtime", () => {
                   provider: "github",
                   data: {
                     ownerHandle: "obra",
+                    starCount: 1200,
                   },
                 },
+                sourceSnapshot: {
+                  canonicalRepo: "obra/alpha",
+                  aliases: [],
+                  title: "Alpha Starter",
+                  provider: "skills",
+                  sourceUrl: "https://skills.github.com/obra/alpha",
+                  repoUrl: "https://github.com/obra/alpha",
+                  repoLabel: "obra/alpha",
+                  totalInstalls: 5045,
+                  repoStars: 1200,
+                  owner: {
+                    slug: "obra",
+                    sourceUrl: "https://skills.github.com/obra",
+                  },
+                  skills: [],
+                },
+                groupPath: "/groups/alpha",
               },
             },
           },
@@ -62,6 +80,10 @@ describe("desktop integration runtime", () => {
         skillCount: 3,
         enabledSkillCount: 2,
         activeTargetCount: 2,
+        downloadCount: 5045,
+        starCount: 1200,
+        repoUrl: "https://github.com/obra/alpha",
+        groupPath: "/groups/alpha",
       }),
     ]);
   });
