@@ -126,7 +126,9 @@ export class HomeViewModel {
 
   private async runWithToast(action: () => Promise<void>): Promise<void> {
     try {
+      this.state.view.toastMessage = undefined;
       await action();
+      this.state.view.toastMessage = undefined;
     } catch (error) {
       this.state.view.toastMessage =
         error instanceof Error ? error.message : "Operation failed.";

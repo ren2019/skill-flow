@@ -101,6 +101,22 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("update failed");
   });
 
+  it("clears a previous toast after a later successful action", async () => {
+    const refreshList = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("refresh failed"))
+      .mockResolvedValueOnce(undefined);
+    const viewModel = new HomeViewModel(createDesktopAppState(), {
+      refreshList,
+    });
+
+    await viewModel.refresh();
+    expect(viewModel.toastMessage).toBe("refresh failed");
+
+    await viewModel.refresh();
+    expect(viewModel.toastMessage).toBeUndefined();
+  });
+
   it("switches project scope through shared settings state", async () => {
     const state = createDesktopAppState();
     const viewModel = new HomeViewModel(state);
