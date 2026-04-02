@@ -1,6 +1,6 @@
 import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
-import { localize } from "../i18n";
+import { localize, localizeRouteKind } from "../i18n";
 import { HomeViewModel } from "../view-models/home-view-model";
 
 type HomeScreenProps = {
@@ -96,7 +96,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
       </nav>
       <GroupCard
         title={t("page.home.inventory")}
-        subtitle={`${t("page.home.current_route")}: ${viewModel.currentRoute.kind}`}
+        subtitle={`${t("page.home.current_route")}: ${localizeRouteKind(viewModel.currentRoute.kind, viewModel.desktopLanguage)}`}
         meta={`${t("page.home.sources")}: ${viewModel.sourceIds.length}`}
       >
         <ul>

@@ -193,4 +193,52 @@ describe("import view model", () => {
     expect(state.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
     expect(state.view.currentRoute).toEqual({ kind: "importPage" });
   });
+
+  it("localizes generated import errors for zh-Hans", async () => {
+    const searchViewModel = new ImportViewModel(
+      createDesktopAppState({
+        settings: { desktopLanguageRawValue: "zh-Hans" },
+      }),
+      {
+        searchLoader: async () => {
+          throw "boom";
+        },
+      },
+    );
+
+    await searchViewModel.submitSearch("starter");
+
+    expect(searchViewModel.searchPhase).toEqual({
+      kind: "failed",
+      message: "导入搜索失败。",
+    });
+
+    const previewState = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "idle" },
+            skills: [],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const previewViewModel = new ImportViewModel(previewState, {
+      previewLoader: async () => {
+        throw "boom";
+      },
+    });
+
+    await previewViewModel.previewImportGroupIfNeeded("starter");
+
+    expect(previewState.importState.recommendedGroups[0].previewPhase).toEqual({
+      kind: "failed",
+      message: "导入预览失败。",
+    });
+  });
 });

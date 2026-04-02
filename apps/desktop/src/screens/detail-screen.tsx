@@ -1,6 +1,6 @@
 import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
-import { localize } from "../i18n";
+import { localize, localizeRouteKind } from "../i18n";
 import { MarkdownDocument } from "../components/markdown-document";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
@@ -40,7 +40,7 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
     <main>
       <h1>{t("page.detail.title")}</h1>
       {viewModel.toastMessage ? <p role="status">{viewModel.toastMessage}</p> : null}
-      <GroupCard title={detail.title} subtitle={`${t("page.home.current_route")}: ${viewModel.currentRoute.kind}`}>
+      <GroupCard title={detail.title} subtitle={`${t("page.home.current_route")}: ${localizeRouteKind(viewModel.currentRoute.kind, viewModel.desktopLanguage)}`}>
         <p>{detail.enabledTargetLabels.join(", ")}</p>
         <ul>
           {detail.fileTree.map((item) => (

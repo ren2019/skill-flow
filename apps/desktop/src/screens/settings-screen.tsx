@@ -1,6 +1,6 @@
 import { startTransition, useEffect } from "react";
 import { AgentIcon } from "../components/agent-icon";
-import { localize } from "../i18n";
+import { localize, localizeUpdateStatus } from "../i18n";
 import { detectedAgentRows } from "../runtime/settings-store";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
@@ -38,7 +38,7 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
           </div>
           <div>
             <dt>{t("settings.update_status")}</dt>
-            <dd>{viewModel.updateStatus}</dd>
+            <dd>{localizeUpdateStatus(viewModel.updateStatus, viewModel.desktopLanguage)}</dd>
           </div>
           {viewModel.latestVersion ? (
             <div>

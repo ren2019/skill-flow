@@ -7,6 +7,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+sys-locale = "0.3"
 tauri = { version = "2", features = ["tray-icon"] }
 
 [features]

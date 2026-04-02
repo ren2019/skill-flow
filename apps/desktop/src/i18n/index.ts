@@ -63,6 +63,18 @@ export function localize(
   return enMessages[key as MessageKey] ?? key;
 }
 
+export function localizeRouteKind(routeKind: string, language: string): string {
+  return localize(`route.${routeKind}`, language);
+}
+
+export function localizePhaseKind(kind: string, language: string): string {
+  return localize(`phase.${kind}`, language);
+}
+
+export function localizeUpdateStatus(status: string, language: string): string {
+  return localize(`update_status.${status}`, language);
+}
+
 function readSystemLocale(): string {
   if (typeof navigator !== "undefined" && typeof navigator.language === "string") {
     return navigator.language;

@@ -1,4 +1,5 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
+import { localize } from "../i18n";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
@@ -84,7 +85,7 @@ export class HomeViewModel {
   async updateCurrentGroup(): Promise<boolean> {
     const sourceId = this.state.view.selectedSourceId?.trim();
     if (!sourceId) {
-      this.state.view.toastMessage = "No group selected.";
+      this.state.view.toastMessage = localize("error.no_group_selected", this.desktopLanguage);
       this.onChange();
       return false;
     }
@@ -145,7 +146,9 @@ export class HomeViewModel {
       this.state.view.toastMessage = undefined;
     } catch (error) {
       this.state.view.toastMessage =
-        error instanceof Error ? error.message : "Operation failed.";
+        error instanceof Error
+          ? error.message
+          : localize("error.operation_failed", this.desktopLanguage);
       this.onChange();
     }
   }

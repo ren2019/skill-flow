@@ -4,6 +4,7 @@ use tauri::{
     App, AppHandle, Emitter, Manager, Runtime,
 };
 use std::env;
+use sys_locale::get_locale;
 
 pub const MAIN_MENU_TITLE: &str = "Skill Flow Desktop";
 pub const OPEN_HOME_MENU_ID: &str = "open-home";
@@ -86,6 +87,12 @@ fn normalize_locale_tag(locale: &str) -> String {
 }
 
 fn detected_locale_tag() -> String {
+    if let Some(locale) = get_locale() {
+        if !locale.trim().is_empty() {
+            return locale;
+        }
+    }
+
     for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
         if let Ok(value) = env::var(key) {
             if !value.trim().is_empty() {

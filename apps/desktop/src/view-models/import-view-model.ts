@@ -1,4 +1,5 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
+import { localize } from "../i18n";
 import type {
   ImportDraftState,
   ImportGroupState,
@@ -177,7 +178,9 @@ export class ImportViewModel {
     } catch (error) {
       this.state.importState.importSearchPhase = {
         kind: "failed",
-        message: error instanceof Error ? error.message : "Import search failed.",
+        message: error instanceof Error
+          ? error.message
+          : localize("error.import_search_failed", this.desktopLanguage),
       };
     }
     this.onChange();
@@ -199,7 +202,9 @@ export class ImportViewModel {
     } catch (error) {
       group.previewPhase = {
         kind: "failed",
-        message: error instanceof Error ? error.message : "Import preview failed.",
+        message: error instanceof Error
+          ? error.message
+          : localize("error.import_preview_failed", this.desktopLanguage),
       };
     }
     this.onChange();

@@ -75,6 +75,19 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("No group selected.");
   });
 
+  it("localizes generated home toast messages for zh-Hans", async () => {
+    const state = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      workspace: { sourceIds: ["alpha"] },
+    });
+    const viewModel = new HomeViewModel(state);
+
+    const didUpdate = await viewModel.updateCurrentGroup();
+
+    expect(didUpdate).toBe(false);
+    expect(viewModel.toastMessage).toBe("未选择分组。");
+  });
+
   it("records an error toast when refresh fails", async () => {
     const viewModel = new HomeViewModel(createDesktopAppState(), {
       refreshList: vi.fn().mockRejectedValue(new Error("refresh failed")),

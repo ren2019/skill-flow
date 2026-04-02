@@ -1,4 +1,5 @@
 import { desktopRoute, type DesktopRoute } from "../navigation/desktop-route";
+import { localize } from "../i18n";
 import {
   createPassthroughMutationCoordinator,
   type MutationCoordinator,
@@ -258,7 +259,9 @@ export class DetailViewModel {
       detail.targets = previousTargets;
       detail.enabledTargetLabels = previousLabels;
       this.state.view.toastMessage =
-        error instanceof Error ? error.message : "Selection update failed.";
+        error instanceof Error
+          ? error.message
+          : localize("error.selection_update_failed", this.desktopLanguage);
     }
     this.onChange();
   }

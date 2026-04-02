@@ -59,7 +59,7 @@ describe("settings screen", () => {
     );
 
     expect(markup).toContain("Update Status");
-    expect(markup).toContain("updateAvailable");
+    expect(markup).toContain("Update available");
     expect(markup).toContain("Latest Version");
     expect(markup).toContain("1.3.1");
   });
@@ -95,9 +95,30 @@ describe("settings screen", () => {
 
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("Update Status");
-    expect(text).toContain("updateAvailable");
+    expect(text).toContain("Update available");
     expect(text).toContain("Latest Version");
     expect(text).toContain("1.3.1");
     expect(fetchCount).toBe(1);
+  });
+
+  it("renders localized update status labels", () => {
+    const state = createDesktopAppState({
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+      },
+    });
+    const viewModel = new SettingsViewModel(state, {
+      currentVersionProvider: () => "1.1.0",
+    });
+    viewModel.hydrateUpdateState({
+      status: "updateAvailable",
+      latestVersion: "1.3.1",
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <SettingsScreen viewModel={viewModel} />,
+    );
+
+    expect(markup).toContain("有可用更新");
   });
 });

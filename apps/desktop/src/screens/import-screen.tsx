@@ -1,7 +1,7 @@
 import { startTransition, useEffect, useState } from "react";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
-import { localize } from "../i18n";
+import { localize, localizePhaseKind } from "../i18n";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 type ImportScreenProps = {
@@ -64,7 +64,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                     title={group.id}
                     subtitle={group.recommendationDescription ?? t("page.import.draft_selection")}
                   >
-                    <p>{group.previewPhase.kind}</p>
+                    <p>{localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}</p>
                     <button
                       type="button"
                       data-preview-group-id={group.id}
@@ -101,10 +101,10 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
         <section>
           <h2>{t("page.import.search_results")}</h2>
           <p>{viewModel.importSubmittedQuery}</p>
-          <p>{viewModel.searchPhase.kind}</p>
+          <p>{localizePhaseKind(viewModel.searchPhase.kind, viewModel.desktopLanguage)}</p>
           {content.groups.map((group) => (
             <GroupCard key={group.id} title={group.id} subtitle={group.locator}>
-              <p>{group.previewPhase.kind}</p>
+              <p>{localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}</p>
               <p>{t("page.import.skills")}</p>
               <GroupTags tags={group.skills.map((skill) => skill.id)} />
               <p>{t("page.import.targets")}</p>
