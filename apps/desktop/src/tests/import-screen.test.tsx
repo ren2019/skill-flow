@@ -8,6 +8,26 @@ describe("import screen", () => {
   it("renders recommendation and import draft sections", () => {
     const state = createDesktopAppState({
       importState: {
+        importSubmittedQuery: "",
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            categoryId: "development",
+            categoryTitle: "Development",
+            recommendationDescription: "Development starter",
+            previewPhase: { kind: "ready" },
+            skills: [
+              { id: "skill-a", selectedByDefault: true },
+              { id: "skill-b", selectedByDefault: true },
+            ],
+            targets: [
+              { id: "codex", selectedByDefault: true },
+              { id: "claude-code", selectedByDefault: true },
+            ],
+          },
+        ],
         draftsByItemId: {
           starter: {
             selectedSkillIds: ["skill-a", "skill-b"],
@@ -23,8 +43,36 @@ describe("import screen", () => {
 
     expect(markup).toContain("Import Sources");
     expect(markup).toContain("Recommended Imports");
+    expect(markup).toContain("Development");
     expect(markup).toContain("starter");
     expect(markup).toContain("skill-a");
     expect(markup).toContain("codex");
+  });
+
+  it("renders search results when the submitted query is non-empty", () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "openai",
+        searchGroups: [
+          {
+            id: "search-result",
+            title: "Search Result",
+            locator: "openai/result",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-b", selectedByDefault: true }],
+            targets: [{ id: "cursor", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <ImportScreen viewModel={new ImportViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Search Results");
+    expect(markup).toContain("openai");
+    expect(markup).toContain("search-result");
+    expect(markup).toContain("skill-b");
   });
 });
