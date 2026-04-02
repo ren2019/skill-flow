@@ -8,6 +8,8 @@ export const enMessages = {
   "page.home.inventory": "Inventory",
   "page.home.current_route": "Current route",
   "page.home.sources": "Sources",
+  "common.section.agents": "Agents",
+  "common.section.skills": "Skills",
   "route.home": "Home",
   "route.importPage": "Import",
   "route.detail": "Detail",

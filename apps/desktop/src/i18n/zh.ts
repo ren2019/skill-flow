@@ -8,6 +8,8 @@ export const zhHansMessages = {
   "page.home.inventory": "清单",
   "page.home.current_route": "当前路由",
   "page.home.sources": "来源数",
+  "common.section.agents": "Agents",
+  "common.section.skills": "技能",
   "route.home": "主页",
   "route.importPage": "导入",
   "route.detail": "详情",

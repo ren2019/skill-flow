@@ -1,6 +1,6 @@
 import { startTransition, type CSSProperties } from "react";
-import { GroupCard } from "../components/group-card";
 import { DesktopTopBar } from "../components/desktop-top-bar";
+import { SharedGroupCard } from "../components/shared-group-card";
 import { localize, localizeRouteKind } from "../i18n";
 import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
@@ -132,63 +132,41 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
             </section>
           ) : null}
 
-          <GroupCard
-            title={t("page.home.inventory")}
-            subtitle={`${t("page.home.current_route")}: ${localizeRouteKind(viewModel.currentRoute.kind, viewModel.desktopLanguage)}`}
-            meta={`${t("page.home.sources")}: ${visibleCards.length}`}
-          >
-            {visibleCards.length === 0 ? (
-              <div data-view="home-empty-state" style={emptyStateStyle}>
-                {t("page.home.empty")}
-              </div>
-            ) : (
-              <ul data-view="home-inventory-list" style={inventoryListStyle}>
-                {visibleCards.map((card) => (
-                  <li key={card.sourceId} style={inventoryItemStyle}>
-                    <button
-                      type="button"
-                      data-source-id={card.sourceId}
-                      onClick={() => {
-                        viewModel.openDetail(card.sourceId);
-                      }}
-                      style={sourceLinkStyle}
-                    >
-                      <span style={{ display: "block" }}>{card.title}</span>
-                      <span style={{ display: "block", fontSize: "12px", color: "#64748b", fontWeight: 400 }}>
-                        {card.byline ?? card.locator}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      data-update-source-id={card.sourceId}
-                      onClick={() => {
-                        stateTransition(() => viewModel.updateSource(card.sourceId));
-                      }}
-                      style={actionButtonStyle()}
-                    >
-                      {t("action.update")}
-                    </button>
-                    <button
-                      type="button"
-                      data-pin-source-id={card.sourceId}
-                      onClick={() => {
-                        viewModel.togglePinned(card.sourceId);
-                      }}
-                      style={actionButtonStyle(viewModel.isPinned(card.sourceId))}
-                    >
-                      {viewModel.isPinned(card.sourceId) ? t("action.unpin") : t("action.pin")}
-                    </button>
-                    <span style={inventoryMetaStyle}>
-                      {card.skillCount} skills · {card.activeTargetCount} targets
-                    </span>
-                    {viewModel.isPinned(card.sourceId) ? (
-                      <span style={pinnedLabelStyle}>{t("state.pinned")}</span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </GroupCard>
+          {visibleCards.length === 0 ? (
+            <div data-view="home-empty-state" style={emptyStateStyle}>
+              {t("page.home.empty")}
+            </div>
+          ) : (
+            <section data-view="home-card-grid" style={inventoryGridStyle}>
+              {visibleCards.map((card) => (
+                <SharedGroupCard
+                  key={card.sourceId}
+                  card={card}
+                  themeMode={viewModel.themeMode}
+                  themeAccent={viewModel.themeAccent}
+                  pinned={viewModel.isPinned(card.sourceId)}
+                  onOpen={() => {
+                    viewModel.openDetail(card.sourceId);
+                  }}
+                  onUpdate={() => {
+                    stateTransition(() => viewModel.updateSource(card.sourceId));
+                  }}
+                  onTogglePinned={() => {
+                    viewModel.togglePinned(card.sourceId);
+                  }}
+                  labels={{
+                    pin: t("action.pin"),
+                    unpin: t("action.unpin"),
+                    pinned: t("state.pinned"),
+                    agents: t("common.section.agents"),
+                    skills: t("common.section.skills"),
+                    activeTargets: (count) => `${count} active targets`,
+                    enabledSkills: (enabledCount, totalCount) => `${enabledCount} / ${totalCount} skills`,
+                  }}
+                />
+              ))}
+            </section>
+          )}
         </section>
       </section>
     </main>
@@ -310,46 +288,12 @@ const emptyStateStyle: CSSProperties = {
   color: "#64748b",
 };
 
-const inventoryListStyle: CSSProperties = {
+const inventoryGridStyle: CSSProperties = {
   display: "grid",
-  gap: "10px",
-  listStyle: "none",
-  padding: 0,
-  margin: 0,
+  gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+  gap: "12px",
 };
 
-const inventoryItemStyle: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "minmax(0, 1fr) auto auto",
-  gap: "8px",
-  alignItems: "center",
-  padding: "12px 14px",
-  borderRadius: "14px",
-  background: "rgba(248, 250, 252, 0.92)",
-};
-
-const sourceLinkStyle: CSSProperties = {
-  justifySelf: "start",
-  padding: 0,
-  border: "none",
-  background: "transparent",
-  color: "#0f172a",
-  fontSize: "14px",
-  fontWeight: 600,
-  textAlign: "left",
-};
-
-const pinnedLabelStyle: CSSProperties = {
-  gridColumn: "1 / -1",
-  fontSize: "12px",
-  color: "#0f766e",
-};
-
-const inventoryMetaStyle: CSSProperties = {
-  gridColumn: "1 / 2",
-  fontSize: "12px",
-  color: "#475569",
-};
 
 function actionButtonStyle(active = false): CSSProperties {
   return {

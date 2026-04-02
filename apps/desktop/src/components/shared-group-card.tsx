@@ -1,0 +1,289 @@
+import type { CSSProperties } from "react";
+import { IconButton } from "./icon-button";
+import { resolveGroupCardIcon, type GroupCardIconId } from "../icons/group-card-icons";
+import { desktopTheme, type DesktopAccentColor, type DesktopThemeMode } from "../theme/app-theme";
+import type { InventorySummaryState } from "../store/workspace-state";
+
+type SharedGroupCardProps = {
+  card: InventorySummaryState;
+  themeMode: DesktopThemeMode;
+  themeAccent: DesktopAccentColor;
+  pinned: boolean;
+  onOpen(): void;
+  onUpdate(): void;
+  onTogglePinned(): void;
+  labels: {
+    pin: string;
+    unpin: string;
+    pinned: string;
+    agents: string;
+    skills: string;
+    activeTargets(count: number): string;
+    enabledSkills(count: number, totalCount: number): string;
+  };
+};
+
+export function SharedGroupCard({
+  card,
+  themeMode,
+  themeAccent,
+  pinned,
+  onOpen,
+  onUpdate,
+  onTogglePinned,
+  labels,
+}: SharedGroupCardProps) {
+  return (
+    <article data-view="shared-group-card" style={cardStyle(themeMode)}>
+      <header data-view="shared-group-card-header" style={headerStyle}>
+        <div style={headerCopyStyle}>
+          <button type="button" data-source-id={card.sourceId} onClick={onOpen} style={titleButtonStyle(themeAccent, themeMode)}>
+            {card.title}
+          </button>
+          <p style={subtitleStyle(themeMode)}>{card.byline ?? card.locator}</p>
+        </div>
+        <div style={headerActionStyle}>
+          <IconButton
+            icon={pinned ? "pin" : "more"}
+            label={pinned ? labels.unpin : labels.pin}
+            active={pinned}
+            onClick={onTogglePinned}
+          />
+        </div>
+      </header>
+
+      <div data-view="shared-group-card-stats" style={statsRowStyle(themeMode)}>
+        <MetadataIcon icon="skills" label={`${card.skillCount} skills`} />
+        <MetadataPill label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
+        {card.warningCount > 0 ? (
+          <MetadataPill label={`${card.warningCount} warnings`} themeMode={themeMode} tone="warning" />
+        ) : null}
+        {card.errorCount > 0 ? (
+          <MetadataPill label={`${card.errorCount} errors`} themeMode={themeMode} tone="error" />
+        ) : null}
+      </div>
+
+      <div style={dividerStyle(themeMode)} />
+
+      <section data-view="shared-group-card-agents" style={sectionStyle}>
+        <SectionLabel label={labels.agents} themeMode={themeMode} />
+        <div style={chipRowStyle}>
+          <InfoChip label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
+        </div>
+      </section>
+
+      <section data-view="shared-group-card-skills" style={sectionStyle}>
+        <SectionLabel label={labels.skills} themeMode={themeMode} />
+        <div style={chipRowStyle}>
+          <InfoChip
+            label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
+            themeMode={themeMode}
+          />
+          {pinned ? (
+            <InfoChip label={labels.pinned} themeMode={themeMode} accent={themeAccent} />
+          ) : null}
+        </div>
+      </section>
+
+      <footer style={footerStyle}>
+        <button
+          type="button"
+          data-update-source-id={card.sourceId}
+          onClick={onUpdate}
+          style={updateButtonStyle(themeAccent, themeMode)}
+        >
+          Update
+        </button>
+        <button
+          type="button"
+          data-pin-source-id={card.sourceId}
+          onClick={onTogglePinned}
+          style={secondaryButtonStyle(pinned, themeMode)}
+        >
+          {pinned ? labels.unpin : labels.pin}
+        </button>
+      </footer>
+    </article>
+  );
+}
+
+function MetadataIcon({ icon, label }: { icon: GroupCardIconId; label: string }) {
+  return (
+    <span style={metadataIconWrapStyle}>
+      <img src={resolveGroupCardIcon(icon)} alt="" aria-hidden="true" style={metadataIconStyle} />
+      <span>{label}</span>
+    </span>
+  );
+}
+
+function MetadataPill(
+  { label, themeMode, tone = "default" }: { label: string; themeMode: DesktopThemeMode; tone?: "default" | "warning" | "error" },
+) {
+  return <span style={metadataPillStyle(themeMode, tone)}>{label}</span>;
+}
+
+function SectionLabel({ label, themeMode }: { label: string; themeMode: DesktopThemeMode }) {
+  return <p style={sectionLabelStyle(themeMode)}>{label}</p>;
+}
+
+function InfoChip(
+  { label, themeMode, accent }: { label: string; themeMode: DesktopThemeMode; accent?: DesktopAccentColor },
+) {
+  return <span style={infoChipStyle(themeMode, accent)}>{label}</span>;
+}
+
+const cardStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  display: "flex",
+  flexDirection: "column",
+  gap: "10px",
+  minHeight: "206px",
+  padding: "12px",
+  borderRadius: "10px",
+  background: themeMode === "light" ? "rgb(250, 250, 250)" : "rgb(20, 20, 20)",
+  border: `0.5px solid ${desktopTheme.cardBorder(themeMode)}`,
+  boxShadow: `0 12px 24px ${desktopTheme.cardShadow(themeMode)}`,
+});
+
+const headerStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "8px",
+};
+
+const headerCopyStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "4px",
+  flex: 1,
+  minWidth: 0,
+};
+
+const headerActionStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "flex-start",
+};
+
+const titleButtonStyle = (themeAccent: DesktopAccentColor, themeMode: DesktopThemeMode): CSSProperties => ({
+  border: "none",
+  background: "transparent",
+  padding: 0,
+  margin: 0,
+  textAlign: "left",
+  fontSize: "21px",
+  fontWeight: 400,
+  lineHeight: 1.15,
+  color: desktopTheme.brand(themeAccent, themeMode),
+});
+
+const subtitleStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  margin: 0,
+  fontSize: "12px",
+  color: desktopTheme.textMuted(themeMode),
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+});
+
+const statsRowStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: "10px",
+  minHeight: "16px",
+  color: desktopTheme.textMuted(themeMode),
+  fontSize: "12px",
+  flexWrap: "wrap",
+});
+
+const metadataIconWrapStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "4px",
+};
+
+const metadataIconStyle: CSSProperties = {
+  width: "12px",
+  height: "12px",
+  objectFit: "contain",
+};
+
+const metadataPillStyle = (themeMode: DesktopThemeMode, tone: "default" | "warning" | "error"): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  height: "18px",
+  padding: "0 8px",
+  borderRadius: "999px",
+  background: tone === "warning"
+    ? "rgba(245, 158, 11, 0.14)"
+    : tone === "error"
+    ? "rgba(239, 68, 68, 0.14)"
+    : themeMode === "light"
+    ? "rgba(226, 232, 240, 0.7)"
+    : "rgba(255, 255, 255, 0.08)",
+  color: tone === "warning" ? "#b45309" : tone === "error" ? "#b91c1c" : desktopTheme.textMuted(themeMode),
+  fontSize: "11px",
+  fontWeight: 500,
+});
+
+const dividerStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  borderTop: `1px dashed ${themeMode === "light" ? "rgba(148, 163, 184, 0.35)" : "rgba(255, 255, 255, 0.14)"}`,
+});
+
+const sectionStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+};
+
+const sectionLabelStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  margin: 0,
+  fontSize: "12px",
+  fontWeight: 600,
+  color: desktopTheme.textPrimary(themeMode),
+});
+
+const chipRowStyle: CSSProperties = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "6px",
+};
+
+const infoChipStyle = (themeMode: DesktopThemeMode, accent?: DesktopAccentColor): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: "34px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  background: accent ? `${desktopTheme.brand(accent, themeMode)}20` : themeMode === "light" ? "rgba(241, 245, 249, 0.95)" : "rgba(255, 255, 255, 0.08)",
+  border: `1px solid ${accent ? `${desktopTheme.brand(accent, themeMode)}55` : themeMode === "light" ? "rgba(203, 213, 225, 0.9)" : "rgba(255, 255, 255, 0.12)"}`,
+  color: accent ? desktopTheme.brand(accent, themeMode) : desktopTheme.textPrimary(themeMode),
+  fontSize: "12px",
+  fontWeight: 600,
+});
+
+const footerStyle: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  marginTop: "auto",
+};
+
+const updateButtonStyle = (themeAccent: DesktopAccentColor, themeMode: DesktopThemeMode): CSSProperties => ({
+  height: "34px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  border: "none",
+  background: desktopTheme.brand(themeAccent, themeMode),
+  color: themeMode === "light" ? "#ffffff" : "#111827",
+  fontSize: "12px",
+  fontWeight: 700,
+});
+
+const secondaryButtonStyle = (active: boolean, themeMode: DesktopThemeMode): CSSProperties => ({
+  height: "34px",
+  padding: "0 12px",
+  borderRadius: "999px",
+  border: `1px solid ${active ? "rgba(13, 148, 136, 0.26)" : "rgba(148, 163, 184, 0.22)"}`,
+  background: active ? "rgba(204, 251, 241, 0.88)" : themeMode === "light" ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.08)",
+  color: desktopTheme.textPrimary(themeMode),
+  fontSize: "12px",
+  fontWeight: 600,
+});

@@ -61,9 +61,17 @@ describe("home screen", () => {
     expect(markup).toContain("data-action-icon=\"import\"");
     expect(markup).toContain("data-action-icon=\"settings\"");
     expect(markup).toContain("data-view=\"home-inventory-panel\"");
+    expect(markup).toContain("data-view=\"shared-group-card\"");
+    expect(markup).toContain("data-view=\"shared-group-card-header\"");
+    expect(markup).toContain("data-view=\"shared-group-card-stats\"");
+    expect(markup).toContain("data-view=\"shared-group-card-agents\"");
+    expect(markup).toContain("data-view=\"shared-group-card-skills\"");
     expect(markup).toContain("Alpha Starter");
     expect(markup).toContain("Beta Tools");
     expect(markup).toContain("by obra");
+    expect(markup).toContain("3 skills");
+    expect(markup).toContain("2 active targets");
+    expect(markup).toContain("Pinned");
   });
 
   it("shows the route-aware home header and scope toggle entry", () => {
