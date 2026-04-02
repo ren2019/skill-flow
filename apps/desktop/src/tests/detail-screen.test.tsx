@@ -10,7 +10,7 @@ import { DetailViewModel } from "../view-models/detail-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("detail screen", () => {
-  it("renders the selected source id and a markdown document placeholder", () => {
+  it("renders the detail sidebar with group row and skill rows", () => {
     const state = createDesktopAppState({
       view: {
         currentRoute: desktopRoute.detail("alpha"),
@@ -67,11 +67,58 @@ describe("detail screen", () => {
       <DetailScreen viewModel={new DetailViewModel(state)} />,
     );
 
-    expect(markup).toContain("Source Detail");
+    expect(markup).toContain("data-view=\"detail-sidebar\"");
+    expect(markup).toContain("Overview");
+    expect(markup).toContain("Skills");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("README");
     expect(markup).toContain("Claude Code");
     expect(markup).toContain("skill-a");
+  });
+
+  it("renders the group header metadata instead of a flat title block", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Claude Code", "Codex"],
+            revision: "v1.2.3",
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: ["Updated yesterday"],
+            deploymentFacts: ["Claude Code -> ~/.claude"],
+            skillSelection: "partial",
+            targetSelection: "full",
+          },
+        },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"detail-header\"");
+    expect(markup).toContain("Version");
+    expect(markup).toContain("Targets");
     expect(markup).toContain("# Alpha");
   });
 
