@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createMutationCoordinator } from "../runtime/mutation-coordinator";
+import { registerTrayRouteListener } from "../menu/tray";
 import { DetailScreen } from "../screens/detail-screen";
 import { HomeScreen } from "../screens/home-screen";
 import { ImportScreen } from "../screens/import-screen";
@@ -11,6 +12,7 @@ import {
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { ImportViewModel } from "../view-models/import-view-model";
+import { MainViewModel } from "../view-models/main-view-model";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
 type AppProps = {
@@ -24,6 +26,7 @@ export function App({ state: providedState }: AppProps) {
   const notifyChange = () => {
     setRevision((value) => value + 1);
   };
+  const mainViewModelRef = useRef(new MainViewModel(stateRef.current));
   const homeViewModelRef = useRef(
     new HomeViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
@@ -45,6 +48,40 @@ export function App({ state: providedState }: AppProps) {
   const settingsViewModelRef = useRef(
     new SettingsViewModel(stateRef.current, { onChange: notifyChange }),
   );
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | undefined;
+
+    void registerTrayRouteListener((route) => {
+      switch (route.kind) {
+        case "home":
+          mainViewModelRef.current.showHome();
+          break;
+        case "importPage":
+          mainViewModelRef.current.showImportPage();
+          break;
+        case "settings":
+          mainViewModelRef.current.showSettings();
+          break;
+        case "detail":
+          mainViewModelRef.current.showDetail(route.sourceId);
+          break;
+      }
+      notifyChange();
+    }).then((cleanup) => {
+      if (disposed) {
+        cleanup();
+        return;
+      }
+      unlisten = cleanup;
+    }).catch(() => undefined);
+
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, []);
 
   switch (stateRef.current.view.currentRoute.kind) {
     case "home":

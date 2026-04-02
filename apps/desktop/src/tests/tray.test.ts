@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildTrayMenuModel } from "../menu/tray";
+import {
+  buildTrayMenuModel,
+  resolveTrayRoute,
+  registerTrayRouteListener,
+  TRAY_ROUTE_EVENT,
+} from "../menu/tray";
 
 describe("tray menu model", () => {
   it("maps quick actions to desktop routes", () => {
@@ -8,5 +13,35 @@ describe("tray menu model", () => {
       { id: "open-import", route: { kind: "importPage" } },
       { id: "open-settings", route: { kind: "settings" } },
     ]);
+  });
+
+  it("resolves tray menu ids back into desktop routes", () => {
+    expect(resolveTrayRoute("open-home")).toEqual({ kind: "home" });
+    expect(resolveTrayRoute("open-import")).toEqual({ kind: "importPage" });
+    expect(resolveTrayRoute("open-settings")).toEqual({ kind: "settings" });
+    expect(resolveTrayRoute("unknown")).toBeUndefined();
+  });
+
+  it("subscribes to tray route events and ignores unknown ids", async () => {
+    const routes: Array<{ kind: string }> = [];
+    let handler: ((event: { payload: string }) => void) | undefined;
+
+    const unlisten = await registerTrayRouteListener(
+      (route) => {
+        routes.push(route);
+      },
+      async (eventName, callback) => {
+        expect(eventName).toBe(TRAY_ROUTE_EVENT);
+        handler = callback;
+        return () => undefined;
+      },
+    );
+
+    handler?.({ payload: "open-import" });
+    handler?.({ payload: "unknown" });
+    handler?.({ payload: "open-settings" });
+    await unlisten();
+
+    expect(routes).toEqual([{ kind: "importPage" }, { kind: "settings" }]);
   });
 });
