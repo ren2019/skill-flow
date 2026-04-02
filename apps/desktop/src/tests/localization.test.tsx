@@ -20,8 +20,10 @@ describe("desktop localization", () => {
 
   it("resolves follow-system language from common locale tags", () => {
     expect(resolveDesktopLanguage("system", { systemLocale: "zh-CN" })).toBe("zh-Hans");
+    expect(resolveDesktopLanguage("system", { systemLocale: "zh-Hans-CN" })).toBe("zh-Hans");
     expect(resolveDesktopLanguage("system", { systemLocale: "en-US" })).toBe("en");
     expect(resolveDesktopLanguage("zh_CN")).toBe("zh-Hans");
+    expect(resolveDesktopLanguage("zh-Hans-SG")).toBe("zh-Hans");
     expect(resolveDesktopLanguage("en-US")).toBe("en");
   });
 

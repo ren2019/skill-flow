@@ -21,7 +21,13 @@ type LocalizationOptions = {
 
 export function normalizeDesktopLanguage(language: string): DesktopLanguage {
   const normalizedTag = language.trim().replaceAll("_", "-").toLowerCase();
-  if (normalizedTag === "zh" || normalizedTag === "zh-hans" || normalizedTag.startsWith("zh-cn")) {
+  if (
+    normalizedTag === "zh"
+    || normalizedTag === "zh-hans"
+    || normalizedTag.startsWith("zh-hans-")
+    || normalizedTag.startsWith("zh-cn")
+    || normalizedTag.startsWith("zh-sg")
+  ) {
     return "zh-Hans";
   }
   if (normalizedTag === "en" || normalizedTag.startsWith("en-")) {

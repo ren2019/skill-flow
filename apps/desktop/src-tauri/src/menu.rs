@@ -3,6 +3,7 @@ use tauri::{
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
     App, AppHandle, Emitter, Manager, Runtime,
 };
+use std::env;
 
 pub const MAIN_MENU_TITLE: &str = "Skill Flow Desktop";
 pub const OPEN_HOME_MENU_ID: &str = "open-home";
@@ -11,9 +12,10 @@ pub const OPEN_SETTINGS_MENU_ID: &str = "open-settings";
 pub const TRAY_ROUTE_EVENT: &str = "desktop://tray-route";
 
 pub fn setup<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
-    let open_home = MenuItemBuilder::with_id(OPEN_HOME_MENU_ID, "Open Home").build(app)?;
-    let open_import = MenuItemBuilder::with_id(OPEN_IMPORT_MENU_ID, "Open Import").build(app)?;
-    let open_settings = MenuItemBuilder::with_id(OPEN_SETTINGS_MENU_ID, "Open Settings").build(app)?;
+    let locale = detected_locale_tag();
+    let open_home = MenuItemBuilder::with_id(OPEN_HOME_MENU_ID, tray_label(OPEN_HOME_MENU_ID, &locale)).build(app)?;
+    let open_import = MenuItemBuilder::with_id(OPEN_IMPORT_MENU_ID, tray_label(OPEN_IMPORT_MENU_ID, &locale)).build(app)?;
+    let open_settings = MenuItemBuilder::with_id(OPEN_SETTINGS_MENU_ID, tray_label(OPEN_SETTINGS_MENU_ID, &locale)).build(app)?;
     let menu = MenuBuilder::new(app)
         .items(&[&open_home, &open_import, &open_settings])
         .build()?;
@@ -54,6 +56,47 @@ fn quick_action_id(raw_id: &str) -> Option<&'static str> {
     }
 }
 
+fn tray_label(action_id: &str, locale: &str) -> &'static str {
+    let normalized_locale = normalize_locale_tag(locale);
+    let is_zh_hans = normalized_locale == "zh"
+        || normalized_locale == "zh-hans"
+        || normalized_locale.starts_with("zh-hans-")
+        || normalized_locale.starts_with("zh-cn")
+        || normalized_locale.starts_with("zh-sg");
+
+    match (action_id, is_zh_hans) {
+        (OPEN_HOME_MENU_ID, true) => "打开主页",
+        (OPEN_IMPORT_MENU_ID, true) => "打开导入",
+        (OPEN_SETTINGS_MENU_ID, true) => "打开设置",
+        (OPEN_HOME_MENU_ID, false) => "Open Home",
+        (OPEN_IMPORT_MENU_ID, false) => "Open Import",
+        (OPEN_SETTINGS_MENU_ID, false) => "Open Settings",
+        _ => MAIN_MENU_TITLE,
+    }
+}
+
+fn normalize_locale_tag(locale: &str) -> String {
+    locale
+        .trim()
+        .split('.')
+        .next()
+        .unwrap_or(locale)
+        .replace('_', "-")
+        .to_lowercase()
+}
+
+fn detected_locale_tag() -> String {
+    for key in ["LC_ALL", "LC_MESSAGES", "LANG"] {
+        if let Ok(value) = env::var(key) {
+            if !value.trim().is_empty() {
+                return value;
+            }
+        }
+    }
+
+    String::from("en")
+}
+
 fn emit_quick_action<R: Runtime>(app: &AppHandle<R>, action_id: &str) -> tauri::Result<()> {
     show_main_window(app)?;
     app.emit(TRAY_ROUTE_EVENT, action_id.to_string())?;
@@ -71,7 +114,9 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{quick_action_id, OPEN_HOME_MENU_ID, OPEN_IMPORT_MENU_ID, OPEN_SETTINGS_MENU_ID};
+    use super::{
+        normalize_locale_tag, quick_action_id, tray_label, OPEN_HOME_MENU_ID, OPEN_IMPORT_MENU_ID, OPEN_SETTINGS_MENU_ID,
+    };
 
     #[test]
     fn quick_action_ids_match_supported_menu_entries() {
@@ -79,5 +124,18 @@ mod tests {
         assert_eq!(quick_action_id(OPEN_IMPORT_MENU_ID), Some(OPEN_IMPORT_MENU_ID));
         assert_eq!(quick_action_id(OPEN_SETTINGS_MENU_ID), Some(OPEN_SETTINGS_MENU_ID));
         assert_eq!(quick_action_id("unknown"), None);
+    }
+
+    #[test]
+    fn tray_labels_follow_supported_locale_tags() {
+        assert_eq!(tray_label(OPEN_HOME_MENU_ID, "en-US"), "Open Home");
+        assert_eq!(tray_label(OPEN_IMPORT_MENU_ID, "zh-CN"), "打开导入");
+        assert_eq!(tray_label(OPEN_SETTINGS_MENU_ID, "zh-Hans-SG"), "打开设置");
+    }
+
+    #[test]
+    fn normalizes_supported_chinese_locale_tags() {
+        assert_eq!(normalize_locale_tag("zh_CN.UTF-8"), "zh-cn");
+        assert_eq!(normalize_locale_tag("zh-Hans-SG"), "zh-hans-sg");
     }
 }
