@@ -12,6 +12,7 @@ export type BridgePayload = BridgeRequest["payload"];
 export type DesktopBridgeResponse = BridgeResponse;
 
 export const DESKTOP_BRIDGE_INVOKE_COMMAND = "invoke_bridge" as const;
+export const DESKTOP_BRIDGE_NODE_COMMAND = "node" as const;
 export const DESKTOP_BRIDGE_HELPER_ARGS = ["bridge", "--json"] as const;
 
 export type DesktopBridgeBoundary = {
@@ -28,8 +29,8 @@ export type DesktopBridgeRequest = Pick<
 export type DesktopBridgeShellMode = "development" | "packaged";
 
 export type DesktopBridgeShellInvocation = {
-  readonly executablePath: string;
-  readonly args: typeof DESKTOP_BRIDGE_HELPER_ARGS;
+  readonly command: typeof DESKTOP_BRIDGE_NODE_COMMAND;
+  readonly args: readonly [string, ...typeof DESKTOP_BRIDGE_HELPER_ARGS];
 };
 
 export type DesktopBridgeShellConfig = {
@@ -78,11 +79,11 @@ export function resolveDesktopBridgeShellInvocation(
   config: DesktopBridgeShellConfig,
 ): DesktopBridgeShellInvocation {
   const helperOverridePath = config.helperOverridePath?.trim();
-  const executablePath =
+  const helperPath =
     config.mode === "development" && helperOverridePath ? helperOverridePath : config.bundledHelperPath;
 
   return {
-    executablePath,
-    args: DESKTOP_BRIDGE_HELPER_ARGS,
+    command: DESKTOP_BRIDGE_NODE_COMMAND,
+    args: [helperPath, ...DESKTOP_BRIDGE_HELPER_ARGS],
   };
 }

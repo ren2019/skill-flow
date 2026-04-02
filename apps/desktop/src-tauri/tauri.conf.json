@@ -23,7 +23,6 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
-    "resources": ["bridge-helper"]
+    "targets": "all"
   }
 }
