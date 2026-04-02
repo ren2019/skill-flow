@@ -8,12 +8,23 @@ import type {
 
 export class DetailViewModel {
   private readonly onChange: () => void;
+  private readonly updateSelection: (
+    sourceId: string,
+    draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
+  ) => Promise<void>;
 
   constructor(
     private readonly state: DesktopAppState,
-    options: { onChange?: () => void } = {},
+    options: {
+      onChange?: () => void;
+      updateSelection?: (
+        sourceId: string,
+        draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
+      ) => Promise<void>;
+    } = {},
   ) {
     this.onChange = options.onChange ?? (() => undefined);
+    this.updateSelection = options.updateSelection ?? (async () => undefined);
   }
 
   get currentRoute(): DesktopRoute {
@@ -170,6 +181,43 @@ export class DetailViewModel {
 
   selectSkillDocument(skillId: string, documentId: string): void {
     this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId] = documentId;
+    this.onChange();
+  }
+
+  async toggleTarget(targetId: string): Promise<void> {
+    const detail = this.detail;
+    const sourceId = this.sourceId;
+    if (!detail || !sourceId) {
+      return;
+    }
+
+    detail.targets = detail.targets.map((target) =>
+      target.id === targetId ? { ...target, isEnabled: !target.isEnabled } : target,
+    );
+    detail.enabledTargetLabels = detail.targets
+      .filter((target) => target.isEnabled)
+      .map((target) => target.label ?? target.id);
+    await this.updateSelection(sourceId, {
+      selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
+      enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
+    });
+    this.onChange();
+  }
+
+  async toggleSkill(skillId: string): Promise<void> {
+    const detail = this.detail;
+    const sourceId = this.sourceId;
+    if (!detail || !sourceId) {
+      return;
+    }
+
+    detail.skills = detail.skills.map((skill) =>
+      skill.id === skillId ? { ...skill, isEnabled: !skill.isEnabled } : skill,
+    );
+    await this.updateSelection(sourceId, {
+      selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
+      enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
+    });
     this.onChange();
   }
 }

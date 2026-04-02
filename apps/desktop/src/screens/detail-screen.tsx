@@ -1,3 +1,4 @@
+import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
 import { MarkdownDocument } from "../components/markdown-document";
 import { DetailViewModel } from "../view-models/detail-view-model";
@@ -68,15 +69,43 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
             Overview
           </button>
           {detail.skills.map((skill) => (
+            <span key={skill.id}>
+              <button
+                type="button"
+                data-skill-id={skill.id}
+                onClick={() => {
+                  viewModel.selectSkill(skill.id);
+                }}
+              >
+                {skill.title}
+              </button>
+              <button
+                type="button"
+                data-skill-toggle-id={skill.id}
+                onClick={() => {
+                  startTransition(() => {
+                    void viewModel.toggleSkill(skill.id);
+                  });
+                }}
+              >
+                {skill.isEnabled ? "Disable" : "Enable"}
+              </button>
+            </span>
+          ))}
+        </nav>
+        <nav>
+          {detail.targets.map((target) => (
             <button
-              key={skill.id}
+              key={target.id}
               type="button"
-              data-skill-id={skill.id}
+              data-target-toggle-id={target.id}
               onClick={() => {
-                viewModel.selectSkill(skill.id);
+                startTransition(() => {
+                  void viewModel.toggleTarget(target.id);
+                });
               }}
             >
-              {skill.title}
+              {target.label ?? target.id}
             </button>
           ))}
         </nav>

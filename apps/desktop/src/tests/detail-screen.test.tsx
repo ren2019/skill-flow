@@ -1,6 +1,6 @@
 import ReactDOMServer from "react-dom/server";
 import { act, create } from "react-test-renderer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
 import { desktopRoute } from "../navigation/desktop-route";
 import { createDesktopAppState } from "../store/desktop-app-state";
@@ -84,6 +84,7 @@ describe("detail screen", () => {
   });
 
   it("wires overview, skill, tree, and document selections", async () => {
+    const updateSelection = vi.fn().mockResolvedValue(undefined);
     const state = createDesktopAppState({
       view: {
         currentRoute: desktopRoute.detail("alpha"),
@@ -118,7 +119,13 @@ describe("detail screen", () => {
                 isLoaded: true,
               },
             ],
-            targets: [],
+            targets: [
+              {
+                id: "claude-code",
+                label: "Claude Code",
+                isEnabled: true,
+              },
+            ],
             skills: [
               {
                 id: "skill-a",
@@ -150,6 +157,7 @@ describe("detail screen", () => {
       const [, setRevision] = useState(0);
       const viewModelRef = useRef(
         new DetailViewModel(state, {
+          updateSelection,
           onChange: () => setRevision((value) => value + 1),
         }),
       );
@@ -166,9 +174,18 @@ describe("detail screen", () => {
       skillButton.props.onClick();
     });
 
+    const targetToggle = renderer!.root.findByProps({ "data-target-toggle-id": "claude-code" });
+    await act(async () => {
+      await targetToggle.props.onClick();
+    });
+
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("Browse");
     expect(text).toContain("SKILL.md");
     expect(text).toContain("# Skill");
+    expect(updateSelection).toHaveBeenCalledWith("alpha", {
+      enabledTargetIds: [],
+      selectedSkillIds: ["skill-a"],
+    });
   });
 });

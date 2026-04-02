@@ -49,6 +49,16 @@ describe("home screen", () => {
     const updateGroup = vi.fn().mockResolvedValue(undefined);
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha", "beta"] },
+      settings: {
+        recentProjectScopes: [
+          {
+            projectId: "repo-a",
+            title: "Repo A",
+            lastActivityAt: "2026-04-02T10:00:00Z",
+            tools: ["codex"],
+          },
+        ],
+      },
       asyncResources: {
         homeBootstrapPhase: { kind: "ready" },
       },
@@ -76,17 +86,19 @@ describe("home screen", () => {
     const updateAllButton = buttons.find((button) => button.children.includes("Update All"));
     const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
     const projectButton = renderer!.root.findByProps({ "data-project-scope": "global" });
+    const recentProjectButton = renderer!.root.findByProps({ "data-project-scope": "project:repo-a" });
 
     await act(async () => {
       refreshButton!.props.onClick();
       await updateAllButton!.props.onClick();
       pinButton.props.onClick();
       await projectButton.props.onClick();
+      await recentProjectButton.props.onClick();
     });
 
     expect(refreshList).toHaveBeenCalledTimes(1);
     expect(updateGroup.mock.calls).toEqual([["alpha"], ["beta"]]);
     expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
-    expect(state.settings.selectedProjectScope).toEqual({ kind: "global" });
+    expect(state.settings.selectedProjectScope).toEqual({ kind: "project", projectId: "repo-a" });
   });
 });

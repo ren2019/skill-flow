@@ -162,4 +162,35 @@ describe("import view model", () => {
       }),
     );
   });
+
+  it("marks imports as installed and keeps the user on import page when launched there", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(importer).toHaveBeenCalledWith("starter", {
+      selectedSkillIds: ["skill-a"],
+      enabledTargets: [],
+    });
+    expect(state.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
+    expect(state.view.currentRoute).toEqual({ kind: "importPage" });
+  });
 });

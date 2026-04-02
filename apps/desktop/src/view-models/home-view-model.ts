@@ -1,7 +1,7 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
-import type { ProjectScopeSelection } from "../store/settings-state";
+import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
 
 type HomeViewModelOptions = {
   refreshList?: () => Promise<void>;
@@ -41,6 +41,10 @@ export class HomeViewModel {
 
   get selectedProjectScope(): ProjectScopeSelection {
     return this.state.settings.selectedProjectScope;
+  }
+
+  get recentProjectScopes(): RecentProjectScopeItem[] {
+    return this.state.settings.recentProjectScopes;
   }
 
   async refresh(): Promise<void> {

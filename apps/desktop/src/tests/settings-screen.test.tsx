@@ -66,16 +66,20 @@ describe("settings screen", () => {
 
   it("checks for updates on mount and rerenders the fetched status", async () => {
     const state = createDesktopAppState();
+    let fetchCount = 0;
 
     function Harness() {
       const [, setRevision] = useState(0);
       const viewModelRef = useRef(
         new SettingsViewModel(state, {
           updateChecker: {
-            fetchLatestRelease: async () => ({
-              version: "1.3.1",
-              releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
-            }),
+            fetchLatestRelease: async () => {
+              fetchCount += 1;
+              return {
+                version: "1.3.1",
+                releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+              };
+            },
           },
           currentVersionProvider: () => "1.1.0",
           onChange: () => setRevision((value) => value + 1),
@@ -94,5 +98,6 @@ describe("settings screen", () => {
     expect(text).toContain("updateAvailable");
     expect(text).toContain("Latest Version");
     expect(text).toContain("1.3.1");
+    expect(fetchCount).toBe(1);
   });
 });

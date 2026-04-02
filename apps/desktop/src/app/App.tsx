@@ -22,15 +22,21 @@ export function App({ state: providedState }: AppProps) {
   const notifyChange = () => {
     setRevision((value) => value + 1);
   };
+  const homeViewModelRef = useRef(new HomeViewModel(stateRef.current, { onChange: notifyChange }));
+  const importViewModelRef = useRef(new ImportViewModel(stateRef.current, { onChange: notifyChange }));
+  const detailViewModelRef = useRef(new DetailViewModel(stateRef.current, { onChange: notifyChange }));
+  const settingsViewModelRef = useRef(
+    new SettingsViewModel(stateRef.current, { onChange: notifyChange }),
+  );
 
   switch (stateRef.current.view.currentRoute.kind) {
     case "home":
-      return <HomeScreen viewModel={new HomeViewModel(stateRef.current, { onChange: notifyChange })} />;
+      return <HomeScreen viewModel={homeViewModelRef.current} />;
     case "importPage":
-      return <ImportScreen viewModel={new ImportViewModel(stateRef.current, { onChange: notifyChange })} />;
+      return <ImportScreen viewModel={importViewModelRef.current} />;
     case "detail":
-      return <DetailScreen viewModel={new DetailViewModel(stateRef.current, { onChange: notifyChange })} />;
+      return <DetailScreen viewModel={detailViewModelRef.current} />;
     case "settings":
-      return <SettingsScreen viewModel={new SettingsViewModel(stateRef.current, { onChange: notifyChange })} />;
+      return <SettingsScreen viewModel={settingsViewModelRef.current} />;
   }
 }

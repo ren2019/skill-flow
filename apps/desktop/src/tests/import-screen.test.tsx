@@ -148,4 +148,30 @@ describe("import screen", () => {
     expect(text).toContain("search-result");
     expect(text).toContain("skill-b");
   });
+
+  it("syncs the search input back to the shared query after the page resets", async () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "openai",
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    const searchInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
+    expect(searchInput.props.value).toBe("");
+  });
 });

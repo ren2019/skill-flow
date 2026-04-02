@@ -19,6 +19,7 @@ export type ImportGroupState = {
   id: string;
   title: string;
   locator: string;
+  isInstalledLocally?: boolean;
   categoryId?: string;
   categoryTitle?: string;
   recommendationDescription?: string;

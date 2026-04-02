@@ -17,6 +17,10 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
     });
   }, [viewModel]);
 
+  useEffect(() => {
+    setQuery(viewModel.importSubmittedQuery);
+  }, [viewModel.importSubmittedQuery]);
+
   return (
     <main>
       <h1>Import Sources</h1>
@@ -69,6 +73,17 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                       }}
                     >
                       Preview
+                    </button>
+                    <button
+                      type="button"
+                      data-import-group-id={group.id}
+                      onClick={() => {
+                        startTransition(() => {
+                          void viewModel.importGroup(group.id);
+                        });
+                      }}
+                    >
+                      {group.isInstalledLocally ? "Installed" : "Import"}
                     </button>
                     <p>Skills</p>
                     <GroupTags tags={selectedSkillIds} />

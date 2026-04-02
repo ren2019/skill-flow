@@ -70,6 +70,20 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
         >
           Global Scope
         </button>
+        {viewModel.recentProjectScopes.map((scope) => (
+          <button
+            key={scope.projectId}
+            type="button"
+            data-project-scope={`project:${scope.projectId}`}
+            onClick={() => {
+              stateTransition(() =>
+                viewModel.selectProjectScope({ kind: "project", projectId: scope.projectId }),
+              );
+            }}
+          >
+            {scope.title}
+          </button>
+        ))}
       </nav>
       <GroupCard
         title="Inventory"

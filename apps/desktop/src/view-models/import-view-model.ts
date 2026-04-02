@@ -12,6 +12,7 @@ type ImportRecommendationSeed = {
   id: string;
   title: string;
   locator: string;
+  isInstalledLocally?: boolean;
   categoryId?: string;
   categoryTitle?: string;
   recommendationDescription?: string;
@@ -26,6 +27,10 @@ type ImportViewModelOptions = {
   recommendationsLoader?: () => ImportRecommendationSeed[];
   searchLoader?: (query: string) => Promise<ImportGroupState[]>;
   previewLoader?: (groupId: string) => Promise<ImportPreviewResult>;
+  importer?: (
+    groupId: string,
+    draft: { selectedSkillIds: string[]; enabledTargets: string[] },
+  ) => Promise<{ sourceId: string }>;
   onChange?: () => void;
 };
 
@@ -45,6 +50,10 @@ export class ImportViewModel {
   private readonly recommendationsLoader: () => ImportRecommendationSeed[];
   private readonly searchLoader: (query: string) => Promise<ImportGroupState[]>;
   private readonly previewLoader: (groupId: string) => Promise<ImportPreviewResult>;
+  private readonly importer: (
+    groupId: string,
+    draft: { selectedSkillIds: string[]; enabledTargets: string[] },
+  ) => Promise<{ sourceId: string }>;
   private readonly onChange: () => void;
 
   constructor(
@@ -54,6 +63,7 @@ export class ImportViewModel {
     this.recommendationsLoader = options.recommendationsLoader ?? (() => []);
     this.searchLoader = options.searchLoader ?? (async () => []);
     this.previewLoader = options.previewLoader ?? (async () => ({ skills: [], targets: [] }));
+    this.importer = options.importer ?? (async (sourceId) => ({ sourceId }));
     this.onChange = options.onChange ?? (() => undefined);
   }
 
@@ -120,6 +130,9 @@ export class ImportViewModel {
         if (entry.categoryTitle) {
           group.categoryTitle = entry.categoryTitle;
         }
+        if (entry.isInstalledLocally) {
+          group.isInstalledLocally = entry.isInstalledLocally;
+        }
         if (entry.recommendationDescription) {
           group.recommendationDescription = entry.recommendationDescription;
         }
@@ -175,6 +188,32 @@ export class ImportViewModel {
       group.previewPhase = {
         kind: "failed",
         message: error instanceof Error ? error.message : "Import preview failed.",
+      };
+    }
+    this.onChange();
+  }
+
+  async importGroup(groupId: string): Promise<void> {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return;
+    }
+
+    const draft = this.draftsByItemId[groupId] ?? {
+      selectedSkillIds: group.skills.map((skill) => skill.id),
+      enabledTargetIds: [],
+    };
+    const result = await this.importer(groupId, {
+      selectedSkillIds: draft.selectedSkillIds,
+      enabledTargets: draft.enabledTargetIds,
+    });
+
+    group.isInstalledLocally = true;
+    if (this.currentRoute.kind !== "importPage") {
+      this.state.view.selectedSourceId = result.sourceId;
+      this.state.view.currentRoute = {
+        kind: "detail",
+        sourceId: result.sourceId,
       };
     }
     this.onChange();
