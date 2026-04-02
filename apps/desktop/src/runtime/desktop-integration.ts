@@ -1,4 +1,5 @@
-import type { DesktopBridgeClient, DesktopBridgeResponse } from "../bridge/client";
+import type { DesktopBridgeClient } from "../bridge/client";
+import type { DesktopBridgeResponse } from "../bridge/types";
 import type { DesktopAppState } from "../store/desktop-app-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
 

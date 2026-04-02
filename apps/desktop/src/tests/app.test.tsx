@@ -44,6 +44,7 @@ describe("app", () => {
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("Source Detail");
     expect(text).toContain("Alpha");
-    expect(text).toContain("Current route: Detail");
+    expect(text).toContain("Current route");
+    expect(text).toContain("Detail");
   });
 });

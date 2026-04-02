@@ -13,6 +13,7 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
 
   return (
     <main>
+      <h1>{t("page.home.title")}</h1>
       <DesktopTopBar
         routeKind={viewModel.currentRoute.kind}
         desktopLanguage={viewModel.desktopLanguage}

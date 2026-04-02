@@ -1,3 +1,4 @@
+import { localize } from "../i18n";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
 type DetailSidebarProps = {
@@ -7,6 +8,7 @@ type DetailSidebarProps = {
 export function DetailSidebar({ viewModel }: DetailSidebarProps) {
   const detail = viewModel.detail;
   const sourceId = viewModel.sourceId;
+  const t = (key: string) => localize(key, viewModel.desktopLanguage);
 
   if (!detail || !sourceId) {
     return null;
@@ -21,9 +23,9 @@ export function DetailSidebar({ viewModel }: DetailSidebarProps) {
           viewModel.showOverview();
         }}
       >
-        Overview
+        {t("page.detail.overview")}
       </button>
-      <h2>Skills</h2>
+      <h2>{t("page.detail.skills")}</h2>
       <ul>
         {detail.skills.map((skill) => (
           <li key={skill.id}>

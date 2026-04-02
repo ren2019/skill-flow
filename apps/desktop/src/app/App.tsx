@@ -37,10 +37,11 @@ export function App({ state: providedState, integration }: AppProps) {
     setRevision((value) => value + 1);
   };
   const mainViewModelRef = useRef(new MainViewModel(stateRef.current));
+  const refreshInventory = activeIntegration?.refreshInventory;
   const homeViewModelRef = useRef(
     new HomeViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
-      refreshList: activeIntegration?.refreshInventory,
+      ...(refreshInventory ? { refreshList: refreshInventory } : {}),
       onChange: notifyChange,
     }),
   );
