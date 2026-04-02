@@ -23,7 +23,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "app",
+      "dmg",
+      "appimage",
+      "deb",
+      "msi",
+      "nsis"
+    ],
     "resources": {
       "gen/helper/dist/package.json": "helper/dist/package.json",
       "gen/helper/dist/cli.js": "helper/dist/cli.js"

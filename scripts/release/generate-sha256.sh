@@ -2,8 +2,36 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ARCH="${1:-universal}"
+TARGET="${1:-universal}"
 OUTPUT_DIR="${2:-$ROOT_DIR/dist/desktop-mac}"
+
+generate_directory_sha() {
+  local target_dir="$1"
+  local sha_path="$target_dir/sha256.txt"
+
+  if [[ ! -d "$target_dir" ]]; then
+    echo "Artifact directory not found: $target_dir" >&2
+    exit 1
+  fi
+
+  local files=()
+  while IFS= read -r file_path; do
+    files+=("$file_path")
+  done < <(find "$target_dir" -type f ! -name 'sha256.txt' | sort)
+
+  if [[ "${#files[@]}" -eq 0 ]]; then
+    echo "No files found to hash in: $target_dir" >&2
+    exit 1
+  fi
+
+  : > "$sha_path"
+  for file_path in "${files[@]}"; do
+    shasum -a 256 "$file_path" | \
+      sed "s|  $file_path$|  ${file_path#$target_dir/}|" >> "$sha_path"
+  done
+
+  echo "SHA256: $sha_path"
+}
 
 generate_sha() {
   local target_arch="$1"
@@ -57,9 +85,12 @@ generate_combined_sha() {
   echo "SHA256: $combined_path"
 }
 
-case "$ARCH" in
+case "$TARGET" in
+  /*|./*|../*|dist/*)
+    generate_directory_sha "$TARGET"
+    ;;
   arm64|x86_64|universal)
-    generate_sha "$ARCH"
+    generate_sha "$TARGET"
     ;;
   all)
     for target_arch in arm64 x86_64 universal; do
@@ -68,8 +99,12 @@ case "$ARCH" in
     generate_combined_sha
     ;;
   *)
-    echo "Unsupported arch: $ARCH" >&2
-    echo "Usage: $0 [arm64|x86_64|universal|all] [output_dir]" >&2
+    if [[ -d "$TARGET" ]]; then
+      generate_directory_sha "$TARGET"
+      exit 0
+    fi
+    echo "Unsupported arch or path: $TARGET" >&2
+    echo "Usage: $0 <artifact-dir>|[arm64|x86_64|universal|all] [output_dir]" >&2
     exit 1
     ;;
 esac

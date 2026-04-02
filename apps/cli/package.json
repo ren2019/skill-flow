@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:release-helper": "npm run build",
     "dev": "tsx src/cli.tsx",
     "test": "vitest run",
     "test:watch": "vitest"
