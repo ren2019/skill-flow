@@ -43,6 +43,7 @@ describe("desktop shell config", () => {
       bundle?: { resources?: Record<string, string> };
     };
 
-    expect(config.bundle?.resources?.["../../cli/dist/cli.js"]).toBe("helper/dist/cli.js");
+    expect(config.bundle?.resources?.["gen/helper/dist/package.json"]).toBe("helper/dist/package.json");
+    expect(config.bundle?.resources?.["gen/helper/dist/cli.js"]).toBe("helper/dist/cli.js");
   });
 });

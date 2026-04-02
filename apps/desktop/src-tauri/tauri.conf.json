@@ -25,7 +25,8 @@
     "active": true,
     "targets": "all",
     "resources": {
-      "../../cli/dist/cli.js": "helper/dist/cli.js"
+      "gen/helper/dist/package.json": "helper/dist/package.json",
+      "gen/helper/dist/cli.js": "helper/dist/cli.js"
     }
   }
 }
