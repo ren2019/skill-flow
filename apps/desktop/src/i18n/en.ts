@@ -31,6 +31,8 @@ export const enMessages = {
   "page.import.title": "Import Sources",
   "page.import.recommended": "Recommended Imports",
   "page.import.search_results": "Search Results",
+  "page.import.empty_title": "No groups found",
+  "page.import.empty_search": "No groups matched the current search.",
   "action.search": "Search",
   "action.preview": "Preview",
   "action.import": "Import",

@@ -1,4 +1,5 @@
 import { startTransition, useEffect, useState } from "react";
+import { EmptyState } from "../components/empty-state";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
 import { localize, localizePhaseKind } from "../i18n";
@@ -22,6 +23,45 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
   useEffect(() => {
     setQuery(viewModel.importSubmittedQuery);
   }, [viewModel.importSubmittedQuery]);
+
+  const hasDisplayedGroups = content.kind === "recommended"
+    ? content.sections.some((section) => section.groups.length > 0)
+    : content.groups.length > 0;
+
+  if (content.kind === "searchResults" && !hasDisplayedGroups) {
+    if (viewModel.searchPhase.kind === "failed") {
+      return (
+        <main>
+          <h1>{t("page.import.title")}</h1>
+          <form>
+            <input
+              data-testid="import-search-input"
+              type="text"
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+            />
+            <button
+              data-testid="import-search-submit"
+              type="button"
+              onClick={() => {
+                startTransition(() => {
+                  void viewModel.submitSearch(query);
+                });
+              }}
+            >
+              {t("action.search")}
+            </button>
+          </form>
+          <EmptyState
+            title={t("page.import.empty_title")}
+            subtitle={viewModel.failedSearchMessage ?? t("page.import.empty_search")}
+          />
+        </main>
+      );
+    }
+  }
 
   return (
     <main>
@@ -48,7 +88,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
         </button>
       </form>
       {content.kind === "recommended" ? (
-        <section>
+        <section data-view="recommendation-rails">
           <h2>{t("page.import.recommended")}</h2>
           {content.sections.map((section) => (
             <section key={section.categoryId}>

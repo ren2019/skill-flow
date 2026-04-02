@@ -95,6 +95,12 @@ export class ImportViewModel {
     return this.state.importState.importSearchPhase;
   }
 
+  get failedSearchMessage(): string | undefined {
+    return this.state.importState.importSearchPhase.kind === "failed"
+      ? this.state.importState.importSearchPhase.message
+      : undefined;
+  }
+
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
   }

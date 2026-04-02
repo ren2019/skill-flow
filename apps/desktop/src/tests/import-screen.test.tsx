@@ -9,7 +9,7 @@ import { ImportViewModel } from "../view-models/import-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("import screen", () => {
-  it("renders recommendation and import draft sections", () => {
+  it("renders recommendation rails when no query is submitted", () => {
     const state = createDesktopAppState({
       importState: {
         importSubmittedQuery: "",
@@ -18,8 +18,8 @@ describe("import screen", () => {
             id: "starter",
             title: "Starter",
             locator: "obra/starter",
-            categoryId: "development",
-            categoryTitle: "Development",
+            categoryId: "featured",
+            categoryTitle: "Featured",
             recommendationDescription: "Development starter",
             previewPhase: { kind: "ready" },
             skills: [
@@ -46,27 +46,22 @@ describe("import screen", () => {
     );
 
     expect(markup).toContain("Import Sources");
-    expect(markup).toContain("Recommended Imports");
-    expect(markup).toContain("Development");
+    expect(markup).toContain("data-view=\"recommendation-rails\"");
+    expect(markup).toContain("Featured");
     expect(markup).toContain("starter");
     expect(markup).toContain("skill-a");
     expect(markup).toContain("codex");
   });
 
-  it("renders search results when the submitted query is non-empty", () => {
+  it("renders a centered empty state for failed import search", () => {
     const state = createDesktopAppState({
       importState: {
         importSubmittedQuery: "openai",
-        searchGroups: [
-          {
-            id: "search-result",
-            title: "Search Result",
-            locator: "openai/result",
-            previewPhase: { kind: "ready" },
-            skills: [{ id: "skill-b", selectedByDefault: true }],
-            targets: [{ id: "cursor", selectedByDefault: true }],
-          },
-        ],
+        importSearchPhase: {
+          kind: "failed",
+          message: "Network unavailable",
+        },
+        searchGroups: [],
       },
     });
 
@@ -74,10 +69,8 @@ describe("import screen", () => {
       <ImportScreen viewModel={new ImportViewModel(state)} />,
     );
 
-    expect(markup).toContain("Search Results");
-    expect(markup).toContain("openai");
-    expect(markup).toContain("search-result");
-    expect(markup).toContain("skill-b");
+    expect(markup).toContain("Network unavailable");
+    expect(markup).toContain("No groups found");
   });
 
   it("loads recommendations on mount and supports preview plus search flows", async () => {

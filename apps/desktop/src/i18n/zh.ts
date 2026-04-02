@@ -31,6 +31,8 @@ export const zhHansMessages = {
   "page.import.title": "导入来源",
   "page.import.recommended": "推荐导入",
   "page.import.search_results": "搜索结果",
+  "page.import.empty_title": "没有找到分组",
+  "page.import.empty_search": "当前搜索没有匹配到任何分组。",
   "action.search": "搜索",
   "action.preview": "预览",
   "action.import": "导入",
