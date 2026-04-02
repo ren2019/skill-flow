@@ -17,6 +17,10 @@ describe("main view model", () => {
     expect(state.view.selectedSourceId).toBe("alpha");
     expect(viewModel.currentRoute).toEqual(desktopRoute.detail("alpha"));
 
+    viewModel.showDetail("   ");
+    expect(state.view.currentRoute).toEqual(desktopRoute.detail("alpha"));
+    expect(state.view.selectedSourceId).toBe("alpha");
+
     viewModel.showImportPage();
     expect(state.view.currentRoute).toEqual(desktopRoute.importPage());
 

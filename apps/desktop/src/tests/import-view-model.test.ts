@@ -3,22 +3,22 @@ import { createDesktopAppState } from "../store/desktop-app-state";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 describe("import view model", () => {
-  it("serializes mutations through one lane", async () => {
-    const viewModel = new ImportViewModel(createDesktopAppState());
-    const events: string[] = [];
+  it("projects the shared route state and drafts", () => {
+    const state = createDesktopAppState();
+    state.importState.draftsByItemId.alpha = {
+      selectedSkillIds: ["skill-a"],
+      enabledTargetIds: ["target-a"],
+    };
 
-    const first = viewModel.mutationLane.run(async () => {
-      events.push("start-a");
-      await Promise.resolve();
-      events.push("end-a");
+    const viewModel = new ImportViewModel(state);
+
+    expect(viewModel.currentRoute).toEqual(state.view.currentRoute);
+    expect(viewModel.draftsByItemId).toEqual({
+      alpha: {
+        selectedSkillIds: ["skill-a"],
+        enabledTargetIds: ["target-a"],
+      },
     });
-    const second = viewModel.mutationLane.run(async () => {
-      events.push("start-b");
-      events.push("end-b");
-    });
-
-    await Promise.all([first, second]);
-
-    expect(events).toEqual(["start-a", "end-a", "start-b", "end-b"]);
+    expect("mutationLane" in viewModel).toBe(false);
   });
 });

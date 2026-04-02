@@ -13,8 +13,12 @@ export class DesktopNavigator {
   }
 
   showDetail(sourceId: string) {
-    this.state.view.selectedSourceId = sourceId;
-    this.state.view.currentRoute = desktopRoute.detail(sourceId);
+    const normalizedSourceId = sourceId.trim();
+    if (!normalizedSourceId) {
+      return;
+    }
+    this.state.view.selectedSourceId = normalizedSourceId;
+    this.state.view.currentRoute = desktopRoute.detail(normalizedSourceId);
   }
 
   showImportPage() {

@@ -23,4 +23,20 @@ describe("detail view model", () => {
     expect(state.view.selectedSourceId).toBe("beta");
     expect(viewModel.sourceId).toBe("beta");
   });
+
+  it("ignores blank detail source ids", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+    });
+
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.showSource("   ");
+
+    expect(state.view.currentRoute).toEqual(desktopRoute.detail("alpha"));
+    expect(state.view.selectedSourceId).toBe("alpha");
+  });
 });
