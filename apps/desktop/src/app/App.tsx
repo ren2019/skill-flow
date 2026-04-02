@@ -9,6 +9,10 @@ import {
   createDesktopAppState,
   type DesktopAppState,
 } from "../store/desktop-app-state";
+import {
+  createDesktopIntegration,
+  type DesktopIntegration,
+} from "../runtime/desktop-integration";
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { ImportViewModel } from "../view-models/import-view-model";
@@ -17,15 +21,18 @@ import { SettingsViewModel } from "../view-models/settings-view-model";
 
 type AppProps = {
   state?: DesktopAppState;
-  integration?: {
-    refreshInventory?: () => Promise<void>;
-  };
+  integration?: DesktopIntegration;
 };
 
 export function App({ state: providedState, integration }: AppProps) {
   const stateRef = useRef(providedState ?? createDesktopAppState());
   const [, setRevision] = useState(0);
   const mutationCoordinatorRef = useRef(createMutationCoordinator());
+  const defaultIntegrationRef = useRef<DesktopIntegration | undefined>(undefined);
+  if (!integration && !defaultIntegrationRef.current) {
+    defaultIntegrationRef.current = createDesktopIntegration(stateRef.current);
+  }
+  const activeIntegration = integration ?? defaultIntegrationRef.current;
   const notifyChange = () => {
     setRevision((value) => value + 1);
   };
@@ -33,7 +40,7 @@ export function App({ state: providedState, integration }: AppProps) {
   const homeViewModelRef = useRef(
     new HomeViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
-      refreshList: integration?.refreshInventory,
+      refreshList: activeIntegration?.refreshInventory,
       onChange: notifyChange,
     }),
   );

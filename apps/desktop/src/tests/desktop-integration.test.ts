@@ -6,8 +6,20 @@ import { createDesktopAppState } from "../store/desktop-app-state";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
+const { createDesktopIntegrationMock } = vi.hoisted(() => ({
+  createDesktopIntegrationMock: vi.fn((state: { workspace: { sourceIds: string[] } }) => ({
+    refreshInventory: vi.fn(async () => {
+      state.workspace.sourceIds = ["alpha", "starter"];
+    }),
+  })),
+}));
+
+vi.mock("../runtime/desktop-integration", () => ({
+  createDesktopIntegration: createDesktopIntegrationMock,
+}));
+
 describe("desktop integration", () => {
-  it("refreshes shared inventory state after importing a group", async () => {
+  it("creates the default integration path when no integration is injected", async () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha"] },
       view: {
@@ -30,15 +42,10 @@ describe("desktop integration", () => {
       },
     });
 
-    const refreshInventory = vi.fn(async () => {
-      state.workspace.sourceIds = ["alpha", "starter"];
-    });
-
     let renderer: ReturnType<typeof create>;
     await act(async () => {
       renderer = create(createElement(App, {
         state,
-        integration: { refreshInventory },
       }));
     });
 
@@ -47,7 +54,7 @@ describe("desktop integration", () => {
       await importButton.props.onClick();
     });
 
-    expect(refreshInventory).toHaveBeenCalledTimes(1);
+    expect(createDesktopIntegrationMock).toHaveBeenCalledTimes(1);
     expect(state.workspace.sourceIds).toEqual(["alpha", "starter"]);
   });
 });
