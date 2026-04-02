@@ -1,5 +1,7 @@
 export const enMessages = {
+  "app.name": "Skill Flow",
   "page.home.title": "Installed Skills",
+  "page.home.search_placeholder": "Search groups or authors",
   "page.home.loading_workspace": "Loading workspace",
   "page.home.empty": "No installed sources yet.",
   "page.home.scope": "Scope",

@@ -16,6 +16,7 @@ type HomeViewModelOptions = {
 };
 
 export class HomeViewModel {
+  private internalSearchQuery = "";
   private readonly refreshList: () => Promise<void>;
   private readonly updateGroup: (sourceId: string) => Promise<void>;
   private readonly mutationCoordinator: MutationCoordinator;
@@ -60,8 +61,27 @@ export class HomeViewModel {
     return this.state.view.toastMessage;
   }
 
+  get searchQuery(): string {
+    return this.internalSearchQuery;
+  }
+
+  set searchQuery(value: string) {
+    this.internalSearchQuery = value;
+    this.onChange();
+  }
+
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
+  }
+
+  showImportPage(): void {
+    this.state.view.currentRoute = { kind: "importPage" };
+    this.onChange();
+  }
+
+  showSettings(): void {
+    this.state.view.currentRoute = { kind: "settings" };
+    this.onChange();
   }
 
   async refresh(): Promise<void> {

@@ -1,5 +1,7 @@
 export const zhHansMessages = {
+  "app.name": "Skill Flow",
   "page.home.title": "已安装技能",
+  "page.home.search_placeholder": "搜索分组或作者",
   "page.home.loading_workspace": "正在加载工作区",
   "page.home.empty": "还没有已安装的来源。",
   "page.home.scope": "范围",

@@ -9,7 +9,7 @@ import { HomeScreen } from "../screens/home-screen";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("home screen", () => {
-  it("renders installed inventory groups and source ids", () => {
+  it("renders the home top bar with app title, search, and primary actions", () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha", "beta"], pinnedSourceIds: ["beta"] },
       settings: {
@@ -21,13 +21,38 @@ describe("home screen", () => {
       <HomeScreen viewModel={new HomeViewModel(state)} />,
     );
 
-    expect(markup).toContain("Installed Skills");
+    expect(markup).toContain("Skill Flow");
+    expect(markup).toContain("Search groups or authors");
+    expect(markup).toContain("Import");
+    expect(markup).toContain("Settings");
     expect(markup).toContain("alpha");
     expect(markup).toContain("beta");
+  });
+
+  it("shows project scope controls and route-aware home header content", () => {
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha"] },
+      settings: {
+        selectedProjectScope: { kind: "project", projectId: "repo-a" },
+        recentProjectScopes: [
+          {
+            projectId: "repo-a",
+            title: "Repo A",
+            lastActivityAt: "2026-04-02T10:00:00Z",
+            tools: ["codex"],
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Global");
+    expect(markup).toContain("Repo A");
     expect(markup).toContain("Refresh");
     expect(markup).toContain("Update All");
-    expect(markup).toContain("Pinned");
-    expect(markup).toContain("repo-a");
   });
 
   it("renders a loading state while bootstrap is in flight", () => {
