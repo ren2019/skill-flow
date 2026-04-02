@@ -80,8 +80,8 @@ case "$PLATFORM" in
       echo "Missing desktop release artifact: $DESKTOP_DIR/*.AppImage" >&2
       exit 1
     fi
-    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | grep -q .; then
-      echo "Missing desktop release artifact: $DESKTOP_DIR/*.deb or *.rpm" >&2
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f -name '*.deb' | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.deb" >&2
       exit 1
     fi
     ;;
