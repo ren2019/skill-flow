@@ -163,6 +163,7 @@ describe("home screen", () => {
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
 
     const officialTag = renderer!.root.findByProps({ "data-home-tag-filter": "official" });
+    expect(renderer!.root.findAllByProps({ "data-view": "home-filter-divider" })).toHaveLength(1);
     await act(async () => {
       officialTag.props.onClick();
     });

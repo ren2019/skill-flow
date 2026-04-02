@@ -122,6 +122,16 @@ export class HomeViewModel {
     });
   }
 
+  get homeTagCountById(): Record<string, number> {
+    const counts: Record<string, number> = {};
+    for (const tags of Object.values(this.state.workspace.customTagsBySourceId)) {
+      for (const tag of tags) {
+        counts[tag.id] = (counts[tag.id] ?? 0) + 1;
+      }
+    }
+    return counts;
+  }
+
   get selectedHomeTagFilterId(): string | undefined {
     return this.state.workspace.selectedHomeTagFilterId;
   }

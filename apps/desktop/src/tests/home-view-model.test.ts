@@ -216,4 +216,23 @@ describe("home view model", () => {
 
     expect(viewModel.inventoryCards.map((card) => card.sourceId)).toEqual(["alpha"]);
   });
+
+  it("aggregates home tag counts by source coverage", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta", "gamma"],
+        customTagsBySourceId: {
+          alpha: [{ id: "official", title: "Official" }],
+          beta: [{ id: "official", title: "Official" }, { id: "community", title: "Community" }],
+        },
+      },
+    });
+
+    const viewModel = new HomeViewModel(state);
+
+    expect(viewModel.homeTagCountById).toEqual({
+      official: 2,
+      community: 1,
+    });
+  });
 });

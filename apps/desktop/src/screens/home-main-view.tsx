@@ -1,7 +1,7 @@
 import { startTransition, type CSSProperties } from "react";
 import { DesktopTopBar } from "../components/desktop-top-bar";
 import { SharedGroupCard } from "../components/shared-group-card";
-import { localize, localizeRouteKind } from "../i18n";
+import { localize } from "../i18n";
 import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
 
@@ -57,28 +57,45 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                     void viewModel.selectProjectScope({ kind: "global" });
                   });
                 }}
-                style={projectScopeButtonStyle(viewModel.selectedProjectScope.kind === "global")}
+                style={projectScopeButtonStyle(
+                  viewModel.selectedProjectScope.kind === "global",
+                  true,
+                )}
               >
-                {t("project_scope.global")}
+                <span style={projectScopeContentStyle(true)}>
+                  {viewModel.selectedProjectScope.kind === "global" ? (
+                    <span aria-hidden="true" style={projectScopeIndicatorStyle(viewModel.themeAccent)} />
+                  ) : null}
+                  <span>{t("project_scope.global")}</span>
+                </span>
               </button>
-              {viewModel.recentProjectScopes.map((scope) => (
-                <button
-                  key={scope.projectId}
-                  type="button"
-                  data-project-scope={`project:${scope.projectId}`}
-                  onClick={() => {
-                    stateTransition(() =>
-                      viewModel.selectProjectScope({ kind: "project", projectId: scope.projectId }),
-                    );
-                  }}
-                  style={projectScopeButtonStyle(
-                    viewModel.selectedProjectScope.kind === "project"
-                    && viewModel.selectedProjectScope.projectId === scope.projectId,
-                  )}
-                >
-                  {scope.title}
-                </button>
-              ))}
+              <div data-view="home-filter-divider" style={filterDividerStyle(viewModel.themeMode)} />
+              <div style={horizontalScrollerStyle}>
+                {viewModel.recentProjectScopes.map((scope) => (
+                  <button
+                    key={scope.projectId}
+                    type="button"
+                    data-project-scope={`project:${scope.projectId}`}
+                    onClick={() => {
+                      stateTransition(() =>
+                        viewModel.selectProjectScope({ kind: "project", projectId: scope.projectId }),
+                      );
+                    }}
+                    style={projectScopeButtonStyle(
+                      viewModel.selectedProjectScope.kind === "project"
+                      && viewModel.selectedProjectScope.projectId === scope.projectId,
+                    )}
+                  >
+                    <span style={projectScopeContentStyle()}>
+                      {viewModel.selectedProjectScope.kind === "project"
+                      && viewModel.selectedProjectScope.projectId === scope.projectId ? (
+                        <span aria-hidden="true" style={projectScopeIndicatorStyle(viewModel.themeAccent)} />
+                        ) : null}
+                      <span>{scope.title}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </section>
           ) : null}
 
@@ -90,10 +107,12 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                 onClick={() => {
                   viewModel.selectHomeTagFilter(undefined);
                 }}
-                style={tagFilterPillStyle(!viewModel.selectedHomeTagFilterId)}
+                style={tagFilterPillStyle(!viewModel.selectedHomeTagFilterId, viewModel.themeAccent, true)}
               >
                 #All
               </button>
+              <div data-view="home-filter-divider" style={filterDividerStyle(viewModel.themeMode)} />
+              <div style={horizontalScrollerStyle}>
               {viewModel.homeTagFilters.map((tag) => (
                 <button
                   key={tag.id}
@@ -102,11 +121,18 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                   onClick={() => {
                     viewModel.selectHomeTagFilter(tag.id);
                   }}
-                  style={tagFilterPillStyle(viewModel.selectedHomeTagFilterId === tag.id)}
+                  style={tagFilterPillStyle(
+                    viewModel.selectedHomeTagFilterId === tag.id,
+                    tag.accent ?? viewModel.themeAccent,
+                  )}
                 >
                   #{tag.title}
+                  {viewModel.homeTagCountById[tag.id] ? (
+                    <span style={tagCountStyle}>{viewModel.homeTagCountById[tag.id]}</span>
+                  ) : null}
                 </button>
               ))}
+              </div>
             </section>
           ) : null}
 
@@ -196,17 +222,13 @@ const gridSectionStyle: CSSProperties = {
 const scopeBarStyle: CSSProperties = {
   display: "flex",
   gap: "8px",
-  flexWrap: "wrap",
-  padding: "14px",
-  borderRadius: "16px",
-  background: "rgba(15, 23, 42, 0.04)",
-  border: "1px solid rgba(148, 163, 184, 0.16)",
+  alignItems: "center",
 };
 
 const tagFilterBarStyle: CSSProperties = {
   display: "flex",
-  gap: "6px",
-  flexWrap: "wrap",
+  gap: "8px",
+  alignItems: "center",
 };
 
 const emptyStateStyle: CSSProperties = {
@@ -246,42 +268,94 @@ const inventoryGridStyle: CSSProperties = {
 };
 
 
-function actionButtonStyle(active = false): CSSProperties {
+function projectScopeButtonStyle(active: boolean, fixedWidth = false): CSSProperties {
   return {
-    height: "34px",
-    padding: "0 12px",
-    borderRadius: "10px",
-    border: active ? "1px solid rgba(13, 148, 136, 0.26)" : "1px solid rgba(148, 163, 184, 0.22)",
-    background: active ? "rgba(204, 251, 241, 0.88)" : "rgba(255, 255, 255, 0.9)",
+    minWidth: fixedWidth ? "132px" : undefined,
+    height: "32px",
+    padding: 0,
+    borderRadius: "999px",
+    border: active ? "1px solid rgba(59, 130, 246, 0.35)" : "1px solid rgba(148, 163, 184, 0.18)",
+    background: active ? "rgba(59, 130, 246, 0.16)" : "rgba(255, 255, 255, 0.74)",
     color: "#0f172a",
     fontSize: "12px",
     fontWeight: 600,
+    boxShadow: active ? "0 8px 20px rgba(59, 130, 246, 0.12)" : undefined,
   };
 }
 
-function projectScopeButtonStyle(active: boolean): CSSProperties {
+function tagFilterPillStyle(active: boolean, accent: string, fixedWidth = false): CSSProperties {
+  const brand = accentToColor(accent);
   return {
-    height: "34px",
-    padding: "0 12px",
-    borderRadius: "999px",
-    border: active ? "1px solid rgba(14, 116, 144, 0.35)" : "1px solid rgba(148, 163, 184, 0.2)",
-    background: active ? "rgba(224, 242, 254, 0.9)" : "rgba(255, 255, 255, 0.86)",
-    color: "#0f172a",
-    fontSize: "12px",
-    fontWeight: active ? 700 : 500,
-  };
-}
-
-function tagFilterPillStyle(active: boolean): CSSProperties {
-  return {
+    minWidth: fixedWidth ? "132px" : undefined,
     height: "28px",
     padding: "0 10px",
     borderRadius: "999px",
     border: "none",
-    background: active ? "rgba(59, 130, 246, 0.16)" : "rgba(59, 130, 246, 0.12)",
-    color: "#2563eb",
+    background: active ? `${brand}2e` : `${brand}24`,
+    color: brand,
     opacity: active ? 1 : 0.6,
     fontSize: "12px",
     fontWeight: active ? 600 : 400,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "4px",
+    whiteSpace: "nowrap",
   };
+}
+
+function filterDividerStyle(themeMode: "light" | "dark"): CSSProperties {
+  return {
+    width: "1px",
+    height: "24px",
+    background: themeMode === "light" ? "rgba(148, 163, 184, 0.24)" : "rgba(255, 255, 255, 0.16)",
+    flexShrink: 0,
+  };
+}
+
+const horizontalScrollerStyle: CSSProperties = {
+  display: "flex",
+  gap: "8px",
+  overflowX: "auto",
+  scrollbarWidth: "none",
+  msOverflowStyle: "none",
+};
+
+function projectScopeContentStyle(centered = false): CSSProperties {
+  return {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    justifyContent: centered ? "center" : "flex-start",
+    width: "100%",
+    padding: centered ? "0 12px" : "0 12px",
+    whiteSpace: "nowrap",
+  };
+}
+
+function projectScopeIndicatorStyle(accent: string): CSSProperties {
+  return {
+    width: "6px",
+    height: "6px",
+    borderRadius: "999px",
+    background: accentToColor(accent),
+    flexShrink: 0,
+  };
+}
+
+const tagCountStyle: CSSProperties = {
+  fontSize: "10px",
+  opacity: 0.78,
+};
+
+function accentToColor(accent: string): string {
+  const map: Record<string, string> = {
+    blue: "#3b82f6",
+    green: "#22c55e",
+    yellow: "#eab308",
+    pink: "#ec4899",
+    orange: "#f97316",
+    purple: "#8b5cf6",
+  };
+  return map[accent] ?? "#3b82f6";
 }
