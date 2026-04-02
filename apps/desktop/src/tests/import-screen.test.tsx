@@ -46,7 +46,9 @@ describe("import screen", () => {
     );
 
     expect(markup).toContain("Import Sources");
+    expect(markup).toContain("data-view=\"import-page\"");
     expect(markup).toContain("data-view=\"recommendation-rails\"");
+    expect(markup).toContain("data-view=\"import-rail\"");
     expect(markup).toContain("Featured");
     expect(markup).toContain("starter");
     expect(markup).toContain("skill-a");
@@ -71,6 +73,7 @@ describe("import screen", () => {
 
     expect(markup).toContain("Network unavailable");
     expect(markup).toContain("No groups found");
+    expect(markup).toContain("data-view=\"import-centered-state\"");
   });
 
   it("loads recommendations on mount and supports preview plus search flows", async () => {
@@ -140,6 +143,7 @@ describe("import screen", () => {
     expect(text).toContain("Search Results");
     expect(text).toContain("search-result");
     expect(text).toContain("skill-b");
+    expect(text).toContain("import-search-grid");
   });
 
   it("syncs the search input back to the shared query after the page resets", async () => {
