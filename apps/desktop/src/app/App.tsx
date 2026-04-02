@@ -11,7 +11,9 @@ export function App() {
         <h2>Routes</h2>
         <ul>
           {routes.map((route) => (
-            <li key={route}>{route}</li>
+            <li key={route}>
+              <code>{route}</code>
+            </li>
           ))}
         </ul>
       </section>

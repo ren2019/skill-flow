@@ -1,5 +1,19 @@
-import { invoke } from "@tauri-apps/api/core";
-import type { BridgeInvoke } from "./types";
+import type { DesktopBridgeBoundary, DesktopBridgeEnvelope, BridgePayload } from "./types";
 
-export const invokeBridge: BridgeInvoke = (command, payload) =>
-  invoke(command, payload);
+export const desktopBridgeBoundary: DesktopBridgeBoundary = {
+  transport: "bridge --json",
+  helperArgs: ["bridge", "--json"],
+  protocolVersion: "1.0",
+};
+
+export function createDesktopBridgeEnvelope(
+  command: string,
+  payload?: BridgePayload,
+): DesktopBridgeEnvelope {
+  return {
+    protocolVersion: "1.0",
+    requestId: "desktop-bridge-scaffold",
+    command,
+    payload,
+  };
+}
