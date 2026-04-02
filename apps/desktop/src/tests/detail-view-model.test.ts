@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { desktopRoute } from "../navigation/desktop-route";
 import { DetailViewModel } from "../view-models/detail-view-model";
@@ -170,5 +170,42 @@ describe("detail view model", () => {
     expect(viewModel.selectedSkillId).toBe("skill-a");
     expect(viewModel.selectedTreeItemId).toBe("root/skill-a");
     expect(viewModel.selectedSkillDocument?.id).toBe("skill-doc");
+  });
+
+  it("rolls back target selection and records a toast when persistence fails", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Codex"],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [{ id: "codex", label: "Codex", isEnabled: true }],
+            skills: [{ id: "skill-a", title: "Skill A", isEnabled: true, documents: [] }],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "full",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, {
+      updateSelection: vi.fn().mockRejectedValue(new Error("save failed")),
+    });
+
+    await viewModel.toggleTarget("codex");
+
+    expect(state.detailState.detailsBySourceId.alpha.targets).toEqual([
+      { id: "codex", label: "Codex", isEnabled: true },
+    ]);
+    expect(state.detailState.detailsBySourceId.alpha.enabledTargetLabels).toEqual(["Codex"]);
+    expect(state.view.toastMessage).toBe("save failed");
   });
 });

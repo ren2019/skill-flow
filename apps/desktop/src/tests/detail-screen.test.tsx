@@ -83,6 +83,39 @@ describe("detail screen", () => {
     expect(markup).toContain("No source selected");
   });
 
+  it("renders the detail toast message when present", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+        toastMessage: "save failed",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(state)} />,
+    );
+
+    expect(markup).toContain("save failed");
+  });
+
   it("wires overview, skill, tree, and document selections", async () => {
     const updateSelection = vi.fn().mockResolvedValue(undefined);
     const state = createDesktopAppState({

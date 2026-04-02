@@ -1,5 +1,6 @@
 import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
+import { localize } from "../i18n";
 import { MarkdownDocument } from "../components/markdown-document";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
@@ -8,14 +9,15 @@ type DetailScreenProps = {
 };
 
 export function DetailScreen({ viewModel }: DetailScreenProps) {
+  const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const sourceId = viewModel.sourceId;
   const detail = viewModel.detail;
 
   if (!sourceId) {
     return (
       <main>
-        <h1>Source Detail</h1>
-        <p>No source selected</p>
+        <h1>{t("page.detail.title")}</h1>
+        <p>{t("page.detail.empty")}</p>
       </main>
     );
   }
@@ -23,8 +25,8 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
   if (!detail) {
     return (
       <main>
-        <h1>Source Detail</h1>
-        <p>Loading source detail</p>
+        <h1>{t("page.detail.title")}</h1>
+        <p>{t("page.detail.loading")}</p>
       </main>
     );
   }
@@ -32,12 +34,13 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
   const document = viewModel.showingGroupOverview
     ? viewModel.selectedGroupDocument
     : viewModel.selectedSkillDocument;
-  const documentSource = document?.content || "No detail content loaded yet.";
+  const documentSource = document?.content || t("page.detail.no_content");
 
   return (
     <main>
-      <h1>Source Detail</h1>
-      <GroupCard title={detail.title} subtitle={`Current route: ${viewModel.currentRoute.kind}`}>
+      <h1>{t("page.detail.title")}</h1>
+      {viewModel.toastMessage ? <p role="status">{viewModel.toastMessage}</p> : null}
+      <GroupCard title={detail.title} subtitle={`${t("page.home.current_route")}: ${viewModel.currentRoute.kind}`}>
         <p>{detail.enabledTargetLabels.join(", ")}</p>
         <ul>
           {detail.fileTree.map((item) => (
@@ -66,7 +69,7 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
               viewModel.showOverview();
             }}
           >
-            Overview
+            {t("page.detail.overview")}
           </button>
           {detail.skills.map((skill) => (
             <span key={skill.id}>
@@ -88,7 +91,7 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
                   });
                 }}
               >
-                {skill.isEnabled ? "Disable" : "Enable"}
+                {skill.isEnabled ? t("action.disable") : t("action.enable")}
               </button>
             </span>
           ))}

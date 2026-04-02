@@ -62,6 +62,14 @@ export class DetailViewModel {
     return this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] ?? true;
   }
 
+  get toastMessage(): string | undefined {
+    return this.state.view.toastMessage;
+  }
+
+  get desktopLanguage(): string {
+    return this.state.settings.desktopLanguageRawValue;
+  }
+
   get selectedSkillId(): string | undefined {
     const sourceId = this.sourceId;
     const detail = this.detail;
@@ -199,19 +207,14 @@ export class DetailViewModel {
       return;
     }
 
-    detail.targets = detail.targets.map((target) =>
-      target.id === targetId ? { ...target, isEnabled: !target.isEnabled } : target,
-    );
-    detail.enabledTargetLabels = detail.targets
-      .filter((target) => target.isEnabled)
-      .map((target) => target.label ?? target.id);
-    await this.mutationCoordinator.run(() =>
-      this.updateSelection(sourceId, {
-        selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
-        enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
-      }),
-    );
-    this.onChange();
+    await this.runSelectionMutation(detail, () => {
+      detail.targets = detail.targets.map((target) =>
+        target.id === targetId ? { ...target, isEnabled: !target.isEnabled } : target,
+      );
+      detail.enabledTargetLabels = detail.targets
+        .filter((target) => target.isEnabled)
+        .map((target) => target.label ?? target.id);
+    });
   }
 
   async toggleSkill(skillId: string): Promise<void> {
@@ -221,15 +224,42 @@ export class DetailViewModel {
       return;
     }
 
-    detail.skills = detail.skills.map((skill) =>
-      skill.id === skillId ? { ...skill, isEnabled: !skill.isEnabled } : skill,
-    );
-    await this.mutationCoordinator.run(() =>
-      this.updateSelection(sourceId, {
-        selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
-        enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
-      }),
-    );
+    await this.runSelectionMutation(detail, () => {
+      detail.skills = detail.skills.map((skill) =>
+        skill.id === skillId ? { ...skill, isEnabled: !skill.isEnabled } : skill,
+      );
+    });
+  }
+
+  private async runSelectionMutation(
+    detail: DetailRecord,
+    applyLocalChange: () => void,
+  ): Promise<void> {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return;
+    }
+
+    const previousSkills = detail.skills;
+    const previousTargets = detail.targets;
+    const previousLabels = detail.enabledTargetLabels;
+
+    try {
+      this.state.view.toastMessage = undefined;
+      applyLocalChange();
+      await this.mutationCoordinator.run(() =>
+        this.updateSelection(sourceId, {
+          selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
+          enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
+        }),
+      );
+    } catch (error) {
+      detail.skills = previousSkills;
+      detail.targets = previousTargets;
+      detail.enabledTargetLabels = previousLabels;
+      this.state.view.toastMessage =
+        error instanceof Error ? error.message : "Selection update failed.";
+    }
     this.onChange();
   }
 }
