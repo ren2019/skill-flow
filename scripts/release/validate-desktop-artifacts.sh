@@ -59,9 +59,46 @@ if [[ ! -f "$DESKTOP_DIR/sha256.txt" ]]; then
   exit 1
 fi
 
-if ! find "$DESKTOP_DIR" -maxdepth 1 -type f ! -name 'sha256.txt' | grep -q .; then
-  echo "Missing desktop release artifacts in: $DESKTOP_DIR" >&2
-  exit 1
-fi
+require_desktop_artifact() {
+  local path="$1"
+  if [[ ! -f "$path" ]]; then
+    echo "Missing desktop release artifact: $path" >&2
+    exit 1
+  fi
+}
+
+case "$PLATFORM" in
+  macos)
+    require_desktop_artifact "$DESKTOP_DIR/Skill Flow Desktop.zip"
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f -name '*.dmg' | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.dmg" >&2
+      exit 1
+    fi
+    ;;
+  linux)
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f -name '*.AppImage' | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.AppImage" >&2
+      exit 1
+    fi
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.deb or *.rpm" >&2
+      exit 1
+    fi
+    ;;
+  windows)
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f -name '*.msi' | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.msi" >&2
+      exit 1
+    fi
+    if ! find "$DESKTOP_DIR" -maxdepth 1 -type f -name '*.exe' | grep -q .; then
+      echo "Missing desktop release artifact: $DESKTOP_DIR/*.exe" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "Unsupported platform: $PLATFORM" >&2
+    exit 1
+    ;;
+esac
 
 echo "Desktop release artifacts validated for $PLATFORM"

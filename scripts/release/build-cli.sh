@@ -94,8 +94,10 @@ EOF
 
   OUTPUT_EXE="$OUTPUT_DIR/skill-flow-helper.exe"
   export OUTPUT_EXE LAUNCHER_SOURCE
-  powershell.exe -NoProfile -Command \
-    "\$compiler = (Get-Command csc.exe -ErrorAction Stop).Source; & \$compiler /nologo /target:exe /out:$env:OUTPUT_EXE $env:LAUNCHER_SOURCE"
+  powershell.exe -NoProfile -Command '
+    $compiler = (Get-Command csc.exe -ErrorAction Stop).Source
+    & $compiler /nologo /target:exe /out:$env:OUTPUT_EXE $env:LAUNCHER_SOURCE
+  '
   rm -f "$LAUNCHER_SOURCE"
 else
   cat > "$OUTPUT_DIR/skill-flow-helper" <<'EOF'
