@@ -18,6 +18,7 @@ fn run_invoke_bridge(app: AppHandle, request_json: String) -> Result<String, Str
 
     let mut child = Command::new(&command)
         .args(&invocation.args)
+        .env("SKILL_FLOW_CALLER", "desktop-bridge")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
