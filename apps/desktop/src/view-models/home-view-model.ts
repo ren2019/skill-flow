@@ -52,15 +52,19 @@ export class HomeViewModel {
   }
 
   async refresh(): Promise<void> {
-    await this.refreshList();
-    this.onChange();
+    await this.runWithToast(async () => {
+      await this.refreshList();
+      this.onChange();
+    });
   }
 
   async updateAllGroupsFromHome(): Promise<void> {
-    for (const sourceId of this.sourceIds.filter((candidate) => candidate.trim().length > 0)) {
-      await this.updateGroup(sourceId);
-    }
-    this.onChange();
+    await this.runWithToast(async () => {
+      for (const sourceId of this.sourceIds.filter((candidate) => candidate.trim().length > 0)) {
+        await this.updateGroup(sourceId);
+      }
+      this.onChange();
+    });
   }
 
   async updateCurrentGroup(): Promise<boolean> {
@@ -80,10 +84,12 @@ export class HomeViewModel {
     if (!normalizedSourceId) {
       return;
     }
-    this.state.view.toastMessage = undefined;
-    this.state.view.selectedSourceId = normalizedSourceId;
-    await this.updateGroup(normalizedSourceId);
-    this.onChange();
+    await this.runWithToast(async () => {
+      this.state.view.toastMessage = undefined;
+      this.state.view.selectedSourceId = normalizedSourceId;
+      await this.updateGroup(normalizedSourceId);
+      this.onChange();
+    });
   }
 
   togglePinned(sourceId: string): void {
@@ -116,5 +122,15 @@ export class HomeViewModel {
     this.state.view.selectedSourceId = normalizedSourceId;
     this.state.view.currentRoute = { kind: "detail", sourceId: normalizedSourceId };
     this.onChange();
+  }
+
+  private async runWithToast(action: () => Promise<void>): Promise<void> {
+    try {
+      await action();
+    } catch (error) {
+      this.state.view.toastMessage =
+        error instanceof Error ? error.message : "Operation failed.";
+      this.onChange();
+    }
   }
 }

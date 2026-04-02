@@ -75,6 +75,32 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("No group selected.");
   });
 
+  it("records an error toast when refresh fails", async () => {
+    const viewModel = new HomeViewModel(createDesktopAppState(), {
+      refreshList: vi.fn().mockRejectedValue(new Error("refresh failed")),
+    });
+
+    await viewModel.refresh();
+
+    expect(viewModel.toastMessage).toBe("refresh failed");
+  });
+
+  it("records an error toast when group updates fail", async () => {
+    const viewModel = new HomeViewModel(
+      createDesktopAppState({
+        workspace: { sourceIds: ["alpha"] },
+        view: { selectedSourceId: "alpha" },
+      }),
+      {
+        updateGroup: vi.fn().mockRejectedValue(new Error("update failed")),
+      },
+    );
+
+    await viewModel.updateCurrentGroup();
+
+    expect(viewModel.toastMessage).toBe("update failed");
+  });
+
   it("switches project scope through shared settings state", async () => {
     const state = createDesktopAppState();
     const viewModel = new HomeViewModel(state);
