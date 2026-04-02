@@ -4,7 +4,7 @@ import {
   isBridgeCommandName,
   type BridgeCommandName,
 } from "../../../../packages/shared-types/src/protocol";
-import { createDesktopBridgeEnvelope, desktopBridgeBoundary } from "../bridge/client";
+import { createDesktopBridgeRequest, desktopBridgeBoundary } from "../bridge/client";
 
 describe("desktop bridge scaffold", () => {
   it("keeps the shell on the shared bridge protocol version", () => {
@@ -13,7 +13,7 @@ describe("desktop bridge scaffold", () => {
 
   it("models a bridge request using the shared command union", () => {
     const command: BridgeCommandName = "list";
-    const request = createDesktopBridgeEnvelope(command);
+    const request = createDesktopBridgeRequest(command, undefined, "desktop-bridge-scaffold");
 
     expect(desktopBridgeBoundary).toMatchObject({
       transport: "bridge --json",

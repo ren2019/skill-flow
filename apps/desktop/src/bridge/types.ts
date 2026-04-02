@@ -1,15 +1,22 @@
 import {
   PROTOCOL_VERSION,
+  type BridgeResponse,
   type BridgeCommandName,
   type BridgeRequest,
+  isBridgeCommandName,
+  isJsonObject,
 } from "../../../../packages/shared-types/src/protocol";
 
 export type DesktopBridgeCommand = BridgeCommandName;
 export type BridgePayload = BridgeRequest["payload"];
+export type DesktopBridgeResponse = BridgeResponse;
+
+export const DESKTOP_BRIDGE_INVOKE_COMMAND = "invoke_bridge" as const;
+export const DESKTOP_BRIDGE_HELPER_ARGS = ["bridge", "--json"] as const;
 
 export type DesktopBridgeBoundary = {
   readonly transport: "bridge --json";
-  readonly helperArgs: readonly ["bridge", "--json"];
+  readonly helperArgs: typeof DESKTOP_BRIDGE_HELPER_ARGS;
   readonly protocolVersion: typeof PROTOCOL_VERSION;
 };
 
@@ -18,9 +25,64 @@ export type DesktopBridgeRequest = Pick<
   "protocolVersion" | "requestId" | "command" | "payload"
 >;
 
-export type DesktopBridgeEnvelope = {
-  readonly protocolVersion: typeof PROTOCOL_VERSION;
-  readonly requestId: string;
-  readonly command: DesktopBridgeCommand;
-  readonly payload?: BridgePayload;
+export type DesktopBridgeShellMode = "development" | "packaged";
+
+export type DesktopBridgeShellInvocation = {
+  readonly executablePath: string;
+  readonly args: typeof DESKTOP_BRIDGE_HELPER_ARGS;
 };
+
+export type DesktopBridgeShellConfig = {
+  readonly mode: DesktopBridgeShellMode;
+  readonly bundledHelperPath: string;
+  readonly helperOverridePath?: string;
+};
+
+export function createDesktopBridgeRequest(
+  command: DesktopBridgeCommand,
+  payload?: BridgePayload,
+  requestId?: string,
+): DesktopBridgeRequest {
+  const resolvedRequestId = requestId ?? globalThis.crypto?.randomUUID?.() ?? "desktop-bridge-request";
+
+  return {
+    protocolVersion: PROTOCOL_VERSION,
+    requestId: resolvedRequestId,
+    command,
+    ...(payload === undefined ? {} : { payload }),
+  };
+}
+
+export function serializeDesktopBridgeRequest(request: DesktopBridgeRequest): string {
+  return JSON.stringify(request);
+}
+
+export function parseDesktopBridgeResponse(responseJson: string): DesktopBridgeResponse {
+  const parsed: unknown = JSON.parse(responseJson);
+  if (!isJsonObject(parsed)) {
+    throw new Error("Desktop bridge response must be a JSON object.");
+  }
+  if (parsed.protocolVersion !== PROTOCOL_VERSION) {
+    throw new Error("Desktop bridge response protocol version does not match the shared protocol.");
+  }
+  if (!isBridgeCommandName(parsed.command)) {
+    throw new Error("Desktop bridge response command is not part of the shared protocol.");
+  }
+  if (typeof parsed.ok !== "boolean") {
+    throw new Error("Desktop bridge response requires an 'ok' flag.");
+  }
+  return parsed as DesktopBridgeResponse;
+}
+
+export function resolveDesktopBridgeShellInvocation(
+  config: DesktopBridgeShellConfig,
+): DesktopBridgeShellInvocation {
+  const helperOverridePath = config.helperOverridePath?.trim();
+  const executablePath =
+    config.mode === "development" && helperOverridePath ? helperOverridePath : config.bundledHelperPath;
+
+  return {
+    executablePath,
+    args: DESKTOP_BRIDGE_HELPER_ARGS,
+  };
+}
