@@ -33,4 +33,30 @@ describe("settings screen", () => {
     expect(markup).toContain("debug");
     expect(markup).toContain("Auto Launch");
   });
+
+  it("renders update checking state and release version details", () => {
+    const viewModel = new SettingsViewModel(createDesktopAppState(), {
+      updateChecker: {
+        fetchLatestRelease: async () => ({
+          version: "1.3.1",
+          releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+        }),
+      },
+      currentVersionProvider: () => "1.1.0",
+    });
+    viewModel.hydrateUpdateState({
+      status: "updateAvailable",
+      latestVersion: "1.3.1",
+      releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <SettingsScreen viewModel={viewModel} />,
+    );
+
+    expect(markup).toContain("Update Status");
+    expect(markup).toContain("updateAvailable");
+    expect(markup).toContain("Latest Version");
+    expect(markup).toContain("1.3.1");
+  });
 });

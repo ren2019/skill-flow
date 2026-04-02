@@ -27,6 +27,16 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             <dt>Current Version</dt>
             <dd>{viewModel.currentVersion}</dd>
           </div>
+          <div>
+            <dt>Update Status</dt>
+            <dd>{viewModel.updateStatus}</dd>
+          </div>
+          {viewModel.latestVersion ? (
+            <div>
+              <dt>Latest Version</dt>
+              <dd>{viewModel.latestVersion}</dd>
+            </div>
+          ) : null}
         </dl>
       </section>
       <section>
