@@ -25,24 +25,24 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
         <h2>{t("page.settings.general")}</h2>
         <dl>
           <div>
-            <dt>Auto Launch</dt>
-            <dd>{viewModel.autoLaunch ? "Enabled" : "Disabled"}</dd>
+            <dt>{t("settings.auto_launch")}</dt>
+            <dd>{viewModel.autoLaunch ? t("settings.enabled") : t("settings.disabled")}</dd>
           </div>
           <div>
-            <dt>Log Level</dt>
+            <dt>{t("settings.log_level")}</dt>
             <dd>{viewModel.logLevel}</dd>
           </div>
           <div>
-            <dt>Current Version</dt>
+            <dt>{t("settings.current_version")}</dt>
             <dd>{viewModel.currentVersion}</dd>
           </div>
           <div>
-            <dt>Update Status</dt>
+            <dt>{t("settings.update_status")}</dt>
             <dd>{viewModel.updateStatus}</dd>
           </div>
           {viewModel.latestVersion ? (
             <div>
-              <dt>Latest Version</dt>
+              <dt>{t("settings.latest_version")}</dt>
               <dd>{viewModel.latestVersion}</dd>
             </div>
           ) : null}

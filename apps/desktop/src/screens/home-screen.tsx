@@ -41,7 +41,12 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
     <main>
       <h1>{t("page.home.title")}</h1>
       {viewModel.toastMessage ? <p role="status">{viewModel.toastMessage}</p> : null}
-      <p>Scope: {viewModel.selectedProjectScope.kind === "project" ? viewModel.selectedProjectScope.projectId : "global"}</p>
+      <p>
+        {t("page.home.scope")}:{" "}
+        {viewModel.selectedProjectScope.kind === "project"
+          ? viewModel.selectedProjectScope.projectId
+          : t("project_scope.global")}
+      </p>
       <nav>
         <button
           type="button"
@@ -90,9 +95,9 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
         ))}
       </nav>
       <GroupCard
-        title="Inventory"
-        subtitle={`Current route: ${viewModel.currentRoute.kind}`}
-        meta={`Sources: ${viewModel.sourceIds.length}`}
+        title={t("page.home.inventory")}
+        subtitle={`${t("page.home.current_route")}: ${viewModel.currentRoute.kind}`}
+        meta={`${t("page.home.sources")}: ${viewModel.sourceIds.length}`}
       >
         <ul>
           {viewModel.sourceIds.map((sourceId) => (
@@ -113,7 +118,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
                   stateTransition(() => viewModel.updateSource(sourceId));
                 }}
               >
-                Update
+                {t("action.update")}
               </button>
               <button
                 type="button"
@@ -122,9 +127,9 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
                   viewModel.togglePinned(sourceId);
                 }}
               >
-                {viewModel.isPinned(sourceId) ? "Unpin" : "Pin"}
+                {viewModel.isPinned(sourceId) ? t("action.unpin") : t("action.pin")}
               </button>
-              {viewModel.isPinned(sourceId) ? " Pinned" : ""}
+              {viewModel.isPinned(sourceId) ? ` ${t("state.pinned")}` : ""}
             </li>
           ))}
         </ul>

@@ -44,7 +44,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
             });
           }}
         >
-          Search
+          {t("action.search")}
         </button>
       </form>
       {content.kind === "recommended" ? (
@@ -62,7 +62,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                   <GroupCard
                     key={group.id}
                     title={group.id}
-                    subtitle={group.recommendationDescription ?? "Draft import selection"}
+                    subtitle={group.recommendationDescription ?? t("page.import.draft_selection")}
                   >
                     <p>{group.previewPhase.kind}</p>
                     <button
@@ -74,7 +74,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                         });
                       }}
                     >
-                      Preview
+                      {t("action.preview")}
                     </button>
                     <button
                       type="button"
@@ -85,11 +85,11 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                         });
                       }}
                     >
-                      {group.isInstalledLocally ? "Installed" : "Import"}
+                      {group.isInstalledLocally ? t("state.installed") : t("action.import")}
                     </button>
-                    <p>Skills</p>
+                    <p>{t("page.import.skills")}</p>
                     <GroupTags tags={selectedSkillIds} />
-                    <p>Targets</p>
+                    <p>{t("page.import.targets")}</p>
                     <GroupTags tags={enabledTargetIds.length > 0 ? enabledTargetIds : group.targets.map((target) => target.id)} />
                   </GroupCard>
                 );
@@ -105,9 +105,9 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
           {content.groups.map((group) => (
             <GroupCard key={group.id} title={group.id} subtitle={group.locator}>
               <p>{group.previewPhase.kind}</p>
-              <p>Skills</p>
+              <p>{t("page.import.skills")}</p>
               <GroupTags tags={group.skills.map((skill) => skill.id)} />
-              <p>Targets</p>
+              <p>{t("page.import.targets")}</p>
               <GroupTags tags={group.targets.map((target) => target.id)} />
             </GroupCard>
           ))}

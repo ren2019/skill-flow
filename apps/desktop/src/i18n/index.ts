@@ -15,26 +15,52 @@ const messageCatalog = {
   "zh-Hans": LocalizedMessageCatalog;
 };
 
+type LocalizationOptions = {
+  systemLocale?: string;
+};
+
 export function normalizeDesktopLanguage(language: string): DesktopLanguage {
-  if (language === "zh" || language === "zh-Hans") {
+  const normalizedTag = language.trim().replaceAll("_", "-").toLowerCase();
+  if (normalizedTag === "zh" || normalizedTag === "zh-hans" || normalizedTag.startsWith("zh-cn")) {
     return "zh-Hans";
   }
-  if (language === "en") {
+  if (normalizedTag === "en" || normalizedTag.startsWith("en-")) {
     return "en";
   }
   return "system";
 }
 
-export function resolveDesktopLanguage(language: string): Exclude<DesktopLanguage, "system"> {
+export function resolveDesktopLanguage(
+  language: string,
+  options: LocalizationOptions = {},
+): Exclude<DesktopLanguage, "system"> {
   const normalized = normalizeDesktopLanguage(language);
-  return normalized === "system" ? "en" : normalized;
+  if (normalized !== "system") {
+    return normalized;
+  }
+
+  const systemLocale = options.systemLocale ?? readSystemLocale();
+  const resolvedSystemLanguage = normalizeDesktopLanguage(systemLocale);
+  return resolvedSystemLanguage === "system" ? "en" : resolvedSystemLanguage;
 }
 
-export function localize(key: MessageKey | string, language: string): string {
-  const resolvedLanguage = resolveDesktopLanguage(language);
+export function localize(
+  key: MessageKey | string,
+  language: string,
+  options: LocalizationOptions = {},
+): string {
+  const resolvedLanguage = resolveDesktopLanguage(language, options);
   const localized = (messageCatalog[resolvedLanguage] as LocalizedMessageCatalog)[key as MessageKey];
   if (localized) {
     return localized;
   }
   return enMessages[key as MessageKey] ?? key;
+}
+
+function readSystemLocale(): string {
+  if (typeof navigator !== "undefined" && typeof navigator.language === "string") {
+    return navigator.language;
+  }
+
+  return Intl.DateTimeFormat().resolvedOptions().locale;
 }
