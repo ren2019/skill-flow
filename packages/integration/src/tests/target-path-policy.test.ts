@@ -1,7 +1,43 @@
 import { describe, expect, test } from "vitest";
-import { getTargetHomePathCandidates, getTargetPathPolicy, resolveTargetSupportFilePath } from "../utils/constants.js";
+import {
+  getStateRoot,
+  getTargetHomePathCandidates,
+  getTargetPathPolicy,
+  resolveRuntimeHome,
+  resolveTargetSupportFilePath,
+} from "../utils/constants.js";
 
 describe("target path policy", () => {
+  test("prefers explicit runtime home overrides over host home resolution", () => {
+    expect(resolveRuntimeHome({
+      platform: "win32",
+      env: {
+        SKILL_FLOW_TEST_HOME: String.raw`C:\Users\test-home`,
+      },
+    })).toBe(String.raw`C:\Users\test-home`);
+
+    expect(resolveRuntimeHome({
+      env: {
+        SKILL_FLOW_DESKTOP_TEST_HOME: "/tmp/desktop-home",
+      },
+    })).toBe("/tmp/desktop-home");
+  });
+
+  test("prefers explicit state root override over the default home-based state root", () => {
+    const previousStateRoot = process.env.SKILL_FLOW_STATE_ROOT;
+    process.env.SKILL_FLOW_STATE_ROOT = "/tmp/runtime-home/.skillflow";
+
+    try {
+      expect(getStateRoot()).toBe("/tmp/runtime-home/.skillflow");
+    } finally {
+      if (previousStateRoot === undefined) {
+        delete process.env.SKILL_FLOW_STATE_ROOT;
+      } else {
+        process.env.SKILL_FLOW_STATE_ROOT = previousStateRoot;
+      }
+    }
+  });
+
   test("expands documented global and compatibility paths for Windows fixtures", () => {
     const windowsHome = String.raw`C:\Users\test`;
 

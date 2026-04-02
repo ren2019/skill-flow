@@ -7,6 +7,35 @@ import type {
 
 export const SCHEMA_VERSION = 1 as const;
 
+export type RuntimeHomeOptions = {
+  env?: NodeJS.ProcessEnv;
+  fallbackHomeDir?: string;
+  platform?: NodeJS.Platform;
+};
+
+export function resolveRuntimeHome(
+  options: RuntimeHomeOptions = {},
+): string {
+  const env = options.env;
+  const platform = options.platform ?? process.platform;
+  const pathApi = platform === "win32" ? path.win32 : path.posix;
+  const explicitHome = env?.SKILL_FLOW_TEST_HOME?.trim()
+    || env?.SKILL_FLOW_DESKTOP_TEST_HOME?.trim();
+
+  if (explicitHome) {
+    const normalizedHome = platform === "win32"
+      ? explicitHome.replace(/\//g, "\\")
+      : explicitHome.replace(/\\/g, "/");
+    return pathApi.normalize(normalizedHome);
+  }
+
+  if (options.fallbackHomeDir?.trim()) {
+    return pathApi.normalize(options.fallbackHomeDir);
+  }
+
+  return os.homedir();
+}
+
 export function getStateRoot(): string {
   return process.env.SKILL_FLOW_STATE_ROOT
     ? path.resolve(process.env.SKILL_FLOW_STATE_ROOT)

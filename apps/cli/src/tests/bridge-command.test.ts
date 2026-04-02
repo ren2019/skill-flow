@@ -23,6 +23,57 @@ describe.sequential("bridge command dispatcher", () => {
     expect(response.data).toHaveProperty("pinnedSourceIds");
   });
 
+  test("restores the incoming caller context after executing a bridge request", async () => {
+    const app = new SkillFlowApp();
+    const previousCaller = process.env.SKILL_FLOW_CALLER;
+    process.env.SKILL_FLOW_CALLER = "desktop-bridge";
+
+    try {
+      const response = await executeBridgeRequest(app, {
+        protocolVersion: PROTOCOL_VERSION,
+        command: "list",
+        requestId: "caller-restore",
+      });
+
+      expect(response.ok).toBe(true);
+      expect(process.env.SKILL_FLOW_CALLER).toBe("desktop-bridge");
+    } finally {
+      if (previousCaller === undefined) {
+        delete process.env.SKILL_FLOW_CALLER;
+      } else {
+        process.env.SKILL_FLOW_CALLER = previousCaller;
+      }
+    }
+  });
+
+  test("restores the incoming caller context when request execution throws", async () => {
+    const app = new SkillFlowApp();
+    const previousCaller = process.env.SKILL_FLOW_CALLER;
+    process.env.SKILL_FLOW_CALLER = "desktop-bridge";
+    const listSpy = vi.spyOn(app, "listWorkflows").mockRejectedValue(new Error("boom"));
+
+    try {
+      await expect(
+        executeBridgeRequest(app, {
+          protocolVersion: PROTOCOL_VERSION,
+          command: "list",
+          requestId: "caller-restore-throw",
+        }),
+      ).resolves.toMatchObject({
+        ok: false,
+        errors: [{ code: "BRIDGE_REQUEST_INVALID" }],
+      });
+      expect(process.env.SKILL_FLOW_CALLER).toBe("desktop-bridge");
+    } finally {
+      listSpy.mockRestore();
+      if (previousCaller === undefined) {
+        delete process.env.SKILL_FLOW_CALLER;
+      } else {
+        process.env.SKILL_FLOW_CALLER = previousCaller;
+      }
+    }
+  });
+
   test("returns pinned source ids in bootstrap payload", async () => {
     const repoPath = await createRepo(sandbox.sandboxRoot, {
       "skills/review/SKILL.md": skillDoc("review", "Review code."),
