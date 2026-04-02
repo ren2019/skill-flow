@@ -2,16 +2,22 @@ import type { DesktopAppState } from "../store/desktop-app-state";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
+import {
+  createPassthroughMutationCoordinator,
+  type MutationCoordinator,
+} from "../runtime/mutation-coordinator";
 
 type HomeViewModelOptions = {
   refreshList?: () => Promise<void>;
   updateGroup?: (sourceId: string) => Promise<void>;
+  mutationCoordinator?: MutationCoordinator;
   onChange?: () => void;
 };
 
 export class HomeViewModel {
   private readonly refreshList: () => Promise<void>;
   private readonly updateGroup: (sourceId: string) => Promise<void>;
+  private readonly mutationCoordinator: MutationCoordinator;
   private readonly onChange: () => void;
 
   constructor(
@@ -20,6 +26,8 @@ export class HomeViewModel {
   ) {
     this.refreshList = options.refreshList ?? (async () => undefined);
     this.updateGroup = options.updateGroup ?? (async () => undefined);
+    this.mutationCoordinator =
+      options.mutationCoordinator ?? createPassthroughMutationCoordinator();
     this.onChange = options.onChange ?? (() => undefined);
   }
 
@@ -64,9 +72,11 @@ export class HomeViewModel {
 
   async updateAllGroupsFromHome(): Promise<void> {
     await this.runWithToast(async () => {
-      for (const sourceId of this.sourceIds.filter((candidate) => candidate.trim().length > 0)) {
-        await this.updateGroup(sourceId);
-      }
+      await this.mutationCoordinator.run(async () => {
+        for (const sourceId of this.sourceIds.filter((candidate) => candidate.trim().length > 0)) {
+          await this.updateGroup(sourceId);
+        }
+      });
       this.onChange();
     });
   }
@@ -91,7 +101,7 @@ export class HomeViewModel {
     await this.runWithToast(async () => {
       this.state.view.toastMessage = undefined;
       this.state.view.selectedSourceId = normalizedSourceId;
-      await this.updateGroup(normalizedSourceId);
+      await this.mutationCoordinator.run(() => this.updateGroup(normalizedSourceId));
       this.onChange();
     });
   }

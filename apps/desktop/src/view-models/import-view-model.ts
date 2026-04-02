@@ -7,6 +7,10 @@ import type {
 } from "../store/import-state";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
+import {
+  createPassthroughMutationCoordinator,
+  type MutationCoordinator,
+} from "../runtime/mutation-coordinator";
 
 type ImportRecommendationSeed = {
   id: string;
@@ -31,6 +35,7 @@ type ImportViewModelOptions = {
     groupId: string,
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
+  mutationCoordinator?: MutationCoordinator;
   onChange?: () => void;
 };
 
@@ -54,6 +59,7 @@ export class ImportViewModel {
     groupId: string,
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
+  private readonly mutationCoordinator: MutationCoordinator;
   private readonly onChange: () => void;
 
   constructor(
@@ -64,6 +70,8 @@ export class ImportViewModel {
     this.searchLoader = options.searchLoader ?? (async () => []);
     this.previewLoader = options.previewLoader ?? (async () => ({ skills: [], targets: [] }));
     this.importer = options.importer ?? (async (sourceId) => ({ sourceId }));
+    this.mutationCoordinator =
+      options.mutationCoordinator ?? createPassthroughMutationCoordinator();
     this.onChange = options.onChange ?? (() => undefined);
   }
 
@@ -207,10 +215,12 @@ export class ImportViewModel {
       selectedSkillIds: group.skills.map((skill) => skill.id),
       enabledTargetIds: [],
     };
-    const result = await this.importer(groupId, {
-      selectedSkillIds: draft.selectedSkillIds,
-      enabledTargets: draft.enabledTargetIds,
-    });
+    const result = await this.mutationCoordinator.run(() =>
+      this.importer(groupId, {
+        selectedSkillIds: draft.selectedSkillIds,
+        enabledTargets: draft.enabledTargetIds,
+      }),
+    );
 
     group.isInstalledLocally = true;
     if (this.currentRoute.kind !== "importPage") {

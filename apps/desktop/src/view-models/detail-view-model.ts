@@ -1,4 +1,8 @@
 import { desktopRoute, type DesktopRoute } from "../navigation/desktop-route";
+import {
+  createPassthroughMutationCoordinator,
+  type MutationCoordinator,
+} from "../runtime/mutation-coordinator";
 import type { DesktopAppState } from "../store/desktop-app-state";
 import type {
   DetailDocumentTab,
@@ -12,6 +16,7 @@ export class DetailViewModel {
     sourceId: string,
     draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
   ) => Promise<void>;
+  private readonly mutationCoordinator: MutationCoordinator;
 
   constructor(
     private readonly state: DesktopAppState,
@@ -21,10 +26,13 @@ export class DetailViewModel {
         sourceId: string,
         draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
       ) => Promise<void>;
+      mutationCoordinator?: MutationCoordinator;
     } = {},
   ) {
     this.onChange = options.onChange ?? (() => undefined);
     this.updateSelection = options.updateSelection ?? (async () => undefined);
+    this.mutationCoordinator =
+      options.mutationCoordinator ?? createPassthroughMutationCoordinator();
   }
 
   get currentRoute(): DesktopRoute {
@@ -197,10 +205,12 @@ export class DetailViewModel {
     detail.enabledTargetLabels = detail.targets
       .filter((target) => target.isEnabled)
       .map((target) => target.label ?? target.id);
-    await this.updateSelection(sourceId, {
-      selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
-      enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
-    });
+    await this.mutationCoordinator.run(() =>
+      this.updateSelection(sourceId, {
+        selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
+        enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
+      }),
+    );
     this.onChange();
   }
 
@@ -214,10 +224,12 @@ export class DetailViewModel {
     detail.skills = detail.skills.map((skill) =>
       skill.id === skillId ? { ...skill, isEnabled: !skill.isEnabled } : skill,
     );
-    await this.updateSelection(sourceId, {
-      selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
-      enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
-    });
+    await this.mutationCoordinator.run(() =>
+      this.updateSelection(sourceId, {
+        selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
+        enabledTargetIds: detail.targets.filter((target) => target.isEnabled).map((target) => target.id),
+      }),
+    );
     this.onChange();
   }
 }

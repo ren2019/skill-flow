@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { createMutationCoordinator } from "../runtime/mutation-coordinator";
 import { DetailScreen } from "../screens/detail-screen";
 import { HomeScreen } from "../screens/home-screen";
 import { ImportScreen } from "../screens/import-screen";
@@ -19,12 +20,28 @@ type AppProps = {
 export function App({ state: providedState }: AppProps) {
   const stateRef = useRef(providedState ?? createDesktopAppState());
   const [, setRevision] = useState(0);
+  const mutationCoordinatorRef = useRef(createMutationCoordinator());
   const notifyChange = () => {
     setRevision((value) => value + 1);
   };
-  const homeViewModelRef = useRef(new HomeViewModel(stateRef.current, { onChange: notifyChange }));
-  const importViewModelRef = useRef(new ImportViewModel(stateRef.current, { onChange: notifyChange }));
-  const detailViewModelRef = useRef(new DetailViewModel(stateRef.current, { onChange: notifyChange }));
+  const homeViewModelRef = useRef(
+    new HomeViewModel(stateRef.current, {
+      mutationCoordinator: mutationCoordinatorRef.current,
+      onChange: notifyChange,
+    }),
+  );
+  const importViewModelRef = useRef(
+    new ImportViewModel(stateRef.current, {
+      mutationCoordinator: mutationCoordinatorRef.current,
+      onChange: notifyChange,
+    }),
+  );
+  const detailViewModelRef = useRef(
+    new DetailViewModel(stateRef.current, {
+      mutationCoordinator: mutationCoordinatorRef.current,
+      onChange: notifyChange,
+    }),
+  );
   const settingsViewModelRef = useRef(
     new SettingsViewModel(stateRef.current, { onChange: notifyChange }),
   );
