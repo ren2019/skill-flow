@@ -83,6 +83,10 @@ export class ImportViewModel {
     return this.state.importState.importSearchPhase;
   }
 
+  get desktopLanguage(): string {
+    return this.state.settings.desktopLanguageRawValue;
+  }
+
   get content(): ImportContent {
     if (this.importSubmittedQuery.trim()) {
       return {

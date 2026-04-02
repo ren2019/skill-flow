@@ -1,6 +1,7 @@
 import { startTransition, useEffect, useState } from "react";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
+import { localize } from "../i18n";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 type ImportScreenProps = {
@@ -8,6 +9,7 @@ type ImportScreenProps = {
 };
 
 export function ImportScreen({ viewModel }: ImportScreenProps) {
+  const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const [query, setQuery] = useState(viewModel.importSubmittedQuery);
   const content = viewModel.content;
 
@@ -23,7 +25,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
 
   return (
     <main>
-      <h1>Import Sources</h1>
+      <h1>{t("page.import.title")}</h1>
       <form>
         <input
           data-testid="import-search-input"
@@ -47,7 +49,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
       </form>
       {content.kind === "recommended" ? (
         <section>
-          <h2>Recommended Imports</h2>
+          <h2>{t("page.import.recommended")}</h2>
           {content.sections.map((section) => (
             <section key={section.categoryId}>
               <h3>{section.title}</h3>
@@ -97,7 +99,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
         </section>
       ) : (
         <section>
-          <h2>Search Results</h2>
+          <h2>{t("page.import.search_results")}</h2>
           <p>{viewModel.importSubmittedQuery}</p>
           <p>{viewModel.searchPhase.kind}</p>
           {content.groups.map((group) => (

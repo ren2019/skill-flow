@@ -64,6 +64,10 @@ export class SettingsViewModel {
     return this.state.settings.agentDisplayPreferences;
   }
 
+  get desktopLanguage(): string {
+    return this.state.settings.desktopLanguageRawValue;
+  }
+
   get currentVersion(): string {
     return this.currentVersionProvider();
   }

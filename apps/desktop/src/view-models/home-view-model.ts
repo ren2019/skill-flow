@@ -51,6 +51,10 @@ export class HomeViewModel {
     return this.state.view.toastMessage;
   }
 
+  get desktopLanguage(): string {
+    return this.state.settings.desktopLanguageRawValue;
+  }
+
   async refresh(): Promise<void> {
     await this.runWithToast(async () => {
       await this.refreshList();

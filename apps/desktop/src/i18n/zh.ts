@@ -1,0 +1,17 @@
+export const zhHansMessages = {
+  "page.home.title": "已安装技能",
+  "page.home.loading_workspace": "正在加载工作区",
+  "page.home.empty": "还没有已安装的来源。",
+  "action.refresh": "刷新",
+  "action.update_all": "全部更新",
+  "project_scope.global": "全局范围",
+  "page.import.title": "导入来源",
+  "page.import.recommended": "推荐导入",
+  "page.import.search_results": "搜索结果",
+  "page.settings.title": "设置",
+  "page.settings.general": "通用",
+  "page.settings.agent_mount_paths": "Agent 挂载路径",
+  "tray.open_home": "打开主页",
+  "tray.open_import": "打开导入",
+  "tray.open_settings": "打开设置",
+} as const;

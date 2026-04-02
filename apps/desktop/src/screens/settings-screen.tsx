@@ -1,5 +1,6 @@
 import { startTransition, useEffect } from "react";
 import { AgentIcon } from "../components/agent-icon";
+import { localize } from "../i18n";
 import { detectedAgentRows } from "../runtime/settings-store";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
@@ -8,6 +9,7 @@ type SettingsScreenProps = {
 };
 
 export function SettingsScreen({ viewModel }: SettingsScreenProps) {
+  const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const rows = detectedAgentRows(viewModel.agentDisplayPreferences);
 
   useEffect(() => {
@@ -18,9 +20,9 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
 
   return (
     <main>
-      <h1>Settings</h1>
+      <h1>{t("page.settings.title")}</h1>
       <section>
-        <h2>General</h2>
+        <h2>{t("page.settings.general")}</h2>
         <dl>
           <div>
             <dt>Auto Launch</dt>
@@ -47,7 +49,7 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
         </dl>
       </section>
       <section>
-        <h2>Agent Mount Paths</h2>
+        <h2>{t("page.settings.agent_mount_paths")}</h2>
         <ul>
           {rows.map((row) => (
             <li key={row.targetId}>

@@ -1,0 +1,18 @@
+export const enMessages = {
+  "page.home.title": "Installed Skills",
+  "page.home.loading_workspace": "Loading workspace",
+  "page.home.empty": "No installed sources yet.",
+  "action.refresh": "Refresh",
+  "action.update_all": "Update All",
+  "project_scope.global": "Global Scope",
+  "page.import.title": "Import Sources",
+  "page.import.recommended": "Recommended Imports",
+  "page.import.search_results": "Search Results",
+  "page.settings.title": "Settings",
+  "page.settings.general": "General",
+  "page.settings.agent_mount_paths": "Agent Mount Paths",
+  "test.fallback.only_en": "Only English",
+  "tray.open_home": "Open Home",
+  "tray.open_import": "Open Import",
+  "tray.open_settings": "Open Settings",
+} as const;

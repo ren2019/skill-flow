@@ -1,5 +1,6 @@
 import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
+import { localize } from "../i18n";
 import { HomeViewModel } from "../view-models/home-view-model";
 
 type HomeScreenProps = {
@@ -7,11 +8,13 @@ type HomeScreenProps = {
 };
 
 export function HomeScreen({ viewModel }: HomeScreenProps) {
+  const t = (key: string) => localize(key, viewModel.desktopLanguage);
+
   if (viewModel.homeBootstrapPhase.kind === "loading") {
     return (
       <main>
-        <h1>Installed Skills</h1>
-        <p>Loading workspace</p>
+        <h1>{t("page.home.title")}</h1>
+        <p>{t("page.home.loading_workspace")}</p>
       </main>
     );
   }
@@ -19,7 +22,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
   if (viewModel.homeBootstrapPhase.kind === "failed") {
     return (
       <main>
-        <h1>Installed Skills</h1>
+        <h1>{t("page.home.title")}</h1>
         <p>{viewModel.homeBootstrapPhase.message}</p>
       </main>
     );
@@ -28,15 +31,15 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
   if (viewModel.sourceIds.length === 0) {
     return (
       <main>
-        <h1>Installed Skills</h1>
-        <p>No installed sources yet.</p>
+        <h1>{t("page.home.title")}</h1>
+        <p>{t("page.home.empty")}</p>
       </main>
     );
   }
 
   return (
     <main>
-      <h1>Installed Skills</h1>
+      <h1>{t("page.home.title")}</h1>
       {viewModel.toastMessage ? <p role="status">{viewModel.toastMessage}</p> : null}
       <p>Scope: {viewModel.selectedProjectScope.kind === "project" ? viewModel.selectedProjectScope.projectId : "global"}</p>
       <nav>
@@ -48,7 +51,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
             });
           }}
         >
-          Refresh
+          {t("action.refresh")}
         </button>
         <button
           type="button"
@@ -58,7 +61,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
             });
           }}
         >
-          Update All
+          {t("action.update_all")}
         </button>
         <button
           type="button"
@@ -69,7 +72,7 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
             });
           }}
         >
-          Global Scope
+          {t("project_scope.global")}
         </button>
         {viewModel.recentProjectScopes.map((scope) => (
           <button
