@@ -46,57 +46,7 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
             {viewModel.toastMessage}
           </div>
         ) : null}
-        <section data-view="home-inventory-panel" style={panelStyle}>
-          <header style={panelHeaderStyle}>
-            <div style={panelTitleStyle}>
-              <p style={eyebrowStyle}>{t("route.home")}</p>
-              <h1 style={headingStyle}>{t("page.home.title")}</h1>
-              <p style={metaTextStyle}>
-                {t("page.home.current_route")}:{" "}
-                {localizeRouteKind(viewModel.currentRoute.kind, viewModel.desktopLanguage)}
-              </p>
-            </div>
-            <div data-view="home-inventory-summary" style={summaryCardStyle}>
-              <strong style={{ display: "block", fontSize: "12px" }}>{t("page.home.inventory")}</strong>
-              <span style={metaTextStyle}>
-                {t("page.home.sources")}: {visibleCards.length}
-              </span>
-            </div>
-          </header>
-
-          <section data-view="home-scope-summary" style={scopeSummaryStyle}>
-            <p style={metaTextStyle}>
-              {t("page.home.scope")}:{" "}
-              {viewModel.selectedProjectScope.kind === "project"
-                ? viewModel.selectedProjectScope.projectId
-                : t("project_scope.global")}
-            </p>
-            <nav style={actionRowStyle}>
-              <button
-                type="button"
-                onClick={() => {
-                  startTransition(() => {
-                    void viewModel.refresh();
-                  });
-                }}
-                style={actionButtonStyle()}
-              >
-                {t("action.refresh")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  startTransition(() => {
-                    void viewModel.updateAllGroupsFromHome();
-                  });
-                }}
-                style={actionButtonStyle()}
-              >
-                {t("action.update_all")}
-              </button>
-            </nav>
-          </section>
-
+        <section data-view="home-grid-section" style={gridSectionStyle}>
           {viewModel.showsProjectScopeBar ? (
             <section data-view="home-project-scope-bar" style={scopeBarStyle}>
               <button
@@ -209,74 +159,10 @@ const toastStyle: CSSProperties = {
   boxShadow: "0 8px 24px rgba(14, 116, 144, 0.08)",
 };
 
-const panelStyle: CSSProperties = {
+const gridSectionStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
-  gap: "14px",
-  padding: "18px",
-  borderRadius: "20px",
-  border: `1px solid ${desktopTheme.cardBorder("light")}`,
-  background: desktopTheme.surface("light"),
-  boxShadow: `0 18px 40px ${desktopTheme.cardShadow("light")}`,
-  backdropFilter: "blur(12px)",
-};
-
-const panelHeaderStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "flex-start",
-  gap: "16px",
-  flexWrap: "wrap",
-};
-
-const panelTitleStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "6px",
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "11px",
-  fontWeight: 700,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "#475569",
-};
-
-const headingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "24px",
-  fontWeight: 700,
-};
-
-const summaryCardStyle: CSSProperties = {
-  minWidth: "180px",
-  padding: "12px 14px",
-  borderRadius: "16px",
-  background: "linear-gradient(180deg, rgba(226, 232, 240, 0.58), rgba(241, 245, 249, 0.92))",
-};
-
-const metaTextStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "12px",
-  color: "#475569",
-};
-
-const scopeSummaryStyle: CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "10px",
-  padding: "14px",
-  borderRadius: "16px",
-  background: "rgba(248, 250, 252, 0.92)",
-  border: "1px solid rgba(148, 163, 184, 0.18)",
-};
-
-const actionRowStyle: CSSProperties = {
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
+  gap: "12px",
 };
 
 const scopeBarStyle: CSSProperties = {

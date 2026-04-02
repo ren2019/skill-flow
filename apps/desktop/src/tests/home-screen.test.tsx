@@ -65,7 +65,7 @@ describe("home screen", () => {
     expect(markup).toContain("data-action-icon=\"project\"");
     expect(markup).toContain("data-action-icon=\"import\"");
     expect(markup).toContain("data-action-icon=\"settings\"");
-    expect(markup).toContain("data-view=\"home-inventory-panel\"");
+    expect(markup).toContain("data-view=\"home-card-grid\"");
     expect(markup).toContain("data-view=\"shared-group-card\"");
     expect(markup).toContain("data-view=\"shared-group-card-header\"");
     expect(markup).toContain("data-view=\"shared-group-card-stats\"");
@@ -81,9 +81,10 @@ describe("home screen", () => {
     expect(markup).toContain("3 skills");
     expect(markup).toContain("2 active targets");
     expect(markup).toContain("Pinned");
+    expect(markup).not.toContain("Current route");
   });
 
-  it("shows the route-aware home header and scope toggle entry", () => {
+  it("keeps project scope controls in the shared home content", () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha"] },
       settings: {
@@ -103,9 +104,8 @@ describe("home screen", () => {
       <HomeScreen viewModel={new HomeViewModel(state)} />,
     );
 
-    expect(markup).toContain("Scope");
-    expect(markup).toContain("Refresh");
-    expect(markup).toContain("Update All");
+    expect(markup).toContain("data-action-icon=\"project\"");
+    expect(markup).not.toContain("Current route");
   });
 
   it("renders a loading state while bootstrap is in flight", () => {
@@ -156,9 +156,7 @@ describe("home screen", () => {
     expect(markup).not.toContain("</main><p>");
   });
 
-  it("wires refresh, update-all, pin, and project scope actions", async () => {
-    const refreshList = vi.fn().mockResolvedValue(undefined);
-    const updateGroup = vi.fn().mockResolvedValue(undefined);
+  it("wires pin and project scope actions", async () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha", "beta"] },
       settings: {
@@ -180,8 +178,6 @@ describe("home screen", () => {
       const [, setRevision] = useState(0);
       const viewModelRef = useRef(
         new HomeViewModel(state, {
-          refreshList,
-          updateGroup,
           onChange: () => setRevision((value) => value + 1),
         }),
       );
@@ -194,8 +190,6 @@ describe("home screen", () => {
     });
 
     const buttons = renderer!.root.findAllByType("button");
-    const refreshButton = buttons.find((button) => button.children.includes("Refresh"));
-    const updateAllButton = buttons.find((button) => button.children.includes("Update All"));
     const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
     const scopeToggleButton = renderer!.root.findByProps({ "data-testid": "home-scope-toggle" });
 
@@ -207,15 +201,11 @@ describe("home screen", () => {
     const recentProjectButton = renderer!.root.findByProps({ "data-project-scope": "project:repo-a" });
 
     await act(async () => {
-      refreshButton!.props.onClick();
-      await updateAllButton!.props.onClick();
       pinButton.props.onClick();
       await projectButton.props.onClick();
       await recentProjectButton.props.onClick();
     });
 
-    expect(refreshList).toHaveBeenCalledTimes(1);
-    expect(updateGroup.mock.calls).toEqual([["alpha"], ["beta"]]);
     expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
     expect(state.settings.selectedProjectScope).toEqual({ kind: "project", projectId: "repo-a" });
   });
