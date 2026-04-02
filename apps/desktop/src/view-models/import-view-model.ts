@@ -37,6 +37,7 @@ type ImportViewModelOptions = {
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
   mutationCoordinator?: MutationCoordinator;
+  onImportCompleted?: () => Promise<void> | void;
   onChange?: () => void;
 };
 
@@ -61,6 +62,7 @@ export class ImportViewModel {
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
   private readonly mutationCoordinator: MutationCoordinator;
+  private readonly onImportCompleted: () => Promise<void> | void;
   private readonly onChange: () => void;
 
   constructor(
@@ -73,6 +75,7 @@ export class ImportViewModel {
     this.importer = options.importer ?? (async (sourceId) => ({ sourceId }));
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
+    this.onImportCompleted = options.onImportCompleted ?? (() => undefined);
     this.onChange = options.onChange ?? (() => undefined);
   }
 
@@ -235,6 +238,7 @@ export class ImportViewModel {
         sourceId: result.sourceId,
       };
     }
+    await this.onImportCompleted();
     this.onChange();
   }
 }

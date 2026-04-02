@@ -17,9 +17,12 @@ import { SettingsViewModel } from "../view-models/settings-view-model";
 
 type AppProps = {
   state?: DesktopAppState;
+  integration?: {
+    refreshInventory?: () => Promise<void>;
+  };
 };
 
-export function App({ state: providedState }: AppProps) {
+export function App({ state: providedState, integration }: AppProps) {
   const stateRef = useRef(providedState ?? createDesktopAppState());
   const [, setRevision] = useState(0);
   const mutationCoordinatorRef = useRef(createMutationCoordinator());
@@ -30,12 +33,14 @@ export function App({ state: providedState }: AppProps) {
   const homeViewModelRef = useRef(
     new HomeViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
+      refreshList: integration?.refreshInventory,
       onChange: notifyChange,
     }),
   );
   const importViewModelRef = useRef(
     new ImportViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
+      onImportCompleted: () => homeViewModelRef.current.refresh(),
       onChange: notifyChange,
     }),
   );
