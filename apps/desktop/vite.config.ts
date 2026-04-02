@@ -3,7 +3,7 @@ import { searchForWorkspaceRoot } from "vite";
 
 export default defineConfig({
   test: {
-    include: ["src/tests/**/*.test.ts"],
+    include: ["src/tests/**/*.test.ts", "src/tests/**/*.test.tsx"],
     exclude: ["dist/**", "node_modules/**"],
   },
   server: {

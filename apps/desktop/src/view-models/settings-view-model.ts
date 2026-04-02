@@ -1,4 +1,5 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
+import type { AgentDisplayPreference } from "../store/settings-state";
 
 export class SettingsViewModel {
   constructor(private readonly state: DesktopAppState) {}
@@ -17,5 +18,9 @@ export class SettingsViewModel {
 
   set logLevel(value: string) {
     this.state.settings.logLevel = value;
+  }
+
+  get agentDisplayPreferences(): AgentDisplayPreference[] {
+    return this.state.settings.agentDisplayPreferences;
   }
 }
