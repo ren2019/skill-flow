@@ -9,7 +9,7 @@ import { SettingsViewModel } from "../view-models/settings-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("settings screen", () => {
-  it("renders settings fields, agent rows, and mount paths", () => {
+  it("renders appearance, update, general, advanced, and maintenance sections", () => {
     const state = createDesktopAppState({
       settings: {
         autoLaunch: true,
@@ -32,10 +32,31 @@ describe("settings screen", () => {
     );
 
     expect(markup).toContain("Settings");
-    expect(markup).toContain("codex");
-    expect(markup).toContain(".codex");
-    expect(markup).toContain("debug");
-    expect(markup).toContain("Auto Launch");
+    expect(markup).toContain("Appearance");
+    expect(markup).toContain("Application Update");
+    expect(markup).toContain("Advanced");
+    expect(markup).toContain("Maintenance");
+  });
+
+  it("renders update and maintenance actions instead of read-only fields only", () => {
+    const state = createDesktopAppState({
+      settings: {
+        autoLaunch: true,
+        logLevel: "debug",
+        agentDisplayPreferences: [
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <SettingsScreen viewModel={new SettingsViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Check for Updates");
+    expect(markup).toContain("Open Releases");
+    expect(markup).toContain("Clear Cache");
+    expect(markup).toContain("Reset Configuration");
   });
 
   it("renders update checking state and release version details", () => {

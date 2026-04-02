@@ -1,5 +1,6 @@
 import { startTransition, useEffect } from "react";
 import { AgentIcon } from "../components/agent-icon";
+import { SettingsSection } from "../components/settings-section";
 import { localize, localizeUpdateStatus } from "../i18n";
 import { detectedAgentRows } from "../runtime/settings-store";
 import { SettingsViewModel } from "../view-models/settings-view-model";
@@ -21,35 +22,12 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
   return (
     <main>
       <h1>{t("page.settings.title")}</h1>
-      <section>
-        <h2>{t("page.settings.general")}</h2>
-        <dl>
-          <div>
-            <dt>{t("settings.auto_launch")}</dt>
-            <dd>{viewModel.autoLaunch ? t("settings.enabled") : t("settings.disabled")}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.log_level")}</dt>
-            <dd>{viewModel.logLevel}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.current_version")}</dt>
-            <dd>{viewModel.currentVersion}</dd>
-          </div>
-          <div>
-            <dt>{t("settings.update_status")}</dt>
-            <dd>{localizeUpdateStatus(viewModel.updateStatus, viewModel.desktopLanguage)}</dd>
-          </div>
-          {viewModel.latestVersion ? (
-            <div>
-              <dt>{t("settings.latest_version")}</dt>
-              <dd>{viewModel.latestVersion}</dd>
-            </div>
-          ) : null}
-        </dl>
-      </section>
-      <section>
-        <h2>{t("page.settings.agent_mount_paths")}</h2>
+      <SettingsSection title={t("settings.section.appearance")}>
+        <p>{t("settings.row.theme.title")}: {viewModel.themeMode}</p>
+        <p>{t("settings.row.accent.title")}: {viewModel.themeAccent}</p>
+        <p>{t("settings.row.language.title")}: {viewModel.desktopLanguage}</p>
+      </SettingsSection>
+      <SettingsSection title={t("settings.section.agent_display")}>
         <ul>
           {rows.map((row) => (
             <li key={row.targetId}>
@@ -62,7 +40,40 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             </li>
           ))}
         </ul>
-      </section>
+      </SettingsSection>
+      <SettingsSection title={t("settings.section.application_update")}>
+        <p>{t("settings.current_version")}: {viewModel.currentVersion}</p>
+        <p>{t("settings.update_status")}: {localizeUpdateStatus(viewModel.updateStatus, viewModel.desktopLanguage)}</p>
+        {viewModel.latestVersion ? <p>{t("settings.latest_version")}: {viewModel.latestVersion}</p> : null}
+        <button
+          type="button"
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.checkForUpdates();
+            });
+          }}
+        >
+          {t("settings.action.check_updates")}
+        </button>
+        <button type="button" onClick={() => viewModel.openReleasePage()}>
+          {t("settings.action.open_releases")}
+        </button>
+      </SettingsSection>
+      <SettingsSection title={t("settings.section.general")}>
+        <p>{t("settings.auto_launch")}: {viewModel.autoLaunch ? t("settings.enabled") : t("settings.disabled")}</p>
+      </SettingsSection>
+      <SettingsSection title={t("settings.section.advanced")}>
+        <p>{t("settings.log_level")}: {viewModel.logLevel}</p>
+        <p>{t("settings.row.external_helper_override.title")}: {viewModel.externalHelperOverride ? t("settings.enabled") : t("settings.disabled")}</p>
+      </SettingsSection>
+      <SettingsSection title={t("settings.section.maintenance")}>
+        <button type="button" onClick={() => viewModel.clearMetadataCache()}>
+          {t("settings.action.clear_cache")}
+        </button>
+        <button type="button" onClick={() => viewModel.resetConfiguration()}>
+          {t("settings.action.reset_configuration")}
+        </button>
+      </SettingsSection>
     </main>
   );
 }

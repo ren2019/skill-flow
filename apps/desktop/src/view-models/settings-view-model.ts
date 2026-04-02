@@ -64,6 +64,18 @@ export class SettingsViewModel {
     return this.state.settings.agentDisplayPreferences;
   }
 
+  get themeMode(): string {
+    return this.state.settings.themeModeRawValue;
+  }
+
+  get themeAccent(): string {
+    return this.state.settings.themeAccentRawValue;
+  }
+
+  get externalHelperOverride(): boolean {
+    return this.state.settings.experimentalExternalHelper;
+  }
+
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
   }
@@ -121,6 +133,17 @@ export class SettingsViewModel {
 
   openReleasePage(): void {
     this.releasePageOpener(this.latestReleaseUrl ?? SettingsViewModel.latestReleasesUrl);
+  }
+
+  clearMetadataCache(): void {
+    this.onChange();
+  }
+
+  resetConfiguration(): void {
+    this.state.settings.autoLaunch = false;
+    this.state.settings.logLevel = "info";
+    this.state.settings.experimentalExternalHelper = false;
+    this.onChange();
   }
 }
 
