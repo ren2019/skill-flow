@@ -32,6 +32,9 @@ describe("settings screen", () => {
     );
 
     expect(markup).toContain("Settings");
+    expect(markup).toContain("data-view=\"settings-page\"");
+    expect(markup).toContain("data-view=\"settings-control-row\"");
+    expect(markup).toContain("data-view=\"settings-agent-row\"");
     expect(markup).toContain("Appearance");
     expect(markup).toContain("Application Update");
     expect(markup).toContain("Advanced");
@@ -57,6 +60,7 @@ describe("settings screen", () => {
     expect(markup).toContain("Open Releases");
     expect(markup).toContain("Clear Cache");
     expect(markup).toContain("Reset Configuration");
+    expect(markup).toContain("data-view=\"settings-action-row\"");
   });
 
   it("renders update checking state and release version details", () => {
@@ -83,6 +87,7 @@ describe("settings screen", () => {
     expect(markup).toContain("Update available");
     expect(markup).toContain("Latest Version");
     expect(markup).toContain("1.3.1");
+    expect(markup).toContain("data-view=\"settings-update-status\"");
   });
 
   it("checks for updates on mount and rerenders the fetched status", async () => {
