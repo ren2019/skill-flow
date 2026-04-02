@@ -1,27 +1,36 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { DetailScreen } from "../screens/detail-screen";
 import { HomeScreen } from "../screens/home-screen";
 import { ImportScreen } from "../screens/import-screen";
 import { SettingsScreen } from "../screens/settings-screen";
-import { createDesktopAppState } from "../store/desktop-app-state";
+import {
+  createDesktopAppState,
+  type DesktopAppState,
+} from "../store/desktop-app-state";
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { ImportViewModel } from "../view-models/import-view-model";
-import { MainViewModel } from "../view-models/main-view-model";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
-export function App() {
-  const stateRef = useRef(createDesktopAppState());
-  const mainRef = useRef(new MainViewModel(stateRef.current));
+type AppProps = {
+  state?: DesktopAppState;
+};
 
-  switch (mainRef.current.currentRoute.kind) {
+export function App({ state: providedState }: AppProps) {
+  const stateRef = useRef(providedState ?? createDesktopAppState());
+  const [, setRevision] = useState(0);
+  const notifyChange = () => {
+    setRevision((value) => value + 1);
+  };
+
+  switch (stateRef.current.view.currentRoute.kind) {
     case "home":
-      return <HomeScreen viewModel={new HomeViewModel(stateRef.current)} />;
+      return <HomeScreen viewModel={new HomeViewModel(stateRef.current, { onChange: notifyChange })} />;
     case "importPage":
-      return <ImportScreen viewModel={new ImportViewModel(stateRef.current)} />;
+      return <ImportScreen viewModel={new ImportViewModel(stateRef.current, { onChange: notifyChange })} />;
     case "detail":
-      return <DetailScreen viewModel={new DetailViewModel(stateRef.current)} />;
+      return <DetailScreen viewModel={new DetailViewModel(stateRef.current, { onChange: notifyChange })} />;
     case "settings":
-      return <SettingsScreen viewModel={new SettingsViewModel(stateRef.current)} />;
+      return <SettingsScreen viewModel={new SettingsViewModel(stateRef.current, { onChange: notifyChange })} />;
   }
 }

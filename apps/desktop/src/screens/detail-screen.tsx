@@ -40,7 +40,17 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
         <p>{detail.enabledTargetLabels.join(", ")}</p>
         <ul>
           {detail.fileTree.map((item) => (
-            <li key={item.id}>{item.title}</li>
+            <li key={item.id}>
+              <button
+                type="button"
+                data-tree-item-id={item.id}
+                onClick={() => {
+                  viewModel.selectTreeItem(item.id);
+                }}
+              >
+                {item.title}
+              </button>
+            </li>
           ))}
         </ul>
         <ul>
@@ -48,6 +58,63 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
             <li key={groupDocument.id}>{groupDocument.title}</li>
           ))}
         </ul>
+        <nav>
+          <button
+            type="button"
+            onClick={() => {
+              viewModel.showOverview();
+            }}
+          >
+            Overview
+          </button>
+          {detail.skills.map((skill) => (
+            <button
+              key={skill.id}
+              type="button"
+              data-skill-id={skill.id}
+              onClick={() => {
+                viewModel.selectSkill(skill.id);
+              }}
+            >
+              {skill.title}
+            </button>
+          ))}
+        </nav>
+        {viewModel.showingGroupOverview ? (
+          <nav>
+            {detail.groupDocuments.map((groupDocument) => (
+              <button
+                key={groupDocument.id}
+                type="button"
+                data-group-document-id={groupDocument.id}
+                onClick={() => {
+                  viewModel.selectGroupDocument(groupDocument.id);
+                }}
+              >
+                {groupDocument.title}
+              </button>
+            ))}
+          </nav>
+        ) : (
+          <nav>
+            {(detail.skills.find((skill) => skill.id === viewModel.selectedSkillId)?.documents ?? []).map(
+              (document) => (
+                <button
+                  key={document.id}
+                  type="button"
+                  data-skill-document-id={document.id}
+                  onClick={() => {
+                    if (viewModel.selectedSkillId) {
+                      viewModel.selectSkillDocument(viewModel.selectedSkillId, document.id);
+                    }
+                  }}
+                >
+                  {document.title}
+                </button>
+              ),
+            )}
+          </nav>
+        )}
         <MarkdownDocument source={documentSource} />
       </GroupCard>
     </main>

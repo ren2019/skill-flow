@@ -1,8 +1,12 @@
 import ReactDOMServer from "react-dom/server";
+import { act, create } from "react-test-renderer";
 import { describe, expect, it } from "vitest";
+import { useRef, useState } from "react";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { SettingsScreen } from "../screens/settings-screen";
 import { SettingsViewModel } from "../view-models/settings-view-model";
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("settings screen", () => {
   it("renders settings fields, agent rows, and mount paths", () => {
@@ -58,5 +62,37 @@ describe("settings screen", () => {
     expect(markup).toContain("updateAvailable");
     expect(markup).toContain("Latest Version");
     expect(markup).toContain("1.3.1");
+  });
+
+  it("checks for updates on mount and rerenders the fetched status", async () => {
+    const state = createDesktopAppState();
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          updateChecker: {
+            fetchLatestRelease: async () => ({
+              version: "1.3.1",
+              releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+            }),
+          },
+          currentVersionProvider: () => "1.1.0",
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain("Update Status");
+    expect(text).toContain("updateAvailable");
+    expect(text).toContain("Latest Version");
+    expect(text).toContain("1.3.1");
   });
 });

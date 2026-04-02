@@ -1,3 +1,4 @@
+import { startTransition, useEffect } from "react";
 import { AgentIcon } from "../components/agent-icon";
 import { detectedAgentRows } from "../runtime/settings-store";
 import { SettingsViewModel } from "../view-models/settings-view-model";
@@ -8,6 +9,12 @@ type SettingsScreenProps = {
 
 export function SettingsScreen({ viewModel }: SettingsScreenProps) {
   const rows = detectedAgentRows(viewModel.agentDisplayPreferences);
+
+  useEffect(() => {
+    startTransition(() => {
+      void viewModel.checkForUpdatesIfNeeded();
+    });
+  }, [viewModel]);
 
   return (
     <main>

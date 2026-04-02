@@ -7,7 +7,14 @@ import type {
 } from "../store/detail-state";
 
 export class DetailViewModel {
-  constructor(private readonly state: DesktopAppState) {}
+  private readonly onChange: () => void;
+
+  constructor(
+    private readonly state: DesktopAppState,
+    options: { onChange?: () => void } = {},
+  ) {
+    this.onChange = options.onChange ?? (() => undefined);
+  }
 
   get currentRoute(): DesktopRoute {
     return this.state.view.currentRoute;
@@ -100,10 +107,12 @@ export class DetailViewModel {
     }
     this.state.view.selectedSourceId = normalizedSourceId;
     this.state.view.currentRoute = desktopRoute.detail(normalizedSourceId);
+    this.onChange();
   }
 
   hydrateInspect(sourceId: string, detail: DetailRecord): void {
     this.state.detailState.detailsBySourceId[sourceId] = detail;
+    this.onChange();
   }
 
   hydrateEnrichment(sourceId: string, enrichment: Partial<DetailRecord>): void {
@@ -115,6 +124,7 @@ export class DetailViewModel {
       ...existing,
       ...enrichment,
     };
+    this.onChange();
   }
 
   selectSkill(skillId: string): void {
@@ -128,6 +138,39 @@ export class DetailViewModel {
     if (fallbackTreeItemId) {
       this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = fallbackTreeItemId;
     }
+    this.onChange();
+  }
+
+  showOverview(): void {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return;
+    }
+    this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = true;
+    this.onChange();
+  }
+
+  selectTreeItem(itemId: string): void {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return;
+    }
+    this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = itemId;
+    this.onChange();
+  }
+
+  selectGroupDocument(documentId: string): void {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return;
+    }
+    this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = documentId;
+    this.onChange();
+  }
+
+  selectSkillDocument(skillId: string, documentId: string): void {
+    this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId] = documentId;
+    this.onChange();
   }
 }
 

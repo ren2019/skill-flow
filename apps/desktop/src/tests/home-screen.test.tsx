@@ -1,8 +1,12 @@
 import ReactDOMServer from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { act, create } from "react-test-renderer";
+import { describe, expect, it, vi } from "vitest";
+import { useRef, useState } from "react";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { HomeScreen } from "../screens/home-screen";
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("home screen", () => {
   it("renders installed inventory groups and source ids", () => {
@@ -38,5 +42,51 @@ describe("home screen", () => {
     );
 
     expect(markup).toContain("Loading workspace");
+  });
+
+  it("wires refresh, update-all, pin, and project scope actions", async () => {
+    const refreshList = vi.fn().mockResolvedValue(undefined);
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "beta"] },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          refreshList,
+          updateGroup,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    const buttons = renderer!.root.findAllByType("button");
+    const refreshButton = buttons.find((button) => button.children.includes("Refresh"));
+    const updateAllButton = buttons.find((button) => button.children.includes("Update All"));
+    const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
+    const projectButton = renderer!.root.findByProps({ "data-project-scope": "global" });
+
+    await act(async () => {
+      refreshButton!.props.onClick();
+      await updateAllButton!.props.onClick();
+      pinButton.props.onClick();
+      await projectButton.props.onClick();
+    });
+
+    expect(refreshList).toHaveBeenCalledTimes(1);
+    expect(updateGroup.mock.calls).toEqual([["alpha"], ["beta"]]);
+    expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
+    expect(state.settings.selectedProjectScope).toEqual({ kind: "global" });
   });
 });

@@ -1,3 +1,4 @@
+import { startTransition } from "react";
 import { GroupCard } from "../components/group-card";
 import { HomeViewModel } from "../view-models/home-view-model";
 
@@ -38,8 +39,37 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
       <h1>Installed Skills</h1>
       <p>Scope: {viewModel.selectedProjectScope.kind === "project" ? viewModel.selectedProjectScope.projectId : "global"}</p>
       <nav>
-        <button type="button">Refresh</button>
-        <button type="button">Update All</button>
+        <button
+          type="button"
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.refresh();
+            });
+          }}
+        >
+          Refresh
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.updateAllGroupsFromHome();
+            });
+          }}
+        >
+          Update All
+        </button>
+        <button
+          type="button"
+          data-project-scope="global"
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.selectProjectScope({ kind: "global" });
+            });
+          }}
+        >
+          Global Scope
+        </button>
       </nav>
       <GroupCard
         title="Inventory"
@@ -49,7 +79,33 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
         <ul>
           {viewModel.sourceIds.map((sourceId) => (
             <li key={sourceId}>
-              {sourceId}
+              <button
+                type="button"
+                data-source-id={sourceId}
+                onClick={() => {
+                  viewModel.openDetail(sourceId);
+                }}
+              >
+                {sourceId}
+              </button>
+              <button
+                type="button"
+                data-update-source-id={sourceId}
+                onClick={() => {
+                  stateTransition(() => viewModel.updateSource(sourceId));
+                }}
+              >
+                Update
+              </button>
+              <button
+                type="button"
+                data-pin-source-id={sourceId}
+                onClick={() => {
+                  viewModel.togglePinned(sourceId);
+                }}
+              >
+                {viewModel.isPinned(sourceId) ? "Unpin" : "Pin"}
+              </button>
               {viewModel.isPinned(sourceId) ? " Pinned" : ""}
             </li>
           ))}
@@ -57,4 +113,10 @@ export function HomeScreen({ viewModel }: HomeScreenProps) {
       </GroupCard>
     </main>
   );
+}
+
+function stateTransition(action: () => Promise<unknown> | unknown) {
+  startTransition(() => {
+    void action();
+  });
 }

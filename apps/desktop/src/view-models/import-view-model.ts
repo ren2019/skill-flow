@@ -26,6 +26,7 @@ type ImportViewModelOptions = {
   recommendationsLoader?: () => ImportRecommendationSeed[];
   searchLoader?: (query: string) => Promise<ImportGroupState[]>;
   previewLoader?: (groupId: string) => Promise<ImportPreviewResult>;
+  onChange?: () => void;
 };
 
 type ImportDisplayGroup = ImportGroupState;
@@ -44,6 +45,7 @@ export class ImportViewModel {
   private readonly recommendationsLoader: () => ImportRecommendationSeed[];
   private readonly searchLoader: (query: string) => Promise<ImportGroupState[]>;
   private readonly previewLoader: (groupId: string) => Promise<ImportPreviewResult>;
+  private readonly onChange: () => void;
 
   constructor(
     private readonly state: DesktopAppState,
@@ -52,6 +54,7 @@ export class ImportViewModel {
     this.recommendationsLoader = options.recommendationsLoader ?? (() => []);
     this.searchLoader = options.searchLoader ?? (async () => []);
     this.previewLoader = options.previewLoader ?? (async () => ({ skills: [], targets: [] }));
+    this.onChange = options.onChange ?? (() => undefined);
   }
 
   get currentRoute(): DesktopRoute {
@@ -128,6 +131,7 @@ export class ImportViewModel {
     if (this.state.importState.importSearchPhase.kind === "idle") {
       this.state.importState.importSearchPhase = { kind: "ready" };
     }
+    this.onChange();
   }
 
   async submitSearch(query: string): Promise<void> {
@@ -136,10 +140,12 @@ export class ImportViewModel {
     if (!normalizedQuery) {
       this.state.importState.searchGroups = [];
       this.state.importState.importSearchPhase = { kind: "ready" };
+      this.onChange();
       return;
     }
 
     this.state.importState.importSearchPhase = { kind: "loading" };
+    this.onChange();
     try {
       this.state.importState.searchGroups = await this.searchLoader(normalizedQuery);
       this.state.importState.importSearchPhase = { kind: "ready" };
@@ -149,6 +155,7 @@ export class ImportViewModel {
         message: error instanceof Error ? error.message : "Import search failed.",
       };
     }
+    this.onChange();
   }
 
   async previewImportGroupIfNeeded(groupId: string): Promise<void> {
@@ -158,6 +165,7 @@ export class ImportViewModel {
     }
 
     group.previewPhase = { kind: "loading" };
+    this.onChange();
     try {
       const preview = await this.previewLoader(groupId);
       group.skills = [...preview.skills];
@@ -169,6 +177,7 @@ export class ImportViewModel {
         message: error instanceof Error ? error.message : "Import preview failed.",
       };
     }
+    this.onChange();
   }
 }
 

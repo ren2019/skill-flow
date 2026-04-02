@@ -19,6 +19,7 @@ type SettingsViewModelOptions = {
   updateChecker?: Pick<DesktopUpdateChecker, "fetchLatestRelease">;
   currentVersionProvider?: () => string;
   releasePageOpener?: (url: string) => void;
+  onChange?: () => void;
 };
 
 export class SettingsViewModel {
@@ -27,6 +28,7 @@ export class SettingsViewModel {
   private readonly updateChecker: Pick<DesktopUpdateChecker, "fetchLatestRelease">;
   private readonly currentVersionProvider: () => string;
   private readonly releasePageOpener: (url: string) => void;
+  private readonly onChange: () => void;
   private hasPerformedBackgroundUpdateCheck = false;
   private currentUpdateStatus: UpdateStatus = "idle";
   private currentLatestVersion: string | undefined;
@@ -39,6 +41,7 @@ export class SettingsViewModel {
     this.updateChecker = options.updateChecker ?? new DesktopUpdateChecker();
     this.currentVersionProvider = options.currentVersionProvider ?? (() => "dev");
     this.releasePageOpener = options.releasePageOpener ?? (() => undefined);
+    this.onChange = options.onChange ?? (() => undefined);
   }
 
   get autoLaunch(): boolean {
@@ -79,6 +82,7 @@ export class SettingsViewModel {
 
   async checkForUpdates(): Promise<void> {
     this.currentUpdateStatus = "checking";
+    this.onChange();
 
     try {
       const release = await this.updateChecker.fetchLatestRelease();
@@ -93,6 +97,7 @@ export class SettingsViewModel {
       this.latestReleaseUrl = undefined;
       this.currentUpdateStatus = "failed";
     }
+    this.onChange();
   }
 
   async checkForUpdatesIfNeeded(): Promise<void> {
@@ -107,6 +112,7 @@ export class SettingsViewModel {
     this.currentUpdateStatus = seed.status;
     this.currentLatestVersion = seed.latestVersion;
     this.latestReleaseUrl = seed.releaseUrl;
+    this.onChange();
   }
 
   openReleasePage(): void {
