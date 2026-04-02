@@ -80,17 +80,27 @@ export function SharedGroupCard({
       <section data-view="shared-group-card-agents" style={sectionStyle}>
         <SectionLabel label={labels.agents} themeMode={themeMode} />
         <div style={chipRowStyle}>
-          <InfoChip label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
+          {(card.enabledTargetLabels ?? []).length > 0
+            ? (card.enabledTargetLabels ?? []).map((label) => (
+              <InfoChip key={label} label={label} themeMode={themeMode} />
+            ))
+            : <InfoChip label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />}
         </div>
       </section>
 
       <section data-view="shared-group-card-skills" style={sectionStyle}>
         <SectionLabel label={labels.skills} themeMode={themeMode} />
         <div style={chipRowStyle}>
-          <InfoChip
-            label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
-            themeMode={themeMode}
-          />
+          {(card.selectedSkillNames ?? []).length > 0
+            ? (card.selectedSkillNames ?? []).slice(0, 4).map((label) => (
+              <InfoChip key={label} label={label} themeMode={themeMode} />
+            ))
+            : (
+              <InfoChip
+                label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
+                themeMode={themeMode}
+              />
+            )}
           {pinned ? (
             <InfoChip label={labels.pinned} themeMode={themeMode} accent={themeAccent} />
           ) : null}

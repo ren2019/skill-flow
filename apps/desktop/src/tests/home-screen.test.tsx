@@ -30,6 +30,8 @@ describe("home screen", () => {
             starCount: 1200,
             repoUrl: "https://github.com/obra/alpha",
             groupPath: "/groups/alpha",
+            enabledTargetLabels: ["Codex", "Claude Code"],
+            selectedSkillNames: ["browse", "review"],
           },
           {
             sourceId: "beta",
@@ -43,6 +45,8 @@ describe("home screen", () => {
             activeTargetCount: 1,
             byline: "by beta",
             groupPath: "/groups/beta",
+            enabledTargetLabels: ["Cursor"],
+            selectedSkillNames: ["ship"],
           },
         ],
       },
@@ -81,6 +85,8 @@ describe("home screen", () => {
     expect(markup).toContain("3 skills");
     expect(markup).toContain("2 active targets");
     expect(markup).toContain("Pinned");
+    expect(markup).toContain("Codex");
+    expect(markup).toContain("browse");
     expect(markup).not.toContain("Current route");
   });
 

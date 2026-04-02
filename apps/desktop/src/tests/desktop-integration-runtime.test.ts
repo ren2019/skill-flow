@@ -22,7 +22,11 @@ describe("desktop integration runtime", () => {
                   locator: "obra/alpha",
                   kind: "git",
                 },
-                leafs: [{ id: "alpha:browse" }, { id: "alpha:review" }, { id: "alpha:ship" }],
+                leafs: [
+                  { id: "alpha:browse", name: "Browse", linkName: "browse" },
+                  { id: "alpha:review", name: "Review", linkName: "review" },
+                  { id: "alpha:ship", name: "Ship", linkName: "ship" },
+                ],
                 bindings: {
                   selectedLeafIds: ["alpha:browse", "alpha:review"],
                   targets: {
@@ -84,6 +88,8 @@ describe("desktop integration runtime", () => {
         starCount: 1200,
         repoUrl: "https://github.com/obra/alpha",
         groupPath: "/groups/alpha",
+        enabledTargetLabels: ["Codex", "Claude Code"],
+        selectedSkillNames: ["browse", "review"],
       }),
     ]);
   });

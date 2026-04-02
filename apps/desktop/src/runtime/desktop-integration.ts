@@ -18,7 +18,7 @@ type DesktopWorkflowSummary = {
     displayName?: string;
     locator?: string;
   };
-  leafs?: Array<{ id?: string }>;
+  leafs?: Array<{ id?: string; name?: string; linkName?: string }>;
   bindings?: {
     selectedLeafIds?: string[];
     targets?: Record<string, { enabled?: boolean }>;
@@ -54,6 +54,22 @@ type DesktopInventoryListResult = {
     };
     groupPath?: string;
   }>;
+};
+
+const targetLabelsById: Record<string, string> = {
+  "claude-code": "Claude Code",
+  codex: "Codex",
+  cursor: "Cursor",
+  "github-copilot": "GitHub Copilot",
+  "gemini-cli": "Gemini CLI",
+  opencode: "OpenCode",
+  openclaw: "OpenClaw",
+  pi: "PI",
+  windsurf: "Windsurf",
+  "roo-code": "Roo Code",
+  cline: "Cline",
+  amp: "Amp",
+  kiro: "Kiro",
 };
 
 export function createDesktopIntegration(
@@ -152,6 +168,16 @@ function toInventorySummary(
   const selectedLeafIds = Array.isArray(summary.bindings?.selectedLeafIds)
     ? summary.bindings?.selectedLeafIds.filter((leafId): leafId is string => typeof leafId === "string")
     : [];
+  const selectedSkillNames = Array.isArray(summary.leafs)
+    ? summary.leafs
+      .filter((leaf): leaf is { id?: string; name?: string; linkName?: string } => typeof leaf === "object" && leaf !== null)
+      .filter((leaf) => selectedLeafIds.includes(leaf.id ?? ""))
+      .map((leaf) => leaf.linkName ?? leaf.name ?? leaf.id ?? "")
+      .filter((name) => name.length > 0)
+    : [];
+  const enabledTargetLabels = Object.entries(summary.bindings?.targets ?? {})
+    .filter(([, target]) => target?.enabled === true)
+    .map(([targetId]) => targetLabelsById[targetId] ?? targetId);
   const activeTargetCount = typeof summary.activeTargetCount === "number"
     ? summary.activeTargetCount
     : Object.values(summary.bindings?.targets ?? {}).filter((target) => target?.enabled === true).length;
@@ -186,6 +212,8 @@ function toInventorySummary(
     ...(starCount !== undefined ? { starCount } : {}),
     ...(repoUrl ? { repoUrl } : {}),
     ...(groupPath ? { groupPath } : {}),
+    ...(enabledTargetLabels.length > 0 ? { enabledTargetLabels } : {}),
+    ...(selectedSkillNames.length > 0 ? { selectedSkillNames } : {}),
     ...(ownerHandle ? { byline: `by ${ownerHandle}` } : {}),
   }];
 }

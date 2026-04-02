@@ -158,6 +158,8 @@ describe("home view model", () => {
             enabledSkillCount: 2,
             activeTargetCount: 2,
             byline: "by obra",
+            enabledTargetLabels: ["Codex", "Claude Code"],
+            selectedSkillNames: ["browse", "review"],
           },
         ],
       },
@@ -172,6 +174,8 @@ describe("home view model", () => {
         locator: "obra/alpha",
         byline: "by obra",
         skillCount: 3,
+        enabledTargetLabels: ["Codex", "Claude Code"],
+        selectedSkillNames: ["browse", "review"],
       }),
     ]);
   });

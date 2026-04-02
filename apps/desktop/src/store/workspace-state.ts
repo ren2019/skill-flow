@@ -13,6 +13,8 @@ export type InventorySummaryState = {
   starCount?: number;
   repoUrl?: string;
   groupPath?: string;
+  enabledTargetLabels?: string[];
+  selectedSkillNames?: string[];
 };
 
 export type WorkspaceTagPreference = {
