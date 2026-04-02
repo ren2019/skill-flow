@@ -7,6 +7,7 @@
     "dev": "tauri dev",
     "dev:renderer": "vite --port 1420 --strictPort",
     "build": "tauri build",
+    "build:helper": "npm --prefix ../.. run build",
     "build:renderer": "vite build",
     "test": "vitest run",
     "test:watch": "vitest"

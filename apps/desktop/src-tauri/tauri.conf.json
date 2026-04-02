@@ -5,7 +5,7 @@
   "identifier": "com.skillflow.desktop",
   "build": {
     "beforeDevCommand": "npm run dev:renderer",
-    "beforeBuildCommand": "npm run build:renderer",
+    "beforeBuildCommand": "npm run build:helper && npm run build:renderer",
     "devUrl": "http://localhost:1420",
     "frontendDist": "../dist"
   },
@@ -23,6 +23,9 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all"
+    "targets": "all",
+    "resources": {
+      "../../cli/dist/cli.js": "helper/dist/cli.js"
+    }
   }
 }
