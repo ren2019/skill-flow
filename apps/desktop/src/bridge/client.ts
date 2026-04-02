@@ -1,19 +1,27 @@
-import type { DesktopBridgeBoundary, DesktopBridgeEnvelope, BridgePayload } from "./types";
+import {
+  PROTOCOL_VERSION,
+  type BridgeCommandName,
+} from "../../../../packages/shared-types/src/protocol";
+import type {
+  BridgePayload,
+  DesktopBridgeBoundary,
+  DesktopBridgeEnvelope,
+} from "./types";
 
 export const desktopBridgeBoundary: DesktopBridgeBoundary = {
   transport: "bridge --json",
   helperArgs: ["bridge", "--json"],
-  protocolVersion: "1.0",
+  protocolVersion: PROTOCOL_VERSION,
 };
 
 export function createDesktopBridgeEnvelope(
-  command: string,
+  command: BridgeCommandName,
   payload?: BridgePayload,
 ): DesktopBridgeEnvelope {
   return {
-    protocolVersion: "1.0",
+    protocolVersion: PROTOCOL_VERSION,
     requestId: "desktop-bridge-scaffold",
     command,
-    payload,
+    ...(payload === undefined ? {} : { payload }),
   };
 }
