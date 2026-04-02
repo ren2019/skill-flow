@@ -11,7 +11,36 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 describe("home screen", () => {
   it("renders the home top bar with app title, search, and primary actions", () => {
     const state = createDesktopAppState({
-      workspace: { sourceIds: ["alpha", "beta"], pinnedSourceIds: ["beta"] },
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        pinnedSourceIds: ["beta"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+            byline: "by obra",
+          },
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "PARTIAL",
+            warningCount: 1,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+            byline: "by beta",
+          },
+        ],
+      },
       settings: {
         selectedProjectScope: { kind: "project", projectId: "repo-a" },
       },
@@ -32,8 +61,9 @@ describe("home screen", () => {
     expect(markup).toContain("data-action-icon=\"import\"");
     expect(markup).toContain("data-action-icon=\"settings\"");
     expect(markup).toContain("data-view=\"home-inventory-panel\"");
-    expect(markup).toContain("alpha");
-    expect(markup).toContain("beta");
+    expect(markup).toContain("Alpha Starter");
+    expect(markup).toContain("Beta Tools");
+    expect(markup).toContain("by obra");
   });
 
   it("shows the route-aware home header and scope toggle entry", () => {

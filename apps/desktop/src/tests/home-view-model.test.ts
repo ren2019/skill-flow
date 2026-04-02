@@ -141,4 +141,38 @@ describe("home view model", () => {
       projectId: "repo-a",
     });
   });
+
+  it("projects inventory cards from shared workflow summaries", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 1,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+            byline: "by obra",
+          },
+        ],
+      },
+    });
+
+    const viewModel = new HomeViewModel(state);
+
+    expect(viewModel.inventoryCards).toEqual([
+      expect.objectContaining({
+        sourceId: "alpha",
+        title: "Alpha Starter",
+        locator: "obra/alpha",
+        byline: "by obra",
+        skillCount: 3,
+      }),
+    ]);
+  });
 });

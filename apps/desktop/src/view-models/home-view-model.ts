@@ -3,6 +3,7 @@ import { localize } from "../i18n";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
+import type { InventorySummaryState } from "../store/workspace-state";
 import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 import {
   createPassthroughMutationCoordinator,
@@ -37,6 +38,24 @@ export class HomeViewModel {
 
   get sourceIds(): string[] {
     return this.state.workspace.sourceIds;
+  }
+
+  get inventoryCards(): InventorySummaryState[] {
+    if (this.state.workspace.inventorySummaries.length > 0) {
+      return this.state.workspace.inventorySummaries.filter((card) => this.matchesSearch(card));
+    }
+
+    return this.filteredSourceIds.map((sourceId) => ({
+      sourceId,
+      title: sourceId,
+      locator: sourceId,
+      health: "HEALTHY",
+      warningCount: 0,
+      errorCount: 0,
+      skillCount: 0,
+      enabledSkillCount: 0,
+      activeTargetCount: 0,
+    }));
   }
 
   get currentRoute(): DesktopRoute {
@@ -199,5 +218,21 @@ export class HomeViewModel {
           : localize("error.operation_failed", this.desktopLanguage);
       this.onChange();
     }
+  }
+
+  private matchesSearch(card: InventorySummaryState): boolean {
+    const query = this.internalSearchQuery.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    return [
+      card.sourceId,
+      card.title,
+      card.locator,
+      card.byline,
+    ]
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .some((value) => value.toLowerCase().includes(query));
   }
 }

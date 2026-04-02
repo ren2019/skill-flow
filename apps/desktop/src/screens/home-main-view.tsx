@@ -11,7 +11,7 @@ type HomeMainViewProps = {
 
 export function HomeMainView({ viewModel }: HomeMainViewProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
-  const visibleSourceIds = viewModel.filteredSourceIds;
+  const visibleCards = viewModel.inventoryCards;
 
   return (
     <main data-view="home-page" style={pageStyle}>
@@ -59,7 +59,7 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
             <div data-view="home-inventory-summary" style={summaryCardStyle}>
               <strong style={{ display: "block", fontSize: "12px" }}>{t("page.home.inventory")}</strong>
               <span style={metaTextStyle}>
-                {t("page.home.sources")}: {viewModel.sourceIds.length}
+                {t("page.home.sources")}: {visibleCards.length}
               </span>
             </div>
           </header>
@@ -135,31 +135,34 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
           <GroupCard
             title={t("page.home.inventory")}
             subtitle={`${t("page.home.current_route")}: ${localizeRouteKind(viewModel.currentRoute.kind, viewModel.desktopLanguage)}`}
-            meta={`${t("page.home.sources")}: ${visibleSourceIds.length}`}
+            meta={`${t("page.home.sources")}: ${visibleCards.length}`}
           >
-            {visibleSourceIds.length === 0 ? (
+            {visibleCards.length === 0 ? (
               <div data-view="home-empty-state" style={emptyStateStyle}>
                 {t("page.home.empty")}
               </div>
             ) : (
               <ul data-view="home-inventory-list" style={inventoryListStyle}>
-                {visibleSourceIds.map((sourceId) => (
-                  <li key={sourceId} style={inventoryItemStyle}>
+                {visibleCards.map((card) => (
+                  <li key={card.sourceId} style={inventoryItemStyle}>
                     <button
                       type="button"
-                      data-source-id={sourceId}
+                      data-source-id={card.sourceId}
                       onClick={() => {
-                        viewModel.openDetail(sourceId);
+                        viewModel.openDetail(card.sourceId);
                       }}
                       style={sourceLinkStyle}
                     >
-                      {sourceId}
+                      <span style={{ display: "block" }}>{card.title}</span>
+                      <span style={{ display: "block", fontSize: "12px", color: "#64748b", fontWeight: 400 }}>
+                        {card.byline ?? card.locator}
+                      </span>
                     </button>
                     <button
                       type="button"
-                      data-update-source-id={sourceId}
+                      data-update-source-id={card.sourceId}
                       onClick={() => {
-                        stateTransition(() => viewModel.updateSource(sourceId));
+                        stateTransition(() => viewModel.updateSource(card.sourceId));
                       }}
                       style={actionButtonStyle()}
                     >
@@ -167,15 +170,18 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                     </button>
                     <button
                       type="button"
-                      data-pin-source-id={sourceId}
+                      data-pin-source-id={card.sourceId}
                       onClick={() => {
-                        viewModel.togglePinned(sourceId);
+                        viewModel.togglePinned(card.sourceId);
                       }}
-                      style={actionButtonStyle(viewModel.isPinned(sourceId))}
+                      style={actionButtonStyle(viewModel.isPinned(card.sourceId))}
                     >
-                      {viewModel.isPinned(sourceId) ? t("action.unpin") : t("action.pin")}
+                      {viewModel.isPinned(card.sourceId) ? t("action.unpin") : t("action.pin")}
                     </button>
-                    {viewModel.isPinned(sourceId) ? (
+                    <span style={inventoryMetaStyle}>
+                      {card.skillCount} skills · {card.activeTargetCount} targets
+                    </span>
+                    {viewModel.isPinned(card.sourceId) ? (
                       <span style={pinnedLabelStyle}>{t("state.pinned")}</span>
                     ) : null}
                   </li>
@@ -337,6 +343,12 @@ const pinnedLabelStyle: CSSProperties = {
   gridColumn: "1 / -1",
   fontSize: "12px",
   color: "#0f766e",
+};
+
+const inventoryMetaStyle: CSSProperties = {
+  gridColumn: "1 / 2",
+  fontSize: "12px",
+  color: "#475569",
 };
 
 function actionButtonStyle(active = false): CSSProperties {
