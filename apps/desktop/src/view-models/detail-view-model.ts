@@ -273,26 +273,40 @@ function seedDetailUiSelectionState(
   sourceId: string,
   detail: DetailRecord,
 ): void {
-  if (state.detailState.ui.selectedSkillIdByGroup[sourceId] === undefined) {
-    state.detailState.ui.selectedSkillIdByGroup[sourceId] =
-      detail.skills.find((skill) => skill.isEnabled)?.id ?? detail.skills[0]?.id;
-  }
+  const defaultSkillId = detail.skills.find((skill) => skill.isEnabled)?.id ?? detail.skills[0]?.id;
+  const currentSkillId = state.detailState.ui.selectedSkillIdByGroup[sourceId];
+  const hasCurrentSkill = currentSkillId
+    ? detail.skills.some((skill) => skill.id === currentSkillId)
+    : false;
+  state.detailState.ui.selectedSkillIdByGroup[sourceId] = hasCurrentSkill ? currentSkillId : defaultSkillId;
 
-  if (state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] === undefined) {
-    state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = detail.groupDocuments[0]?.id;
-  }
+  const currentGroupDocumentId = state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId];
+  const hasCurrentGroupDocument = currentGroupDocumentId
+    ? detail.groupDocuments.some((document) => document.id === currentGroupDocumentId)
+    : false;
+  state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = hasCurrentGroupDocument
+    ? currentGroupDocumentId
+    : detail.groupDocuments[0]?.id;
 
   const selectedSkillId = state.detailState.ui.selectedSkillIdByGroup[sourceId];
-  if (
-    selectedSkillId
-    && state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] === undefined
-  ) {
+  if (selectedSkillId) {
     const selectedSkill = detail.skills.find((skill) => skill.id === selectedSkillId);
-    state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] = selectedSkill?.documents[0]?.id;
+    const currentSkillDocumentId = state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId];
+    const hasCurrentSkillDocument = currentSkillDocumentId
+      ? selectedSkill?.documents.some((document) => document.id === currentSkillDocumentId)
+      : false;
+    state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] = hasCurrentSkillDocument
+      ? currentSkillDocumentId
+      : selectedSkill?.documents[0]?.id;
   }
 
   if (state.detailState.ui.showsGroupOverviewByGroup[sourceId] === undefined) {
     state.detailState.ui.showsGroupOverviewByGroup[sourceId] = true;
+  }
+
+  const currentTreeItemId = state.detailState.ui.selectedTreeItemIdByGroup[sourceId];
+  if (currentTreeItemId && !findTreeItem(detail.fileTree, currentTreeItemId)) {
+    delete state.detailState.ui.selectedTreeItemIdByGroup[sourceId];
   }
 }
 
@@ -313,5 +327,22 @@ function findSkillRootId(
       return childMatch;
     }
   }
+  return undefined;
+}
+
+function findTreeItem(
+  items: DetailFileTreeItem[],
+  itemId: string,
+): DetailFileTreeItem | undefined {
+  for (const item of items) {
+    if (item.id === itemId) {
+      return item;
+    }
+    const childMatch = findTreeItem(item.children, itemId);
+    if (childMatch) {
+      return childMatch;
+    }
+  }
+
   return undefined;
 }

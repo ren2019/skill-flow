@@ -342,6 +342,85 @@ describe("detail view model", () => {
     expect(viewModel.selectedSkillDocument?.id).toBe("debug-md");
   });
 
+  it("realigns stale shared detail selections to the first valid entries on rehydrate", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedSkillIdByGroup: { alpha: "missing-skill" },
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedTreeItemIdByGroup: { alpha: "root/missing-skill" },
+          selectedGroupDocumentIdByGroup: { alpha: "missing-doc" },
+          selectedSkillDocumentIdBySkill: { "missing-skill": "missing-skill-doc" },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.hydrateInspect("alpha", {
+      sourceId: "alpha",
+      title: "Alpha",
+      enabledTargetLabels: [],
+      fileTree: [
+        {
+          id: "root/browse",
+          title: "browse",
+          path: "/alpha/browse",
+          isDirectory: true,
+          isSkillRoot: true,
+          isSkillDocument: false,
+          skillId: "browse",
+          children: [],
+        },
+      ],
+      groupDocuments: [
+        {
+          id: "readme",
+          title: "README.md",
+          path: "README.md",
+          metadata: [],
+          renderCacheKey: "readme",
+          content: "# Alpha",
+          isLoaded: true,
+        },
+      ],
+      targets: [],
+      skills: [
+        {
+          id: "browse",
+          title: "Browse",
+          isEnabled: true,
+          documents: [
+            {
+              id: "skill-md",
+              title: "SKILL.md",
+              path: "SKILL.md",
+              metadata: [],
+              renderCacheKey: "skill-md",
+              content: "# Skill",
+              isLoaded: true,
+            },
+          ],
+        },
+      ],
+      sourceFacts: [],
+      deploymentFacts: [],
+      skillSelection: "full",
+      targetSelection: "empty",
+    });
+
+    expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("browse");
+    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("readme");
+    expect(state.detailState.ui.selectedSkillDocumentIdBySkill.browse).toBe("skill-md");
+    expect(state.detailState.ui.selectedTreeItemIdByGroup.alpha).toBeUndefined();
+    expect(viewModel.selectedSkillId).toBe("browse");
+    expect(viewModel.selectedSkillDocument?.id).toBe("skill-md");
+    expect(viewModel.selectedTreeItemId).toBe("root/browse");
+  });
+
   it("rolls back target selection and records a toast when persistence fails", async () => {
     const state = createDesktopAppState({
       view: {
