@@ -457,4 +457,40 @@ describe("detail view model", () => {
     expect(state.detailState.detailsBySourceId.alpha.enabledTargetLabels).toEqual(["Codex"]);
     expect(state.view.toastMessage).toBe("save failed");
   });
+
+  it("rolls back skill selection and records a toast when persistence fails", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [{ id: "skill-a", title: "Skill A", isEnabled: true, documents: [] }],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, {
+      updateSelection: vi.fn().mockRejectedValue(new Error("save failed")),
+    });
+
+    await viewModel.toggleSkill("skill-a");
+
+    expect(state.detailState.detailsBySourceId.alpha.skills).toEqual([
+      { id: "skill-a", title: "Skill A", isEnabled: true, documents: [] },
+    ]);
+    expect(state.view.toastMessage).toBe("save failed");
+  });
 });
