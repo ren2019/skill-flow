@@ -84,6 +84,8 @@ export const zhHansMessages = {
   "error.import_preview_failed": "导入预览失败。",
   "error.selection_update_failed": "选择更新失败。",
   "toast.project_scope.switched": "已切换到%@。",
+  "toast.update_groups.success_singular": "已更新 %@ 个分组。",
+  "toast.update_groups.success_plural": "已更新 %@ 个分组。",
   "toast.import.already_installed": "这个组已存在于本地。",
   "group_tag.input.placeholder": "标签",
   "import.recommendation.category.general": "通用",

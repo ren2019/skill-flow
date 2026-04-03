@@ -167,12 +167,14 @@ export class HomeViewModel {
   }
 
   async updateAllGroupsFromHome(): Promise<void> {
+    const sourceIds = this.sourceIds.filter((candidate) => candidate.trim().length > 0);
     await this.runWithToast(async () => {
       await this.mutationCoordinator.run(async () => {
-        for (const sourceId of this.sourceIds.filter((candidate) => candidate.trim().length > 0)) {
+        for (const sourceId of sourceIds) {
           await this.updateGroup(sourceId);
         }
       });
+      this.state.view.toastMessage = this.formatUpdatedGroupsToast(sourceIds.length);
       this.onChange();
     });
   }
@@ -198,6 +200,7 @@ export class HomeViewModel {
       this.state.view.toastMessage = undefined;
       this.state.view.selectedSourceId = normalizedSourceId;
       await this.mutationCoordinator.run(() => this.updateGroup(normalizedSourceId));
+      this.state.view.toastMessage = this.formatUpdatedGroupsToast(1);
       this.onChange();
     });
   }
@@ -249,7 +252,6 @@ export class HomeViewModel {
     try {
       this.state.view.toastMessage = undefined;
       await action();
-      this.state.view.toastMessage = undefined;
     } catch (error) {
       this.state.view.toastMessage =
         error instanceof Error
@@ -257,6 +259,11 @@ export class HomeViewModel {
           : localize("error.operation_failed", this.desktopLanguage);
       this.onChange();
     }
+  }
+
+  private formatUpdatedGroupsToast(count: number): string {
+    const key = count === 1 ? "toast.update_groups.success_singular" : "toast.update_groups.success_plural";
+    return localize(key, this.desktopLanguage).replace("%@", String(count));
   }
 
   private matchesSearch(card: InventorySummaryState): boolean {

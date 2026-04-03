@@ -59,6 +59,20 @@ describe("home view model", () => {
     expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
     expect(viewModel.isPinned("alpha")).toBe(true);
     expect(viewModel.isPinned("beta")).toBe(false);
+    expect(viewModel.toastMessage).toBe("Updated 1 group.");
+  });
+
+  it("shows a plural success toast after updating all groups from home", async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "", "beta"] },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    await viewModel.updateAllGroupsFromHome();
+
+    expect(updateGroup.mock.calls).toEqual([["alpha"], ["beta"]]);
+    expect(viewModel.toastMessage).toBe("Updated 2 groups.");
   });
 
   it("records an error toast when update-current runs without a selection", async () => {
@@ -86,6 +100,22 @@ describe("home view model", () => {
 
     expect(didUpdate).toBe(false);
     expect(viewModel.toastMessage).toBe("未选择分组。");
+  });
+
+  it("localizes update success toasts for zh-Hans", async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      workspace: { sourceIds: ["alpha", "beta"] },
+      view: { selectedSourceId: "alpha" },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    await viewModel.updateCurrentGroup();
+    expect(viewModel.toastMessage).toBe("已更新 1 个分组。");
+
+    await viewModel.updateAllGroupsFromHome();
+    expect(viewModel.toastMessage).toBe("已更新 2 个分组。");
   });
 
   it("records an error toast when refresh fails", async () => {
