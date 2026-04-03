@@ -49,7 +49,7 @@ describe("import screen", () => {
 
     const restoredInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
     expect(restoredInput.props.value).toBe("anthropic/skills");
-    expect(renderer!.root.findByProps({ "data-placeholder-index": 0 })).toBeDefined();
+    expect(restoredInput.props.placeholder).toBe("search packages, authors, repos");
   });
 
   it("renders recommendation rails when no query is submitted", () => {

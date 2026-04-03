@@ -54,6 +54,8 @@ export type ImportContent =
   | { kind: "searchResults"; groups: ImportDisplayGroup[] };
 
 export class ImportViewModel {
+  private internalSearchText = "";
+  private internalPlaceholderIndex = 0;
   private readonly recommendationsLoader: () => ImportRecommendationSeed[];
   private readonly searchLoader: (query: string) => Promise<ImportGroupState[]>;
   private readonly previewLoader: (groupId: string) => Promise<ImportPreviewResult>;
@@ -92,16 +94,16 @@ export class ImportViewModel {
   }
 
   get importSearchText(): string {
-    return this.state.importState.importSearchText;
+    return this.internalSearchText;
   }
 
-  set importSearchText(value: string) {
-    this.state.importState.importSearchText = value;
+  get importPlaceholderText(): string {
+    return searchPlaceholders[this.internalPlaceholderIndex] ?? searchPlaceholders[0];
+  }
+
+  setSearchText(value: string): void {
+    this.internalSearchText = value;
     this.onChange();
-  }
-
-  get importPlaceholderIndex(): number {
-    return this.state.importState.importPlaceholderIndex;
   }
 
   get searchPhase(): ResourcePhase {
@@ -274,6 +276,10 @@ export class ImportViewModel {
     this.onChange();
   }
 }
+
+const searchPlaceholders = [
+  "search packages, authors, repos",
+];
 
 function findImportGroup(state: DesktopAppState, groupId: string): ImportGroupState | undefined {
   return [...state.importState.recommendedGroups, ...state.importState.searchGroups].find(

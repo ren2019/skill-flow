@@ -28,9 +28,9 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
       <main data-view="import-page" style={pageStyle}>
         <ImportSearchHeader
           query={viewModel.importSearchText}
-          placeholderIndex={viewModel.importPlaceholderIndex}
+          placeholder={viewModel.importPlaceholderText}
           onQueryChange={(query) => {
-            viewModel.importSearchText = query;
+            viewModel.setSearchText(query);
           }}
           onSearch={() => {
             startTransition(() => {
@@ -54,9 +54,9 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
     <main data-view="import-page" style={pageStyle}>
       <ImportSearchHeader
         query={viewModel.importSearchText}
-        placeholderIndex={viewModel.importPlaceholderIndex}
+        placeholder={viewModel.importPlaceholderText}
         onQueryChange={(query) => {
-          viewModel.importSearchText = query;
+          viewModel.setSearchText(query);
         }}
         onSearch={() => {
           startTransition(() => {
@@ -166,7 +166,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
 
 type ImportSearchHeaderProps = {
   query: string;
-  placeholderIndex: number;
+  placeholder: string;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
   title: string;
@@ -175,7 +175,7 @@ type ImportSearchHeaderProps = {
 
 function ImportSearchHeader({
   query,
-  placeholderIndex,
+  placeholder,
   onQueryChange,
   onSearch,
   title,
@@ -189,11 +189,10 @@ function ImportSearchHeader({
       </div>
       <form style={searchBarStyle}>
         <input
-          data-placeholder-index={placeholderIndex}
           data-testid="import-search-input"
           type="text"
           value={query}
-          placeholder="search packages, authors, repos"
+          placeholder={placeholder}
           onChange={(event) => {
             onQueryChange(event.target.value);
           }}
