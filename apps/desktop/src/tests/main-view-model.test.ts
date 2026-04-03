@@ -30,4 +30,15 @@ describe("main view model", () => {
     viewModel.showHome();
     expect(state.view.currentRoute).toEqual(desktopRoute.home());
   });
+
+  it("tracks bound route changes from shared state without extra hooks", () => {
+    const state = createDesktopAppState();
+    const viewModel = new MainViewModel(state);
+
+    state.view.currentRoute = desktopRoute.detail("alpha");
+    expect(viewModel.currentRoute).toEqual(desktopRoute.detail("alpha"));
+
+    state.view.currentRoute = desktopRoute.importPage();
+    expect(viewModel.currentRoute).toEqual(desktopRoute.importPage());
+  });
 });
