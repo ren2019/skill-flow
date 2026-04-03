@@ -15,7 +15,7 @@ afterEach(() => {
 });
 
 describe("desktop release validation script", () => {
-  it("validates macos artifacts from an overridden dist root", () => {
+  it("validates host-platform macOS release artifacts from the generated dist root", () => {
     const distRoot = createDistRoot();
     writeCliArtifacts(distRoot, "macos");
     writeDesktopArtifacts(distRoot, "macos", ["Skill Flow Desktop.zip", "Skill Flow Desktop_1.3.1_aarch64.dmg"]);
@@ -26,7 +26,7 @@ describe("desktop release validation script", () => {
     expect(result.stdout).toContain("Desktop release artifacts validated for macos");
   });
 
-  it("validates linux and windows artifact expectations from an overridden dist root", () => {
+  it("keeps linux and windows artifact expectations explicit in the validation script", () => {
     const distRoot = createDistRoot();
     writeCliArtifacts(distRoot, "linux");
     writeDesktopArtifacts(distRoot, "linux", ["Skill Flow Desktop.AppImage", "skill-flow-desktop_1.3.1_amd64.deb"]);
