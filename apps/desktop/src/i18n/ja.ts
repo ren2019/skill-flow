@@ -66,6 +66,8 @@ export const jaMessages = {
   "settings.row.theme.title": "テーマ",
   "settings.row.accent.title": "アクセント",
   "settings.row.language.title": "言語",
+  "settings.row.home_card_density.title": "ホームカード密度",
+  "settings.row.menu_card_density.title": "メニューカード密度",
   "settings.row.external_helper_override.title": "外部 helper 上書き",
   "settings.action.check_updates": "更新確認",
   "settings.action.open_releases": "リリースを開く",

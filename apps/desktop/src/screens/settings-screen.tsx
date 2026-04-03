@@ -66,7 +66,7 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             }}
           />
           <SettingsSelectRow
-            title="Home Card Density"
+            title={t("settings.row.home_card_density.title")}
             value={viewModel.homeCardDensity}
             options={[
               { value: "comfortable", label: "comfortable" },
@@ -77,7 +77,7 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             }}
           />
           <SettingsSelectRow
-            title="Menu Card Density"
+            title={t("settings.row.menu_card_density.title")}
             value={viewModel.menuCardDensity}
             options={[
               { value: "compact", label: "compact" },
@@ -143,6 +143,8 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             onToggle={() => {
               viewModel.autoLaunch = !viewModel.autoLaunch;
             }}
+            enabledLabel={t("settings.enabled")}
+            disabledLabel={t("settings.disabled")}
           />
         </SettingsSection>
 
@@ -166,6 +168,8 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
             onToggle={() => {
               viewModel.externalHelperOverride = !viewModel.externalHelperOverride;
             }}
+            enabledLabel={t("settings.enabled")}
+            disabledLabel={t("settings.disabled")}
           />
         </SettingsSection>
 
@@ -234,14 +238,16 @@ type SettingsToggleRowProps = {
   title: string;
   value: boolean;
   onToggle: () => void;
+  enabledLabel: string;
+  disabledLabel: string;
 };
 
-function SettingsToggleRow({ title, value, onToggle }: SettingsToggleRowProps) {
+function SettingsToggleRow({ title, value, onToggle, enabledLabel, disabledLabel }: SettingsToggleRowProps) {
   return (
     <div data-view="settings-control-row" style={controlRowStyle}>
       <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{title}</span>
       <button type="button" onClick={onToggle} style={actionButtonStyle()}>
-        {value ? "enabled" : "disabled"}
+        {value ? enabledLabel : disabledLabel}
       </button>
     </div>
   );

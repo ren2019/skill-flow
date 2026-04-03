@@ -12,8 +12,6 @@ export type SettingsStorage = {
   setItem(key: string, value: string): void;
 };
 
-const fallbackSettingsValues = new Map<string, string>();
-
 export function createDesktopSettingsStorage(): SettingsStorage {
   if (
     typeof globalThis.localStorage !== "undefined"
@@ -29,6 +27,8 @@ export function createDesktopSettingsStorage(): SettingsStorage {
       },
     };
   }
+
+  const fallbackSettingsValues = new Map<string, string>();
 
   return {
     getItem(key: string): string | null {

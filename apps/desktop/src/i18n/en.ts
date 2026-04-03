@@ -66,6 +66,8 @@ export const enMessages = {
   "settings.row.theme.title": "Theme",
   "settings.row.accent.title": "Accent",
   "settings.row.language.title": "Language",
+  "settings.row.home_card_density.title": "Home Card Density",
+  "settings.row.menu_card_density.title": "Menu Card Density",
   "settings.row.external_helper_override.title": "External Helper Override",
   "settings.action.check_updates": "Check for Updates",
   "settings.action.open_releases": "Open Releases",

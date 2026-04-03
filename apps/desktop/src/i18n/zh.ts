@@ -66,6 +66,8 @@ export const zhHansMessages = {
   "settings.row.theme.title": "主题",
   "settings.row.accent.title": "强调色",
   "settings.row.language.title": "语言",
+  "settings.row.home_card_density.title": "主页卡片密度",
+  "settings.row.menu_card_density.title": "菜单卡片密度",
   "settings.row.external_helper_override.title": "外部 Helper 覆盖",
   "settings.action.check_updates": "检查更新",
   "settings.action.open_releases": "打开发布页",
