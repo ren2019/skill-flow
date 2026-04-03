@@ -83,6 +83,7 @@ export const enMessages = {
   "error.import_search_failed": "Import search failed.",
   "error.import_preview_failed": "Import preview failed.",
   "error.selection_update_failed": "Selection update failed.",
+  "toast.project_scope.switched": "Switched to %@.",
   "group_tag.input.placeholder": "Tag",
   "test.fallback.only_en": "Only English",
   "tray.open_home": "Open Home",

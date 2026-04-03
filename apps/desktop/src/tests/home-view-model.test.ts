@@ -131,7 +131,18 @@ describe("home view model", () => {
   });
 
   it("switches project scope through shared settings state", async () => {
-    const state = createDesktopAppState();
+    const state = createDesktopAppState({
+      settings: {
+        recentProjectScopes: [
+          {
+            projectId: "repo-a",
+            title: "Repo A",
+            lastActivityAt: "2026-04-02T10:00:00Z",
+            tools: ["codex"],
+          },
+        ],
+      },
+    });
     const viewModel = new HomeViewModel(state);
 
     await viewModel.selectProjectScope({ kind: "project", projectId: "repo-a" });
@@ -140,6 +151,33 @@ describe("home view model", () => {
       kind: "project",
       projectId: "repo-a",
     });
+    expect(viewModel.toastMessage).toBe("Switched to Repo A.");
+
+    await viewModel.selectProjectScope({ kind: "global" });
+
+    expect(state.settings.selectedProjectScope).toEqual({ kind: "global" });
+    expect(viewModel.toastMessage).toBe("Switched to Global.");
+  });
+
+  it("localizes project scope switch toasts for zh-Hans", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+        recentProjectScopes: [
+          {
+            projectId: "repo-a",
+            title: "仓库 A",
+            lastActivityAt: "2026-04-02T10:00:00Z",
+            tools: ["codex"],
+          },
+        ],
+      },
+    });
+    const viewModel = new HomeViewModel(state);
+
+    await viewModel.selectProjectScope({ kind: "project", projectId: "repo-a" });
+
+    expect(viewModel.toastMessage).toBe("已切换到仓库 A。");
   });
 
   it("projects inventory cards from shared workflow summaries", () => {

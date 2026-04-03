@@ -83,6 +83,7 @@ export const jaMessages = {
   "error.import_search_failed": "インポート検索に失敗しました。",
   "error.import_preview_failed": "インポートプレビューに失敗しました。",
   "error.selection_update_failed": "選択の更新に失敗しました。",
+  "toast.project_scope.switched": "%@ に切り替えました。",
   "group_tag.input.placeholder": "タグ",
   "test.fallback.only_en": "Only English",
   "tray.open_home": "ホームを開く",

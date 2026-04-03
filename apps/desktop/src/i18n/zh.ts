@@ -83,6 +83,7 @@ export const zhHansMessages = {
   "error.import_search_failed": "导入搜索失败。",
   "error.import_preview_failed": "导入预览失败。",
   "error.selection_update_failed": "选择更新失败。",
+  "toast.project_scope.switched": "已切换到%@。",
   "group_tag.input.placeholder": "标签",
   "tray.open_home": "打开主页",
   "tray.open_import": "打开导入",

@@ -221,6 +221,12 @@ export class HomeViewModel {
 
   async selectProjectScope(scope: ProjectScopeSelection): Promise<void> {
     this.state.settings.selectedProjectScope = scope;
+    const scopeTitle = scope.kind === "global"
+      ? localize("project_scope.global", this.desktopLanguage)
+      : this.state.settings.recentProjectScopes.find((item) => item.projectId === scope.projectId)?.title
+        ?? scope.projectId;
+    this.state.view.toastMessage = localize("toast.project_scope.switched", this.desktopLanguage)
+      .replace("%@", scopeTitle);
     this.onChange();
   }
 
