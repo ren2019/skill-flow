@@ -6,6 +6,15 @@ type DetailHeaderProps = {
   viewModel: DetailViewModel;
 };
 
+export function formatDetailVersionText(version: string | undefined, language: string): string {
+  if (!version) {
+    return " ";
+  }
+
+  const normalizedVersion = version.toLowerCase().startsWith("v") ? version : `v${version}`;
+  return `${localize("page.detail.version", language)} ${normalizedVersion}`;
+}
+
 export function DetailHeader({ viewModel }: DetailHeaderProps) {
   const detail = viewModel.detail;
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
@@ -27,7 +36,7 @@ export function DetailHeader({ viewModel }: DetailHeaderProps) {
       <div data-view="detail-meta-grid" style={metaGridStyle}>
         <div style={metaCardStyle}>
           <span style={metaLabelStyle}>{t("page.detail.version")}</span>
-          <strong>{detail.revision ?? "-"}</strong>
+          <strong>{formatDetailVersionText(detail.revision, viewModel.desktopLanguage)}</strong>
         </div>
         <div style={metaCardStyle}>
           <span style={metaLabelStyle}>{t("page.detail.targets")}</span>

@@ -2,6 +2,7 @@ import ReactDOMServer from "react-dom/server";
 import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
+import { formatDetailVersionText } from "../components/detail-header";
 import { desktopRoute } from "../navigation/desktop-route";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { DetailScreen } from "../screens/detail-screen";
@@ -10,6 +11,12 @@ import { DetailViewModel } from "../view-models/detail-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("detail screen", () => {
+  it("normalizes the version prefix for the detail header", () => {
+    expect(formatDetailVersionText("1.0.0", "en")).toBe("Version v1.0.0");
+    expect(formatDetailVersionText("v1.0.0", "en")).toBe("Version v1.0.0");
+    expect(formatDetailVersionText(undefined, "en")).toBe(" ");
+  });
+
   it("renders the detail sidebar with group row and skill rows", () => {
     const state = createDesktopAppState({
       view: {
@@ -120,7 +127,7 @@ describe("detail screen", () => {
 
     expect(markup).toContain("data-view=\"detail-header\"");
     expect(markup).toContain("data-view=\"detail-meta-grid\"");
-    expect(markup).toContain("Version");
+    expect(markup).toContain("Version v1.2.3");
     expect(markup).toContain("Targets");
     expect(markup).toContain("# Alpha");
   });
