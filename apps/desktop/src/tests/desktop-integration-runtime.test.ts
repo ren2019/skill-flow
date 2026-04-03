@@ -93,4 +93,80 @@ describe("desktop integration runtime", () => {
       }),
     ]);
   });
+
+  it("hydrates pins and project scope state from the bridge list response", async () => {
+    const state = createDesktopAppState();
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: {
+        invoke: vi.fn().mockResolvedValue({
+          protocolVersion: "1.0",
+          command: "list",
+          ok: true,
+          warnings: [],
+          errors: [],
+          data: {
+            summaries: [
+              {
+                source: {
+                  id: "alpha",
+                  displayName: "Alpha Starter",
+                  locator: "obra/alpha",
+                },
+              },
+              {
+                source: {
+                  id: "beta",
+                  displayName: "Beta Tools",
+                  locator: "obra/beta",
+                },
+              },
+            ],
+            pinnedSourceIds: ["beta", "", 42],
+            recentProjects: [
+              {
+                projectId: "repo-a",
+                title: "Repo A",
+                lastActivityAt: "2026-04-02T10:00:00Z",
+                projectPath: "/tmp/repo-a",
+                tools: ["codex", "cursor", 42],
+              },
+              {
+                projectId: "repo-b",
+                title: "Repo B",
+                lastActivityAt: "2026-04-01T08:00:00Z",
+              },
+            ],
+            selectedProjectScope: {
+              kind: "project",
+              projectId: "repo-a",
+            },
+          },
+        }),
+      },
+    });
+
+    await integration.refreshInventory();
+
+    expect(state.workspace.sourceIds).toEqual(["alpha", "beta"]);
+    expect(state.workspace.pinnedSourceIds).toEqual(["beta"]);
+    expect(state.settings.recentProjectScopes).toEqual([
+      {
+        projectId: "repo-a",
+        title: "Repo A",
+        lastActivityAt: "2026-04-02T10:00:00Z",
+        projectPath: "/tmp/repo-a",
+        tools: ["codex", "cursor"],
+      },
+      {
+        projectId: "repo-b",
+        title: "Repo B",
+        lastActivityAt: "2026-04-01T08:00:00Z",
+        tools: [],
+      },
+    ]);
+    expect(state.settings.selectedProjectScope).toEqual({
+      kind: "project",
+      projectId: "repo-a",
+    });
+  });
 });
