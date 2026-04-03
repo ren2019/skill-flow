@@ -4,6 +4,7 @@ import type { DesktopAppState } from "../store/desktop-app-state";
 import type { DetailRecord, DetailDocumentTab, DetailFileTreeItem, DetailSkillState, DetailTargetState } from "../store/detail-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
 import type { InventorySummaryState } from "../store/workspace-state";
+import { seedDetailUiSelectionState } from "../view-models/detail-view-model";
 
 export type DesktopIntegration = {
   refreshInventory(): Promise<void>;
@@ -171,6 +172,7 @@ export function createDesktopIntegration(
 
       const detail = toDetailRecord(normalizedSourceId, inspectResponse, enrichmentResponse);
       state.detailState.detailsBySourceId[normalizedSourceId] = detail;
+      seedDetailUiSelectionState(state, normalizedSourceId, detail);
     },
   };
 }
@@ -355,7 +357,7 @@ function toDetailRecord(
     sourceFacts,
     deploymentFacts,
     fileTree: toDetailFileTree(leafs),
-    groupDocuments: [],
+    groupDocuments: toGroupDocuments(sourceId, source, summary, enrichmentData),
     targets,
     skills,
   };
@@ -423,6 +425,36 @@ function toSkillDocuments(
     content: typeof leaf.description === "string" && leaf.description.length > 0
       ? leaf.description
       : "No detail content loaded yet.",
+    isLoaded: true,
+  }];
+}
+
+function toGroupDocuments(
+  sourceId: string,
+  source: DesktopInspectResult["source"],
+  summary: DesktopInspectResult["summary"],
+  enrichment: DesktopInspectEnrichmentResult | undefined,
+): DetailDocumentTab[] {
+  const contentLines = [
+    source?.displayName ?? summary?.source?.displayName ?? sourceId,
+    typeof enrichment?.sourceSnapshot?.summary === "string" ? enrichment.sourceSnapshot.summary : undefined,
+    enrichment?.sourceMetadata?.status === "ready"
+      ? enrichment.sourceMetadata.data?.description
+      : undefined,
+    typeof source?.locator === "string" ? source.locator : undefined,
+  ].filter((line): line is string => typeof line === "string" && line.length > 0);
+
+  if (contentLines.length === 0) {
+    return [];
+  }
+
+  return [{
+    id: `${sourceId}:overview`,
+    title: "README.md",
+    path: "README.md",
+    metadata: [],
+    renderCacheKey: `${sourceId}:overview`,
+    content: contentLines.join("\n\n"),
     isLoaded: true,
   }];
 }

@@ -297,7 +297,15 @@ describe("desktop integration runtime", () => {
             isEnabled: true,
           }),
         ],
+        groupDocuments: [
+          expect.objectContaining({
+            id: "alpha:overview",
+            title: "README.md",
+            isLoaded: true,
+          }),
+        ],
       }),
     );
+    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("alpha:overview");
   });
 });

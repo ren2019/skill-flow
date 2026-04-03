@@ -268,7 +268,7 @@ export class DetailViewModel {
   }
 }
 
-function seedDetailUiSelectionState(
+export function seedDetailUiSelectionState(
   state: DesktopAppState,
   sourceId: string,
   detail: DetailRecord,

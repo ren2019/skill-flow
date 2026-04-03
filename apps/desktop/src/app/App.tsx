@@ -159,8 +159,13 @@ export function App({ state: providedState, integration }: AppProps) {
       notifyChange();
     }
 
+    const loadDetail = activeIntegration?.loadDetail;
+    if (!loadDetail) {
+      return;
+    }
+
     startTransition(() => {
-      void activeIntegration?.loadDetail?.(sourceId)
+      void loadDetail(sourceId)
         .then(() => {
           notifyChange();
         })
