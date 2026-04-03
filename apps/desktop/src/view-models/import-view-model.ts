@@ -242,7 +242,7 @@ export class ImportViewModel {
         }),
       );
 
-      group.isInstalledLocally = true;
+      markImportGroupInstalled(this.state, group);
       if (this.currentRoute.kind !== "importPage") {
         this.state.view.selectedSourceId = result.sourceId;
         this.state.view.currentRoute = {
@@ -266,6 +266,14 @@ function findImportGroup(state: DesktopAppState, groupId: string): ImportGroupSt
   return [...state.importState.recommendedGroups, ...state.importState.searchGroups].find(
     (group) => group.id === groupId,
   );
+}
+
+function markImportGroupInstalled(state: DesktopAppState, targetGroup: ImportGroupState): void {
+  for (const group of [...state.importState.recommendedGroups, ...state.importState.searchGroups]) {
+    if (group.id === targetGroup.id || group.locator === targetGroup.locator) {
+      group.isInstalledLocally = true;
+    }
+  }
 }
 
 function stripRecommendationFields(group: ImportGroupState): ImportGroupState {

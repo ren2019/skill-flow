@@ -276,6 +276,44 @@ describe("import view model", () => {
     expect(state.view.toastMessage).toBe("Imported source.");
   });
 
+  it("synchronizes installed state across recommended and search copies of the same group", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+      importState: {
+        importSubmittedQuery: "starter",
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+        searchGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(state.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
+    expect(state.importState.searchGroups[0].isInstalledLocally).toBe(true);
+  });
+
   it("shows a toast instead of importing when the group already exists locally", async () => {
     const importer = vi.fn();
     const state = createDesktopAppState({
