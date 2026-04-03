@@ -140,6 +140,7 @@ export class DetailViewModel {
 
   hydrateInspect(sourceId: string, detail: DetailRecord): void {
     this.state.detailState.detailsBySourceId[sourceId] = detail;
+    seedDetailUiSelectionState(this.state, sourceId, detail);
     this.onChange();
   }
 
@@ -264,6 +265,34 @@ export class DetailViewModel {
           : localize("error.selection_update_failed", this.desktopLanguage);
     }
     this.onChange();
+  }
+}
+
+function seedDetailUiSelectionState(
+  state: DesktopAppState,
+  sourceId: string,
+  detail: DetailRecord,
+): void {
+  if (state.detailState.ui.selectedSkillIdByGroup[sourceId] === undefined) {
+    state.detailState.ui.selectedSkillIdByGroup[sourceId] =
+      detail.skills.find((skill) => skill.isEnabled)?.id ?? detail.skills[0]?.id;
+  }
+
+  if (state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] === undefined) {
+    state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = detail.groupDocuments[0]?.id;
+  }
+
+  const selectedSkillId = state.detailState.ui.selectedSkillIdByGroup[sourceId];
+  if (
+    selectedSkillId
+    && state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] === undefined
+  ) {
+    const selectedSkill = detail.skills.find((skill) => skill.id === selectedSkillId);
+    state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] = selectedSkill?.documents[0]?.id;
+  }
+
+  if (state.detailState.ui.showsGroupOverviewByGroup[sourceId] === undefined) {
+    state.detailState.ui.showsGroupOverviewByGroup[sourceId] = true;
   }
 }
 
