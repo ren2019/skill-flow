@@ -103,6 +103,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                           <button
                             type="button"
                             data-import-group-id={group.id}
+                            disabled={Boolean(group.isInstalledLocally)}
                             onClick={() => {
                               startTransition(() => {
                                 void viewModel.importGroup(group.id);

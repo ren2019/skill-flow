@@ -171,4 +171,30 @@ describe("import screen", () => {
     const searchInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
     expect(searchInput.props.value).toBe("");
   });
+
+  it("disables the import action for groups that already exist locally", () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "",
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            isInstalledLocally: true,
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <ImportScreen viewModel={new ImportViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Installed");
+    expect(markup).toContain("disabled=\"\"");
+  });
 });
