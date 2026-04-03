@@ -121,6 +121,57 @@ describe("import view model", () => {
     });
   });
 
+  it("preserves recommendation section order from the local seed list", async () => {
+    const viewModel = new ImportViewModel(createDesktopAppState(), {
+      recommendationsLoader: () => [
+        {
+          id: "alpha",
+          title: "Alpha",
+          locator: "obra/alpha",
+          categoryId: "general",
+          categoryTitle: "General",
+        },
+        {
+          id: "beta",
+          title: "Beta",
+          locator: "obra/beta",
+          categoryId: "development",
+          categoryTitle: "Development",
+        },
+        {
+          id: "gamma",
+          title: "Gamma",
+          locator: "obra/gamma",
+          categoryId: "general",
+          categoryTitle: "General",
+        },
+      ],
+    });
+
+    await viewModel.loadImportPageIfNeeded();
+
+    expect(viewModel.content).toEqual({
+      kind: "recommended",
+      sections: [
+        {
+          categoryId: "general",
+          title: "General",
+          groups: [
+            expect.objectContaining({ id: "alpha" }),
+            expect.objectContaining({ id: "gamma" }),
+          ],
+        },
+        {
+          categoryId: "development",
+          title: "Development",
+          groups: [
+            expect.objectContaining({ id: "beta" }),
+          ],
+        },
+      ],
+    });
+  });
+
   it("previews a group only once after it resolves", async () => {
     const previewLoader = vi.fn().mockResolvedValue({
       skills: [
