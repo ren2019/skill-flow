@@ -161,7 +161,10 @@ export class HomeViewModel {
 
   async refresh(): Promise<void> {
     await this.runWithToast(async () => {
+      this.state.asyncResources.homeBootstrapPhase = { kind: "loading" };
       await this.refreshList();
+      this.reconcileSelectedSource();
+      this.state.asyncResources.homeBootstrapPhase = { kind: "ready" };
       this.onChange();
     });
   }
@@ -264,6 +267,16 @@ export class HomeViewModel {
   private formatUpdatedGroupsToast(count: number): string {
     const key = count === 1 ? "toast.update_groups.success_singular" : "toast.update_groups.success_plural";
     return localize(key, this.desktopLanguage).replace("%@", String(count));
+  }
+
+  private reconcileSelectedSource(): void {
+    const selectedSourceId = this.state.view.selectedSourceId?.trim();
+    if (selectedSourceId && this.state.workspace.sourceIds.includes(selectedSourceId)) {
+      this.state.view.selectedSourceId = selectedSourceId;
+      return;
+    }
+
+    this.state.view.selectedSourceId = this.state.workspace.sourceIds[0];
   }
 
   private matchesSearch(card: InventorySummaryState): boolean {

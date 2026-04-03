@@ -4,6 +4,58 @@ import { desktopRoute } from "../navigation/desktop-route";
 import { HomeViewModel } from "../view-models/home-view-model";
 
 describe("home view model", () => {
+  it("refresh rewrites inventory summaries without clearing valid home selection", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+      view: {
+        selectedSourceId: "beta",
+      },
+    });
+    const viewModel = new HomeViewModel(state, {
+      refreshList: vi.fn(async () => {
+        state.workspace.sourceIds = ["beta", "gamma"];
+        state.workspace.inventorySummaries = [
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "PARTIAL",
+            warningCount: 1,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ];
+      }),
+    });
+
+    await viewModel.refresh();
+
+    expect(state.view.selectedSourceId).toBe("beta");
+    expect(viewModel.inventoryCards).toEqual([
+      expect.objectContaining({
+        sourceId: "beta",
+        title: "Beta Tools",
+      }),
+    ]);
+  });
+
   it("projects the shared route state and workspace source ids", () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha", "beta"] },
@@ -38,6 +90,33 @@ describe("home view model", () => {
 
     expect(refreshList).toHaveBeenCalledTimes(1);
     expect(updateGroup.mock.calls).toEqual([["alpha"], ["beta"]]);
+  });
+
+  it("updates the current group using only the current selected source", async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "beta", "gamma"] },
+      view: {
+        selectedSourceId: "beta",
+      },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    await viewModel.updateCurrentGroup();
+
+    expect(updateGroup.mock.calls).toEqual([["beta"]]);
+  });
+
+  it("updates every non-empty source in home order", async () => {
+    const updateGroup = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["beta", "", "alpha", "gamma"] },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    await viewModel.updateAllGroupsFromHome();
+
+    expect(updateGroup.mock.calls).toEqual([["beta"], ["alpha"], ["gamma"]]);
   });
 
   it("updates only the selected group and keeps pin state in shared state", async () => {
@@ -157,6 +236,26 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("refresh failed");
 
     await viewModel.refresh();
+    expect(viewModel.toastMessage).toBeUndefined();
+  });
+
+  it("shows the same loading and toast transitions as the macOS home workflow", async () => {
+    const state = createDesktopAppState({
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+    let phaseDuringRefresh = state.asyncResources.homeBootstrapPhase.kind;
+    const viewModel = new HomeViewModel(state, {
+      refreshList: vi.fn(async () => {
+        phaseDuringRefresh = state.asyncResources.homeBootstrapPhase.kind;
+      }),
+    });
+
+    await viewModel.refresh();
+
+    expect(phaseDuringRefresh).toBe("loading");
+    expect(state.asyncResources.homeBootstrapPhase).toEqual({ kind: "ready" });
     expect(viewModel.toastMessage).toBeUndefined();
   });
 

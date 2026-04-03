@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { createMutationCoordinator } from "../runtime/mutation-coordinator";
 import { registerTrayRouteListener } from "../menu/tray";
 import { DetailScreen } from "../screens/detail-screen";
@@ -99,6 +99,40 @@ export function App({ state: providedState, integration }: AppProps) {
       unlisten?.();
     };
   }, []);
+
+  useEffect(() => {
+    if (stateRef.current.view.currentRoute.kind !== "home") {
+      return;
+    }
+    if (stateRef.current.asyncResources.homeBootstrapPhase.kind !== "idle") {
+      return;
+    }
+
+    stateRef.current.asyncResources.homeBootstrapPhase = { kind: "loading" };
+    notifyChange();
+
+    startTransition(() => {
+      void activeIntegration?.refreshInventory()
+        .then(() => {
+          if (!stateRef.current.view.selectedSourceId && stateRef.current.workspace.sourceIds.length > 0) {
+            stateRef.current.view.selectedSourceId = stateRef.current.workspace.sourceIds[0];
+          }
+          stateRef.current.asyncResources.homeBootstrapPhase = { kind: "ready" };
+          notifyChange();
+        })
+        .catch((error) => {
+          stateRef.current.asyncResources.homeBootstrapPhase = {
+            kind: "failed",
+            message: error instanceof Error ? error.message : "Unable to bootstrap desktop runtime.",
+          };
+          notifyChange();
+        });
+    });
+  }, [
+    activeIntegration,
+    stateRef.current.asyncResources.homeBootstrapPhase.kind,
+    stateRef.current.view.currentRoute.kind,
+  ]);
 
   switch (stateRef.current.view.currentRoute.kind) {
     case "home":
