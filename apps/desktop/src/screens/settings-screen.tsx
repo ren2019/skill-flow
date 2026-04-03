@@ -97,7 +97,13 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
 
         <SettingsSection title={t("settings.section.maintenance")}>
           <div data-view="settings-action-row" style={actionRowStyle}>
-            <button type="button" onClick={() => viewModel.clearMetadataCache()} style={actionButtonStyle()}>
+            <button
+              type="button"
+              onClick={() => {
+                void viewModel.clearMetadataCache();
+              }}
+              style={actionButtonStyle()}
+            >
               {t("settings.action.clear_cache")}
             </button>
             <button type="button" onClick={() => viewModel.resetConfiguration()} style={actionButtonStyle()}>

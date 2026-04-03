@@ -1,7 +1,8 @@
-use std::io::Write;
+use std::io::{ErrorKind, Write};
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::config::resolve_bridge_shell_invocation;
 
@@ -10,6 +11,13 @@ pub async fn invoke_bridge(app: AppHandle, request_json: String) -> Result<Strin
     tauri::async_runtime::spawn_blocking(move || run_invoke_bridge(app, request_json))
         .await
         .map_err(|error| format!("failed to join bridge task: {error}"))?
+}
+
+#[tauri::command]
+pub async fn clear_metadata_cache(app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || run_clear_metadata_cache(app))
+        .await
+        .map_err(|error| format!("failed to join maintenance task: {error}"))?
 }
 
 fn run_invoke_bridge(app: AppHandle, request_json: String) -> Result<String, String> {
@@ -60,4 +68,40 @@ fn run_invoke_bridge(app: AppHandle, request_json: String) -> Result<String, Str
             output.status, stderr
         ))
     }
+}
+
+fn run_clear_metadata_cache(app: AppHandle) -> Result<(), String> {
+    let state_root = resolve_state_root(&app)?;
+    let catalog_root = state_root.join("catalog");
+    let targets = [
+        catalog_root.join("import-data.json"),
+        catalog_root.join("source-metadata.json"),
+    ];
+
+    for target in targets {
+        match std::fs::remove_file(&target) {
+            Ok(()) => {}
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => {
+                return Err(format!(
+                    "failed to remove metadata cache file '{}': {error}",
+                    target.display()
+                ))
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn resolve_state_root(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Some(explicit_root) = std::env::var_os("SKILL_FLOW_STATE_ROOT") {
+        return Ok(PathBuf::from(explicit_root));
+    }
+
+    let home_dir = app
+        .path()
+        .home_dir()
+        .map_err(|error| format!("failed to resolve desktop home directory: {error}"))?;
+    Ok(home_dir.join(".skillflow"))
 }

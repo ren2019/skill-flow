@@ -1,10 +1,11 @@
-import fs from "node:fs";
-import path from "node:path";
-import { getStateRoot } from "@skill-flow/integration/utils/constants";
 import type { DesktopAppState } from "../store/desktop-app-state";
 import { createSettingsState } from "../store/settings-state";
 import type { AgentDisplayPreference } from "../store/settings-state";
 import { DesktopUpdateChecker } from "../runtime/update-checker";
+
+type DesktopMaintenance = {
+  clearMetadataCache(): Promise<void> | void;
+};
 
 export type UpdateStatus =
   | "idle"
@@ -23,7 +24,7 @@ type SettingsViewModelOptions = {
   updateChecker?: Pick<DesktopUpdateChecker, "fetchLatestRelease">;
   currentVersionProvider?: () => string;
   releasePageOpener?: (url: string) => void;
-  stateRootProvider?: () => string;
+  maintenance?: DesktopMaintenance;
   onChange?: () => void;
 };
 
@@ -33,7 +34,7 @@ export class SettingsViewModel {
   private readonly updateChecker: Pick<DesktopUpdateChecker, "fetchLatestRelease">;
   private readonly currentVersionProvider: () => string;
   private readonly releasePageOpener: (url: string) => void;
-  private readonly stateRootProvider: () => string;
+  private readonly maintenance: DesktopMaintenance;
   private readonly onChange: () => void;
   private hasPerformedBackgroundUpdateCheck = false;
   private currentUpdateStatus: UpdateStatus = "idle";
@@ -47,7 +48,7 @@ export class SettingsViewModel {
     this.updateChecker = options.updateChecker ?? new DesktopUpdateChecker();
     this.currentVersionProvider = options.currentVersionProvider ?? (() => "dev");
     this.releasePageOpener = options.releasePageOpener ?? (() => undefined);
-    this.stateRootProvider = options.stateRootProvider ?? getStateRoot;
+    this.maintenance = options.maintenance ?? { clearMetadataCache: () => undefined };
     this.onChange = options.onChange ?? (() => undefined);
   }
 
@@ -142,10 +143,8 @@ export class SettingsViewModel {
     this.releasePageOpener(this.latestReleaseUrl ?? SettingsViewModel.latestReleasesUrl);
   }
 
-  clearMetadataCache(): void {
-    const catalogRoot = path.join(this.stateRootProvider(), "catalog");
-    fs.rmSync(path.join(catalogRoot, "import-data.json"), { force: true });
-    fs.rmSync(path.join(catalogRoot, "source-metadata.json"), { force: true });
+  async clearMetadataCache(): Promise<void> {
+    await this.maintenance.clearMetadataCache();
     this.onChange();
   }
 

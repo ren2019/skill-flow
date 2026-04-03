@@ -1,16 +1,9 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
-const tempDirs: string[] = [];
-
 afterEach(() => {
-  while (tempDirs.length > 0) {
-    fs.rmSync(tempDirs.pop()!, { recursive: true, force: true });
-  }
+  vi.restoreAllMocks();
 });
 
 describe("settings view model", () => {
@@ -118,25 +111,14 @@ describe("settings view model", () => {
     });
   });
 
-  it("removes catalog metadata cache files without deleting other state files", () => {
-    const stateRoot = fs.mkdtempSync(path.join(os.tmpdir(), "skill-flow-desktop-settings-"));
-    tempDirs.push(stateRoot);
-    const catalogRoot = path.join(stateRoot, "catalog");
-    fs.mkdirSync(catalogRoot, { recursive: true });
-    const importDataPath = path.join(catalogRoot, "import-data.json");
-    const sourceMetadataPath = path.join(catalogRoot, "source-metadata.json");
-    const preferencesPath = path.join(stateRoot, "preferences.json");
-    fs.writeFileSync(importDataPath, "{}");
-    fs.writeFileSync(sourceMetadataPath, "{}");
-    fs.writeFileSync(preferencesPath, "{}");
+  it("delegates metadata cache cleanup to the desktop maintenance boundary", async () => {
+    const clearMetadataCache = vi.fn().mockResolvedValue(undefined);
     const viewModel = new SettingsViewModel(createDesktopAppState(), {
-      stateRootProvider: () => stateRoot,
+      maintenance: { clearMetadataCache },
     });
 
-    viewModel.clearMetadataCache();
+    await viewModel.clearMetadataCache();
 
-    expect(fs.existsSync(importDataPath)).toBe(false);
-    expect(fs.existsSync(sourceMetadataPath)).toBe(false);
-    expect(fs.existsSync(preferencesPath)).toBe(true);
+    expect(clearMetadataCache).toHaveBeenCalledTimes(1);
   });
 });

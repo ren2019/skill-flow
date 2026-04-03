@@ -13,6 +13,7 @@ import {
   createDesktopIntegration,
   type DesktopIntegration,
 } from "../runtime/desktop-integration";
+import { createDesktopMaintenance } from "../runtime/desktop-maintenance";
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { ImportViewModel } from "../view-models/import-view-model";
@@ -59,7 +60,10 @@ export function App({ state: providedState, integration }: AppProps) {
     }),
   );
   const settingsViewModelRef = useRef(
-    new SettingsViewModel(stateRef.current, { onChange: notifyChange }),
+    new SettingsViewModel(stateRef.current, {
+      maintenance: createDesktopMaintenance(),
+      onChange: notifyChange,
+    }),
   );
 
   useEffect(() => {
