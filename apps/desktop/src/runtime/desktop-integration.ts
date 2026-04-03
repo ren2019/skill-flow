@@ -1,11 +1,13 @@
 import type { DesktopBridgeClient } from "../bridge/client";
 import type { DesktopBridgeResponse } from "../bridge/types";
 import type { DesktopAppState } from "../store/desktop-app-state";
+import type { DetailRecord, DetailDocumentTab, DetailFileTreeItem, DetailSkillState, DetailTargetState } from "../store/detail-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
 import type { InventorySummaryState } from "../store/workspace-state";
 
 export type DesktopIntegration = {
   refreshInventory(): Promise<void>;
+  loadDetail?(sourceId: string): Promise<void>;
 };
 
 type DesktopIntegrationOptions = {
@@ -56,6 +58,60 @@ type DesktopInventoryListResult = {
   }>;
 };
 
+type DesktopInspectResult = {
+  summary?: DesktopWorkflowSummary & {
+    lock?: {
+      checkoutPath?: string;
+      updatedAt?: string;
+      commitSha?: string;
+      resolvedVersion?: string;
+    };
+  };
+  source?: {
+    id?: string;
+    displayName?: string;
+    locator?: string;
+    kind?: string;
+  };
+  binding?: {
+    selectedLeafIds?: string[];
+    targets?: Record<string, { enabled?: boolean; leafIds?: string[] }>;
+  };
+  leafs?: Array<{
+    id?: string;
+    name?: string;
+    linkName?: string;
+    title?: string;
+    relativePath?: string;
+    skillFilePath?: string;
+    description?: string;
+  }>;
+  deployments?: Array<{
+    target?: string;
+    targetPath?: string;
+    targetRootPath?: string;
+  }>;
+};
+
+type DesktopInspectEnrichmentResult = {
+  sourceMetadata?: {
+    status?: string;
+    data?: {
+      ownerHandle?: string;
+      ownerDisplayName?: string;
+      starCount?: number;
+      description?: string;
+    };
+  };
+  sourceSnapshot?: {
+    repoStars?: number;
+    totalInstalls?: number;
+    repoLabel?: string;
+    repoUrl?: string;
+    summary?: string;
+  };
+};
+
 const targetLabelsById: Record<string, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
@@ -94,6 +150,27 @@ export function createDesktopIntegration(
       const bridgeClient = await getBridgeClient();
       const response = await bridgeClient.invoke("list");
       applyInventoryList(state, response);
+    },
+    async loadDetail(sourceId: string) {
+      const normalizedSourceId = sourceId.trim();
+      if (!normalizedSourceId) {
+        return;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const scope = toBridgeProjectScope(state.settings.selectedProjectScope);
+      const [inspectResponse, enrichmentResponse] = await Promise.all([
+        bridgeClient.invoke("inspect", {
+          sourceId: normalizedSourceId,
+          scope,
+        }),
+        bridgeClient.invoke("inspect-enrichment", {
+          sourceId: normalizedSourceId,
+        }),
+      ]);
+
+      const detail = toDetailRecord(normalizedSourceId, inspectResponse, enrichmentResponse);
+      state.detailState.detailsBySourceId[normalizedSourceId] = detail;
     },
   };
 }
@@ -216,6 +293,233 @@ function toInventorySummary(
     ...(selectedSkillNames.length > 0 ? { selectedSkillNames } : {}),
     ...(ownerHandle ? { byline: `by ${ownerHandle}` } : {}),
   }];
+}
+
+function toDetailRecord(
+  sourceId: string,
+  inspectResponse: DesktopBridgeResponse,
+  enrichmentResponse: DesktopBridgeResponse,
+): DetailRecord {
+  const inspectData = expectOkRecord(inspectResponse, "inspect") as DesktopInspectResult;
+  const enrichmentData = expectOptionalOkRecord(enrichmentResponse, "inspect-enrichment") as DesktopInspectEnrichmentResult | undefined;
+  const summary = inspectData.summary;
+  const source = inspectData.source;
+  const binding = inspectData.binding;
+  const leafs = Array.isArray(inspectData.leafs) ? inspectData.leafs : [];
+  const deployments = Array.isArray(inspectData.deployments) ? inspectData.deployments : [];
+  const selectedLeafIds = Array.isArray(binding?.selectedLeafIds)
+    ? binding.selectedLeafIds.filter((leafId): leafId is string => typeof leafId === "string" && leafId.length > 0)
+    : [];
+  const targets = toDetailTargets(binding?.targets);
+  const enabledTargetLabels = targets.filter((target) => target.isEnabled).map((target) => target.label ?? target.id);
+  const skills = toDetailSkills(leafs, selectedLeafIds);
+  const sourceFacts = toSourceFacts(summary, source, enrichmentData);
+  const deploymentFacts = deployments.flatMap((deployment) => {
+    if (typeof deployment?.target !== "string") {
+      return [];
+    }
+    const targetLabel = targetLabelsById[deployment.target] ?? deployment.target;
+    const targetPath = typeof deployment.targetPath === "string"
+      ? deployment.targetPath
+      : typeof deployment.targetRootPath === "string"
+      ? deployment.targetRootPath
+      : undefined;
+    return [targetPath ? `${targetLabel} -> ${targetPath}` : targetLabel];
+  });
+
+  return {
+    sourceId,
+    revision: summary?.lock?.resolvedVersion ?? summary?.lock?.commitSha,
+    title: source?.displayName ?? summary?.source?.displayName ?? sourceId,
+    subtitle: typeof source?.kind === "string" ? source.kind : undefined,
+    author: enrichmentData?.sourceMetadata?.status === "ready"
+      ? enrichmentData.sourceMetadata.data?.ownerDisplayName ?? enrichmentData.sourceMetadata.data?.ownerHandle
+      : undefined,
+    starCount: typeof enrichmentData?.sourceSnapshot?.repoStars === "number"
+      ? enrichmentData.sourceSnapshot.repoStars
+      : enrichmentData?.sourceMetadata?.status === "ready"
+      ? enrichmentData.sourceMetadata.data?.starCount
+      : undefined,
+    locator: source?.locator ?? summary?.source?.locator,
+    groupPath: summary?.lock?.checkoutPath,
+    updatedAt: summary?.lock?.updatedAt,
+    health: typeof summary?.health === "string" ? summary.health : "HEALTHY",
+    warningCount: typeof summary?.issueCounts?.warning === "number" ? summary.issueCounts.warning : 0,
+    errorCount: typeof summary?.issueCounts?.error === "number" ? summary.issueCounts.error : 0,
+    enabledSkillCount: selectedLeafIds.length,
+    totalSkillCount: skills.length,
+    enabledTargetCount: enabledTargetLabels.length,
+    skillSelection: toSelectionState(selectedLeafIds.length, skills.length),
+    targetSelection: toSelectionState(enabledTargetLabels.length, targets.length),
+    enabledTargetLabels,
+    sourceFacts,
+    deploymentFacts,
+    fileTree: toDetailFileTree(leafs),
+    groupDocuments: [],
+    targets,
+    skills,
+  };
+}
+
+function toDetailTargets(
+  targets: DesktopInspectResult["binding"] extends { targets?: infer T } ? T : never,
+): DetailTargetState[] {
+  return Object.entries(targets ?? {}).flatMap(([targetId, targetState]) => {
+    if (!targetState || typeof targetState !== "object") {
+      return [];
+    }
+
+    return [{
+      id: targetId,
+      label: targetLabelsById[targetId] ?? targetId,
+      shortLabel: targetLabelsById[targetId] ?? targetId,
+      isEnabled: targetState.enabled === true,
+    }];
+  });
+}
+
+function toDetailSkills(
+  leafs: DesktopInspectResult["leafs"],
+  selectedLeafIds: string[],
+): DetailSkillState[] {
+  return (leafs ?? []).flatMap((leaf) => {
+    if (typeof leaf?.id !== "string" || leaf.id.length === 0) {
+      return [];
+    }
+
+    const title = typeof leaf.title === "string" && leaf.title.length > 0
+      ? leaf.title
+      : typeof leaf.name === "string" && leaf.name.length > 0
+      ? leaf.name
+      : leaf.linkName ?? leaf.id;
+
+    return [{
+      id: leaf.id,
+      title,
+      isEnabled: selectedLeafIds.includes(leaf.id),
+      documents: toSkillDocuments(leaf),
+    }];
+  });
+}
+
+function toSkillDocuments(
+  leaf: NonNullable<DesktopInspectResult["leafs"]>[number],
+): DetailDocumentTab[] {
+  const documentPath = typeof leaf.skillFilePath === "string" && leaf.skillFilePath.length > 0
+    ? leaf.skillFilePath
+    : typeof leaf.relativePath === "string" && leaf.relativePath.length > 0
+    ? leaf.relativePath
+    : undefined;
+  if (!documentPath) {
+    return [];
+  }
+
+  return [{
+    id: `${leaf.id}:skill-doc`,
+    title: documentPath.split("/").pop() ?? "SKILL.md",
+    path: documentPath,
+    metadata: [],
+    renderCacheKey: `${leaf.id}:${documentPath}`,
+    content: typeof leaf.description === "string" && leaf.description.length > 0
+      ? leaf.description
+      : "No detail content loaded yet.",
+    isLoaded: true,
+  }];
+}
+
+function toDetailFileTree(
+  leafs: DesktopInspectResult["leafs"],
+): DetailFileTreeItem[] {
+  return (leafs ?? []).flatMap((leaf) => {
+    if (typeof leaf?.id !== "string" || leaf.id.length === 0) {
+      return [];
+    }
+
+    const title = typeof leaf.linkName === "string" && leaf.linkName.length > 0
+      ? leaf.linkName
+      : typeof leaf.name === "string" && leaf.name.length > 0
+      ? leaf.name
+      : leaf.id;
+    return [{
+      id: leaf.id,
+      title,
+      path: typeof leaf.relativePath === "string" ? leaf.relativePath : title,
+      isDirectory: true,
+      isSkillRoot: true,
+      isSkillDocument: false,
+      skillId: leaf.id,
+      children: [],
+    }];
+  });
+}
+
+function toSourceFacts(
+  summary: DesktopInspectResult["summary"],
+  source: DesktopInspectResult["source"],
+  enrichment: DesktopInspectEnrichmentResult | undefined,
+): string[] {
+  const facts = [
+    typeof source?.locator === "string" && source.locator.length > 0 ? source.locator : undefined,
+    typeof summary?.lock?.checkoutPath === "string" && summary.lock.checkoutPath.length > 0
+      ? summary.lock.checkoutPath
+      : undefined,
+    typeof enrichment?.sourceSnapshot?.repoLabel === "string" && enrichment.sourceSnapshot.repoLabel.length > 0
+      ? enrichment.sourceSnapshot.repoLabel
+      : undefined,
+    typeof enrichment?.sourceSnapshot?.summary === "string" && enrichment.sourceSnapshot.summary.length > 0
+      ? enrichment.sourceSnapshot.summary
+      : undefined,
+    enrichment?.sourceMetadata?.status === "ready"
+      && typeof enrichment.sourceMetadata.data?.description === "string"
+      && enrichment.sourceMetadata.data.description.length > 0
+      ? enrichment.sourceMetadata.data.description
+      : undefined,
+  ];
+
+  return facts.filter((fact): fact is string => typeof fact === "string");
+}
+
+function toSelectionState(enabledCount: number, totalCount: number): DetailRecord["skillSelection"] {
+  if (totalCount === 0 || enabledCount === 0) {
+    return "empty";
+  }
+  if (enabledCount >= totalCount) {
+    return "full";
+  }
+  return "partial";
+}
+
+function expectOkRecord(response: DesktopBridgeResponse, command: string): Record<string, unknown> {
+  if (!response.ok) {
+    throw new Error(response.errors[0]?.message ?? `Unable to ${command}.`);
+  }
+  if (!isRecord(response.data)) {
+    throw new Error(`Desktop bridge ${command} response must be an object.`);
+  }
+  return response.data;
+}
+
+function expectOptionalOkRecord(
+  response: DesktopBridgeResponse,
+  command: string,
+): Record<string, unknown> | undefined {
+  if (!response.ok) {
+    throw new Error(response.errors[0]?.message ?? `Unable to ${command}.`);
+  }
+  if (response.data === undefined) {
+    return undefined;
+  }
+  if (!isRecord(response.data)) {
+    throw new Error(`Desktop bridge ${command} response must be an object.`);
+  }
+  return response.data;
+}
+
+function toBridgeProjectScope(scope: ProjectScopeSelection): { kind: "global" } | { kind: "project"; projectId: string } {
+  if (scope.kind === "project") {
+    return { kind: "project", projectId: scope.projectId };
+  }
+  return { kind: "global" };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

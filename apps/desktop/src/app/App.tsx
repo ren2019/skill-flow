@@ -28,12 +28,16 @@ type AppProps = {
 export function App({ state: providedState, integration }: AppProps) {
   const stateRef = useRef(providedState ?? createDesktopAppState());
   const [, setRevision] = useState(0);
+  const activeDetailEntryRef = useRef<string | undefined>(undefined);
   const mutationCoordinatorRef = useRef(createMutationCoordinator());
   const defaultIntegrationRef = useRef<DesktopIntegration | undefined>(undefined);
   if (!integration && !defaultIntegrationRef.current) {
     defaultIntegrationRef.current = createDesktopIntegration(stateRef.current);
   }
   const activeIntegration = integration ?? defaultIntegrationRef.current;
+  if (stateRef.current.view.currentRoute.kind !== "detail") {
+    activeDetailEntryRef.current = undefined;
+  }
   const notifyChange = () => {
     setRevision((value) => value + 1);
   };
@@ -132,6 +136,41 @@ export function App({ state: providedState, integration }: AppProps) {
     activeIntegration,
     stateRef.current.asyncResources.homeBootstrapPhase.kind,
     stateRef.current.view.currentRoute.kind,
+  ]);
+
+  useEffect(() => {
+    const currentRoute = stateRef.current.view.currentRoute;
+    if (currentRoute.kind !== "detail") {
+      activeDetailEntryRef.current = undefined;
+      return;
+    }
+
+    const sourceId = currentRoute.sourceId.trim();
+    if (!sourceId) {
+      return;
+    }
+    if (activeDetailEntryRef.current === sourceId) {
+      return;
+    }
+
+    activeDetailEntryRef.current = sourceId;
+    if (stateRef.current.view.selectedSourceId !== sourceId) {
+      stateRef.current.view.selectedSourceId = sourceId;
+      notifyChange();
+    }
+
+    startTransition(() => {
+      void activeIntegration?.loadDetail?.(sourceId)
+        .then(() => {
+          notifyChange();
+        })
+        .catch(() => {
+          notifyChange();
+        });
+    });
+  }, [
+    activeIntegration,
+    stateRef.current.view.currentRoute,
   ]);
 
   switch (stateRef.current.view.currentRoute.kind) {

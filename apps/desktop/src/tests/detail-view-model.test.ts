@@ -421,6 +421,225 @@ describe("detail view model", () => {
     expect(viewModel.selectedTreeItemId).toBe("root/browse");
   });
 
+  it("keeps the same default overview, file tree, group document, and skill document selection rules as macOS", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.hydrateInspect("alpha", {
+      sourceId: "alpha",
+      title: "Alpha",
+      enabledTargetLabels: [],
+      fileTree: [
+        {
+          id: "root/browse",
+          title: "browse",
+          path: "/alpha/browse",
+          isDirectory: true,
+          isSkillRoot: true,
+          isSkillDocument: false,
+          skillId: "browse",
+          children: [],
+        },
+      ],
+      groupDocuments: [
+        {
+          id: "readme",
+          title: "README.md",
+          path: "README.md",
+          metadata: [],
+          renderCacheKey: "readme",
+          content: "# Alpha",
+          isLoaded: true,
+        },
+      ],
+      targets: [],
+      skills: [
+        {
+          id: "browse",
+          title: "Browse",
+          isEnabled: true,
+          documents: [
+            {
+              id: "skill-md",
+              title: "SKILL.md",
+              path: "SKILL.md",
+              metadata: [],
+              renderCacheKey: "skill-md",
+              content: "# Skill",
+              isLoaded: true,
+            },
+          ],
+        },
+      ],
+      sourceFacts: [],
+      deploymentFacts: [],
+      skillSelection: "full",
+      targetSelection: "empty",
+    });
+
+    expect(viewModel.showingGroupOverview).toBe(true);
+    expect(viewModel.selectedGroupDocument?.id).toBe("readme");
+
+    viewModel.selectSkill("browse");
+
+    expect(viewModel.showingGroupOverview).toBe(false);
+    expect(viewModel.selectedTreeItemId).toBe("root/browse");
+    expect(viewModel.selectedSkillDocument?.id).toBe("skill-md");
+  });
+
+  it("keeps valid sub-selections on rehydrate and realigns only invalid ones", () => {
+    const preservedState = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedSkillIdByGroup: { alpha: "debug" },
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedTreeItemIdByGroup: { alpha: "root/debug" },
+          selectedGroupDocumentIdByGroup: { alpha: "changelog" },
+          selectedSkillDocumentIdBySkill: { debug: "debug-md" },
+        },
+      },
+    });
+    const preservedViewModel = new DetailViewModel(preservedState);
+
+    preservedViewModel.hydrateInspect("alpha", {
+      sourceId: "alpha",
+      title: "Alpha",
+      enabledTargetLabels: [],
+      fileTree: [
+        {
+          id: "root/debug",
+          title: "debug",
+          path: "/alpha/debug",
+          isDirectory: true,
+          isSkillRoot: true,
+          isSkillDocument: false,
+          skillId: "debug",
+          children: [],
+        },
+      ],
+      groupDocuments: [
+        {
+          id: "changelog",
+          title: "CHANGELOG.md",
+          path: "CHANGELOG.md",
+          metadata: [],
+          renderCacheKey: "changelog",
+          content: "# Changelog",
+          isLoaded: true,
+        },
+      ],
+      targets: [],
+      skills: [
+        {
+          id: "debug",
+          title: "Debug",
+          isEnabled: true,
+          documents: [
+            {
+              id: "debug-md",
+              title: "DEBUG.md",
+              path: "DEBUG.md",
+              metadata: [],
+              renderCacheKey: "debug-md",
+              content: "# Debug",
+              isLoaded: true,
+            },
+          ],
+        },
+      ],
+      sourceFacts: [],
+      deploymentFacts: [],
+      skillSelection: "full",
+      targetSelection: "empty",
+    });
+
+    expect(preservedViewModel.selectedSkillId).toBe("debug");
+    expect(preservedViewModel.selectedTreeItemId).toBe("root/debug");
+    expect(preservedViewModel.selectedSkillDocument?.id).toBe("debug-md");
+
+    const realignedState = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("beta"),
+        selectedSourceId: "beta",
+      },
+      detailState: {
+        ui: {
+          selectedSkillIdByGroup: { beta: "missing-skill" },
+          showsGroupOverviewByGroup: { beta: false },
+          selectedTreeItemIdByGroup: { beta: "root/missing-skill" },
+          selectedGroupDocumentIdByGroup: { beta: "missing-doc" },
+          selectedSkillDocumentIdBySkill: { "missing-skill": "missing-skill-doc" },
+        },
+      },
+    });
+    const realignedViewModel = new DetailViewModel(realignedState);
+
+    realignedViewModel.hydrateInspect("beta", {
+      sourceId: "beta",
+      title: "Beta",
+      enabledTargetLabels: [],
+      fileTree: [
+        {
+          id: "root/browse",
+          title: "browse",
+          path: "/beta/browse",
+          isDirectory: true,
+          isSkillRoot: true,
+          isSkillDocument: false,
+          skillId: "browse",
+          children: [],
+        },
+      ],
+      groupDocuments: [
+        {
+          id: "readme",
+          title: "README.md",
+          path: "README.md",
+          metadata: [],
+          renderCacheKey: "readme",
+          content: "# Beta",
+          isLoaded: true,
+        },
+      ],
+      targets: [],
+      skills: [
+        {
+          id: "browse",
+          title: "Browse",
+          isEnabled: true,
+          documents: [
+            {
+              id: "skill-md",
+              title: "SKILL.md",
+              path: "SKILL.md",
+              metadata: [],
+              renderCacheKey: "skill-md",
+              content: "# Skill",
+              isLoaded: true,
+            },
+          ],
+        },
+      ],
+      sourceFacts: [],
+      deploymentFacts: [],
+      skillSelection: "full",
+      targetSelection: "empty",
+    });
+
+    expect(realignedViewModel.selectedSkillId).toBe("browse");
+    expect(realignedViewModel.selectedTreeItemId).toBe("root/browse");
+    expect(realignedViewModel.selectedSkillDocument?.id).toBe("skill-md");
+  });
+
   it("rolls back target selection and records a toast when persistence fails", async () => {
     const state = createDesktopAppState({
       view: {
@@ -488,6 +707,46 @@ describe("detail view model", () => {
 
     await viewModel.toggleSkill("skill-a");
 
+    expect(state.detailState.detailsBySourceId.alpha.skills).toEqual([
+      { id: "skill-a", title: "Skill A", isEnabled: true, documents: [] },
+    ]);
+    expect(state.view.toastMessage).toBe("save failed");
+  });
+
+  it("rolls back target and skill toggles when persistence fails", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Codex"],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [{ id: "codex", label: "Codex", isEnabled: true }],
+            skills: [{ id: "skill-a", title: "Skill A", isEnabled: true, documents: [] }],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "full",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, {
+      updateSelection: vi.fn().mockRejectedValue(new Error("save failed")),
+    });
+
+    await viewModel.toggleTarget("codex");
+    await viewModel.toggleSkill("skill-a");
+
+    expect(state.detailState.detailsBySourceId.alpha.targets).toEqual([
+      { id: "codex", label: "Codex", isEnabled: true },
+    ]);
     expect(state.detailState.detailsBySourceId.alpha.skills).toEqual([
       { id: "skill-a", title: "Skill A", isEnabled: true, documents: [] },
     ]);

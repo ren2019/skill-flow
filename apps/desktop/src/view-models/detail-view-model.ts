@@ -41,10 +41,10 @@ export class DetailViewModel {
   }
 
   get sourceId(): string | undefined {
-    if (this.state.view.selectedSourceId) {
-      return this.state.view.selectedSourceId;
+    if (this.state.view.currentRoute.kind === "detail") {
+      return this.state.view.currentRoute.sourceId;
     }
-    return this.state.view.currentRoute.kind === "detail" ? this.state.view.currentRoute.sourceId : undefined;
+    return this.state.view.selectedSourceId;
   }
 
   get detail(): DetailRecord | undefined {

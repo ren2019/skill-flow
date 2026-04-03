@@ -163,4 +163,186 @@ describe("app", () => {
     expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(1);
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
   });
+
+  it("loads inspect and enrichment exactly once per detail route entry", async () => {
+    const loadDetail = vi.fn(async (sourceId: string) => {
+      state.detailState.detailsBySourceId[sourceId] = {
+        sourceId,
+        title: sourceId === "alpha" ? "Alpha" : "Beta",
+        enabledTargetLabels: [],
+        fileTree: [],
+        groupDocuments: [],
+        targets: [],
+        skills: [],
+        sourceFacts: [],
+        deploymentFacts: [],
+        skillSelection: "empty",
+        targetSelection: "empty",
+      };
+    });
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "detail", sourceId: "alpha" },
+        selectedSourceId: "alpha",
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} integration={{ refreshInventory: vi.fn(), loadDetail } as never} />);
+    });
+
+    expect(loadDetail).toHaveBeenCalledTimes(1);
+    expect(loadDetail).toHaveBeenCalledWith("alpha");
+
+    await act(async () => {
+      state.view.currentRoute = { kind: "home" };
+      renderer!.update(<App state={state} integration={{ refreshInventory: vi.fn(), loadDetail } as never} />);
+    });
+
+    await act(async () => {
+      state.view.currentRoute = { kind: "detail", sourceId: "alpha" };
+      renderer!.update(<App state={state} integration={{ refreshInventory: vi.fn(), loadDetail } as never} />);
+    });
+
+    expect(loadDetail).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows loading or empty detail presentation instead of stale content from the previous source", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "detail", sourceId: "alpha" },
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} />);
+    });
+
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Alpha");
+
+    await act(async () => {
+      state.view.currentRoute = { kind: "detail", sourceId: "beta" };
+      renderer!.update(<App state={state} />);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).not.toContain("Alpha");
+    expect(text).toContain("Loading source detail");
+  });
+
+  it("rebuilds detail presentation when the incoming document or file-tree revision changes", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "detail", sourceId: "alpha" },
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            revision: "rev-1",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [
+              {
+                id: "tree-v1",
+                title: "README.md",
+                path: "README.md",
+                isDirectory: false,
+                isSkillRoot: false,
+                isSkillDocument: false,
+                children: [],
+              },
+            ],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme-v1",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} />);
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("README.md");
+
+    await act(async () => {
+      state.detailState.detailsBySourceId.alpha = {
+        ...state.detailState.detailsBySourceId.alpha,
+        revision: "rev-2",
+        fileTree: [
+          {
+            id: "tree-v2",
+            title: "GUIDE.md",
+            path: "GUIDE.md",
+            isDirectory: false,
+            isSkillRoot: false,
+            isSkillDocument: false,
+            children: [],
+          },
+        ],
+        groupDocuments: [
+          {
+            id: "guide",
+            title: "GUIDE.md",
+            path: "GUIDE.md",
+            metadata: [],
+            renderCacheKey: "guide-v2",
+            content: "# Guide",
+            isLoaded: true,
+          },
+        ],
+      };
+      renderer!.update(<App state={state} />);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain("GUIDE.md");
+    expect(text).not.toContain("tree-v1");
+  });
 });
