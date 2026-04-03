@@ -41,6 +41,10 @@ docs/*
 # Build artifacts
 *.tgz
 
+# Tauri desktop generated files
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/target/
+
 # Turbo/Turborepo
 .turbo/
 
