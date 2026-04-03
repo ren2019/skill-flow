@@ -41,4 +41,22 @@ describe("main view model", () => {
     state.view.currentRoute = desktopRoute.importPage();
     expect(viewModel.currentRoute).toEqual(desktopRoute.importPage());
   });
+
+  it("keeps the selected source id when navigating away from detail routes", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+    });
+    const viewModel = new MainViewModel(state);
+
+    viewModel.showHome();
+    expect(state.view.currentRoute).toEqual(desktopRoute.home());
+    expect(state.view.selectedSourceId).toBe("alpha");
+
+    viewModel.showImportPage();
+    expect(state.view.currentRoute).toEqual(desktopRoute.importPage());
+    expect(state.view.selectedSourceId).toBe("alpha");
+  });
 });
