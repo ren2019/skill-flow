@@ -86,6 +86,8 @@ export const enMessages = {
   "toast.project_scope.switched": "Switched to %@.",
   "toast.update_groups.success_singular": "Updated %@ group.",
   "toast.update_groups.success_plural": "Updated %@ groups.",
+  "toast.import.success": "Imported source.",
+  "toast.import.failed": "Import failed: %@",
   "toast.import.already_installed": "This group is already available locally.",
   "group_tag.input.placeholder": "Tag",
   "import.recommendation.category.general": "General",

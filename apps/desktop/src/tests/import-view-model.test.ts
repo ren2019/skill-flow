@@ -243,6 +243,37 @@ describe("import view model", () => {
     });
     expect(state.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
     expect(state.view.currentRoute).toEqual({ kind: "importPage" });
+    expect(state.view.toastMessage).toBe("Imported source.");
+  });
+
+  it("marks imported search results as installed and routes to detail outside import page", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "home" },
+      },
+      importState: {
+        importSubmittedQuery: "starter",
+        searchGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(state.importState.searchGroups[0].isInstalledLocally).toBe(true);
+    expect(state.view.currentRoute).toEqual({ kind: "detail", sourceId: "starter" });
+    expect(state.view.selectedSourceId).toBe("starter");
+    expect(state.view.toastMessage).toBe("Imported source.");
   });
 
   it("shows a toast instead of importing when the group already exists locally", async () => {
@@ -268,6 +299,34 @@ describe("import view model", () => {
 
     expect(importer).not.toHaveBeenCalled();
     expect(state.view.toastMessage).toBe("This group is already available locally.");
+  });
+
+  it("keeps state unchanged and records an import failure toast", async () => {
+    const importer = vi.fn().mockRejectedValue(new Error("provider_request_failed"));
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "home" },
+      },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(state.importState.recommendedGroups[0].isInstalledLocally).toBeUndefined();
+    expect(state.view.currentRoute).toEqual({ kind: "home" });
+    expect(state.view.toastMessage).toBe("Import failed: provider_request_failed");
   });
 
   it("localizes generated import errors for zh-Hans", async () => {
@@ -338,5 +397,52 @@ describe("import view model", () => {
     await installedViewModel.importGroup("starter");
 
     expect(installedState.view.toastMessage).toBe("这个组已存在于本地。");
+
+    const successState = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      view: { currentRoute: { kind: "importPage" } },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const successViewModel = new ImportViewModel(successState);
+
+    await successViewModel.importGroup("starter");
+
+    expect(successState.view.toastMessage).toBe("已导入来源。");
+
+    const failedImportState = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const failedImportViewModel = new ImportViewModel(failedImportState, {
+      importer: async () => {
+        throw "boom";
+      },
+    });
+
+    await failedImportViewModel.importGroup("starter");
+
+    expect(failedImportState.view.toastMessage).toBe("导入失败：boom");
   });
 });

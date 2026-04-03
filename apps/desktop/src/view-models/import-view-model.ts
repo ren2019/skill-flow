@@ -234,22 +234,30 @@ export class ImportViewModel {
       selectedSkillIds: group.skills.map((skill) => skill.id),
       enabledTargetIds: [],
     };
-    const result = await this.mutationCoordinator.run(() =>
-      this.importer(groupId, {
-        selectedSkillIds: draft.selectedSkillIds,
-        enabledTargets: draft.enabledTargetIds,
-      }),
-    );
+    try {
+      const result = await this.mutationCoordinator.run(() =>
+        this.importer(groupId, {
+          selectedSkillIds: draft.selectedSkillIds,
+          enabledTargets: draft.enabledTargetIds,
+        }),
+      );
 
-    group.isInstalledLocally = true;
-    if (this.currentRoute.kind !== "importPage") {
-      this.state.view.selectedSourceId = result.sourceId;
-      this.state.view.currentRoute = {
-        kind: "detail",
-        sourceId: result.sourceId,
-      };
+      group.isInstalledLocally = true;
+      if (this.currentRoute.kind !== "importPage") {
+        this.state.view.selectedSourceId = result.sourceId;
+        this.state.view.currentRoute = {
+          kind: "detail",
+          sourceId: result.sourceId,
+        };
+      }
+      this.state.view.toastMessage = localize("toast.import.success", this.desktopLanguage);
+      await this.onImportCompleted();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.state.view.toastMessage = localize("toast.import.failed", this.desktopLanguage).replace("%@", message);
+      this.onChange();
+      return;
     }
-    await this.onImportCompleted();
     this.onChange();
   }
 }

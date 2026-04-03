@@ -86,6 +86,8 @@ export const jaMessages = {
   "toast.project_scope.switched": "%@ に切り替えました。",
   "toast.update_groups.success_singular": "%@ 件のグループを更新しました。",
   "toast.update_groups.success_plural": "%@ 件のグループを更新しました。",
+  "toast.import.success": "ソースをインポートしました。",
+  "toast.import.failed": "インポートに失敗しました: %@",
   "toast.import.already_installed": "このグループはすでにローカルで利用できます。",
   "group_tag.input.placeholder": "タグ",
   "import.recommendation.category.general": "汎用",
