@@ -292,6 +292,47 @@ describe("import view model", () => {
     expect(state.view.toastMessage).toBe("Imported source.");
   });
 
+  it("prefers persisted draft selections over preview defaults during import", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+      importState: {
+        draftsByItemId: {
+          starter: {
+            selectedSkillIds: ["skill-b"],
+            enabledTargetIds: ["cursor"],
+          },
+        },
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [
+              { id: "skill-a", selectedByDefault: true },
+              { id: "skill-b", selectedByDefault: false },
+            ],
+            targets: [
+              { id: "codex", selectedByDefault: true },
+              { id: "cursor", selectedByDefault: false },
+            ],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(importer).toHaveBeenCalledWith("starter", {
+      selectedSkillIds: ["skill-b"],
+      enabledTargets: ["cursor"],
+    });
+  });
+
   it("marks imported search results as installed and routes to detail outside import page", async () => {
     const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
     const state = createDesktopAppState({
