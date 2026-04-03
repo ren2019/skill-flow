@@ -1,7 +1,8 @@
 import { enMessages } from "./en";
+import { jaMessages } from "./ja";
 import { zhHansMessages } from "./zh";
 
-export type DesktopLanguage = "en" | "zh-Hans" | "system";
+export type DesktopLanguage = "en" | "ja" | "zh-Hans" | "system";
 
 type MessageKey = keyof typeof enMessages;
 type MessageCatalog = Record<MessageKey, string>;
@@ -9,9 +10,11 @@ type LocalizedMessageCatalog = Partial<MessageCatalog>;
 
 const messageCatalog = {
   en: enMessages satisfies MessageCatalog,
+  ja: jaMessages,
   "zh-Hans": zhHansMessages,
 } satisfies {
   en: MessageCatalog;
+  ja: LocalizedMessageCatalog;
   "zh-Hans": LocalizedMessageCatalog;
 };
 
@@ -32,6 +35,9 @@ export function normalizeDesktopLanguage(language: string): DesktopLanguage {
   }
   if (normalizedTag === "en" || normalizedTag.startsWith("en-")) {
     return "en";
+  }
+  if (normalizedTag === "ja" || normalizedTag.startsWith("ja-")) {
+    return "ja";
   }
   return "system";
 }

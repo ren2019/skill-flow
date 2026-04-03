@@ -22,9 +22,12 @@ describe("desktop localization", () => {
     expect(resolveDesktopLanguage("system", { systemLocale: "zh-CN" })).toBe("zh-Hans");
     expect(resolveDesktopLanguage("system", { systemLocale: "zh-Hans-CN" })).toBe("zh-Hans");
     expect(resolveDesktopLanguage("system", { systemLocale: "en-US" })).toBe("en");
+    expect(resolveDesktopLanguage("system", { systemLocale: "ja-JP" })).toBe("ja");
+    expect(resolveDesktopLanguage("system", { systemLocale: "fr-FR" })).toBe("en");
     expect(resolveDesktopLanguage("zh_CN")).toBe("zh-Hans");
     expect(resolveDesktopLanguage("zh-Hans-SG")).toBe("zh-Hans");
     expect(resolveDesktopLanguage("en-US")).toBe("en");
+    expect(resolveDesktopLanguage("ja_JP")).toBe("ja");
   });
 
   it("renders home screen labels in the selected desktop language", () => {
@@ -37,9 +40,19 @@ describe("desktop localization", () => {
       <HomeScreen viewModel={new HomeViewModel(state)} />,
     );
 
-    expect(markup).toContain("已安装技能");
-    expect(markup).toContain("刷新");
+    expect(markup).toContain("搜索分组或作者");
+    expect(markup).toContain("范围");
+    expect(markup).toContain("导入");
     expect(markup).toContain("全部更新");
+  });
+
+  it("loads localized strings from the japanese catalog and keeps english fallback", () => {
+    expect(localize("page.settings.title", "ja")).toBe("設定");
+    expect(localize("project_scope.global", "ja")).toBe("グローバル");
+    expect(localize("detail.document.file_tree", "ja")).toBe("ファイルツリー");
+    expect(localize("detail.updated.unavailable", "ja")).toBe("更新時刻を取得できません");
+    expect(localize("group_tag.input.placeholder", "ja")).toBe("タグ");
+    expect(localize("test.fallback.only_en", "ja")).toBe("Only English");
   });
 
   it("renders import, detail, and settings labels in the selected desktop language", () => {

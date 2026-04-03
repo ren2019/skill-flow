@@ -7,11 +7,22 @@ import { createDesktopAppState } from "../store/desktop-app-state";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("desktop smoke", () => {
-  it("wires the home refresh action through the shared integration hook", async () => {
+  it("wires import completion through the shared integration hook", async () => {
     const state = createDesktopAppState({
-      workspace: { sourceIds: ["alpha"] },
-      asyncResources: {
-        homeBootstrapPhase: { kind: "ready" },
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
       },
     });
 
@@ -27,11 +38,9 @@ describe("desktop smoke", () => {
       }));
     });
 
-    const refreshButton = renderer!.root
-      .findAllByType("button")
-      .find((button) => button.children.includes("Refresh"));
+    const importButton = renderer!.root.findByProps({ "data-import-group-id": "starter" });
     await act(async () => {
-      await refreshButton!.props.onClick();
+      await importButton.props.onClick();
     });
 
     expect(refreshInventory).toHaveBeenCalledTimes(1);
