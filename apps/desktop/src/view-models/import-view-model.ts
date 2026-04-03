@@ -224,6 +224,11 @@ export class ImportViewModel {
     if (!group) {
       return;
     }
+    if (group.isInstalledLocally) {
+      this.state.view.toastMessage = localize("toast.import.already_installed", this.desktopLanguage);
+      this.onChange();
+      return;
+    }
 
     const draft = this.draftsByItemId[groupId] ?? {
       selectedSkillIds: group.skills.map((skill) => skill.id),

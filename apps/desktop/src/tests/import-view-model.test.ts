@@ -194,6 +194,31 @@ describe("import view model", () => {
     expect(state.view.currentRoute).toEqual({ kind: "importPage" });
   });
 
+  it("shows a toast instead of importing when the group already exists locally", async () => {
+    const importer = vi.fn();
+    const state = createDesktopAppState({
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            isInstalledLocally: true,
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, { importer });
+
+    await viewModel.importGroup("starter");
+
+    expect(importer).not.toHaveBeenCalled();
+    expect(state.view.toastMessage).toBe("This group is already available locally.");
+  });
+
   it("localizes generated import errors for zh-Hans", async () => {
     const searchViewModel = new ImportViewModel(
       createDesktopAppState({
@@ -240,5 +265,27 @@ describe("import view model", () => {
       kind: "failed",
       message: "导入预览失败。",
     });
+
+    const installedState = createDesktopAppState({
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+      importState: {
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            isInstalledLocally: true,
+            previewPhase: { kind: "ready" },
+            skills: [],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const installedViewModel = new ImportViewModel(installedState);
+
+    await installedViewModel.importGroup("starter");
+
+    expect(installedState.view.toastMessage).toBe("这个组已存在于本地。");
   });
 });

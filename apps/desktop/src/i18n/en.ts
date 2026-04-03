@@ -84,6 +84,7 @@ export const enMessages = {
   "error.import_preview_failed": "Import preview failed.",
   "error.selection_update_failed": "Selection update failed.",
   "toast.project_scope.switched": "Switched to %@.",
+  "toast.import.already_installed": "This group is already available locally.",
   "group_tag.input.placeholder": "Tag",
   "import.recommendation.category.general": "General",
   "import.recommendation.category.development": "Development",

@@ -84,6 +84,7 @@ export const jaMessages = {
   "error.import_preview_failed": "インポートプレビューに失敗しました。",
   "error.selection_update_failed": "選択の更新に失敗しました。",
   "toast.project_scope.switched": "%@ に切り替えました。",
+  "toast.import.already_installed": "このグループはすでにローカルで利用できます。",
   "group_tag.input.placeholder": "タグ",
   "import.recommendation.category.general": "汎用",
   "import.recommendation.category.development": "開発",
