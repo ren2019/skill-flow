@@ -91,6 +91,19 @@ export class ImportViewModel {
     return this.state.importState.importSubmittedQuery;
   }
 
+  get importSearchText(): string {
+    return this.state.importState.importSearchText;
+  }
+
+  set importSearchText(value: string) {
+    this.state.importState.importSearchText = value;
+    this.onChange();
+  }
+
+  get importPlaceholderIndex(): number {
+    return this.state.importState.importPlaceholderIndex;
+  }
+
   get searchPhase(): ResourcePhase {
     return this.state.importState.importSearchPhase;
   }

@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState, type CSSProperties } from "react";
+import { startTransition, useEffect, type CSSProperties } from "react";
 import { EmptyState } from "../components/empty-state";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
@@ -11,7 +11,6 @@ type ImportScreenProps = {
 
 export function ImportScreen({ viewModel }: ImportScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
-  const [query, setQuery] = useState(viewModel.importSubmittedQuery);
   const content = viewModel.content;
 
   useEffect(() => {
@@ -19,10 +18,6 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
       void viewModel.loadImportPageIfNeeded();
     });
   }, [viewModel]);
-
-  useEffect(() => {
-    setQuery(viewModel.importSubmittedQuery);
-  }, [viewModel.importSubmittedQuery]);
 
   const hasDisplayedGroups = content.kind === "recommended"
     ? content.sections.some((section) => section.groups.length > 0)
@@ -32,11 +27,14 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
     return (
       <main data-view="import-page" style={pageStyle}>
         <ImportSearchHeader
-          query={query}
-          onQueryChange={setQuery}
+          query={viewModel.importSearchText}
+          placeholderIndex={viewModel.importPlaceholderIndex}
+          onQueryChange={(query) => {
+            viewModel.importSearchText = query;
+          }}
           onSearch={() => {
             startTransition(() => {
-              void viewModel.submitSearch(query);
+              void viewModel.submitSearch(viewModel.importSearchText);
             });
           }}
           title={t("page.import.title")}
@@ -55,11 +53,14 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
   return (
     <main data-view="import-page" style={pageStyle}>
       <ImportSearchHeader
-        query={query}
-        onQueryChange={setQuery}
+        query={viewModel.importSearchText}
+        placeholderIndex={viewModel.importPlaceholderIndex}
+        onQueryChange={(query) => {
+          viewModel.importSearchText = query;
+        }}
         onSearch={() => {
           startTransition(() => {
-            void viewModel.submitSearch(query);
+            void viewModel.submitSearch(viewModel.importSearchText);
           });
         }}
         title={t("page.import.title")}
@@ -165,6 +166,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
 
 type ImportSearchHeaderProps = {
   query: string;
+  placeholderIndex: number;
   onQueryChange: (query: string) => void;
   onSearch: () => void;
   title: string;
@@ -173,6 +175,7 @@ type ImportSearchHeaderProps = {
 
 function ImportSearchHeader({
   query,
+  placeholderIndex,
   onQueryChange,
   onSearch,
   title,
@@ -186,6 +189,7 @@ function ImportSearchHeader({
       </div>
       <form style={searchBarStyle}>
         <input
+          data-placeholder-index={placeholderIndex}
           data-testid="import-search-input"
           type="text"
           value={query}

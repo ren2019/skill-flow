@@ -31,6 +31,8 @@ export type ImportGroupState = {
 export type ImportState = {
   draftsByItemId: Record<string, ImportDraftState>;
   importSubmittedQuery: string;
+  importSearchText: string;
+  importPlaceholderIndex: number;
   importSearchPhase: ResourcePhase;
   recommendedGroups: ImportGroupState[];
   searchGroups: ImportGroupState[];
@@ -40,6 +42,8 @@ export function createImportState(seed: Partial<ImportState> = {}): ImportState 
   return {
     draftsByItemId: { ...(seed.draftsByItemId ?? {}) },
     importSubmittedQuery: seed.importSubmittedQuery ?? "",
+    importSearchText: seed.importSearchText ?? "",
+    importPlaceholderIndex: seed.importPlaceholderIndex ?? 0,
     importSearchPhase: seed.importSearchPhase ?? { kind: "idle" },
     recommendedGroups: [...(seed.recommendedGroups ?? [])],
     searchGroups: [...(seed.searchGroups ?? [])],

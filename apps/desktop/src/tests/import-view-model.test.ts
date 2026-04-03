@@ -3,6 +3,31 @@ import { createDesktopAppState } from "../store/desktop-app-state";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 describe("import view model", () => {
+  it("recreates import screen drafts from shared desktop state after container recreation", () => {
+    const state = createDesktopAppState({
+      importState: {
+        draftsByItemId: {
+          starter: {
+            selectedSkillIds: [],
+            enabledTargetIds: ["cursor"],
+          },
+        },
+      },
+    });
+
+    const firstViewModel = new ImportViewModel(state);
+    const secondViewModel = new ImportViewModel(state);
+
+    expect(firstViewModel.draftsByItemId.starter).toEqual({
+      selectedSkillIds: [],
+      enabledTargetIds: ["cursor"],
+    });
+    expect(secondViewModel.draftsByItemId.starter).toEqual({
+      selectedSkillIds: [],
+      enabledTargetIds: ["cursor"],
+    });
+  });
+
   it("projects the shared route state and drafts", () => {
     const state = createDesktopAppState();
     state.importState.draftsByItemId.alpha = {
@@ -83,7 +108,7 @@ describe("import view model", () => {
     });
   });
 
-  it("loads local recommendations without triggering search", async () => {
+  it("loads recommendations without triggering search on page entry", async () => {
     const searchLoader = vi.fn();
     const recommendationsLoader = vi.fn().mockReturnValue([
       {
@@ -260,9 +285,10 @@ describe("import view model", () => {
     );
   });
 
-  it("marks imports as installed and keeps the user on import page when launched there", async () => {
+  it("imports from recommendations and from search results with the same route and toast behavior as macOS", async () => {
     const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
-    const state = createDesktopAppState({
+
+    const recommendationState = createDesktopAppState({
       view: {
         currentRoute: { kind: "importPage" },
       },
@@ -279,17 +305,44 @@ describe("import view model", () => {
         ],
       },
     });
-    const viewModel = new ImportViewModel(state, { importer });
+    const recommendationViewModel = new ImportViewModel(recommendationState, { importer });
 
-    await viewModel.importGroup("starter");
+    await recommendationViewModel.importGroup("starter");
 
     expect(importer).toHaveBeenCalledWith("starter", {
       selectedSkillIds: ["skill-a"],
       enabledTargets: [],
     });
-    expect(state.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
-    expect(state.view.currentRoute).toEqual({ kind: "importPage" });
-    expect(state.view.toastMessage).toBe("Imported source.");
+    expect(recommendationState.importState.recommendedGroups[0].isInstalledLocally).toBe(true);
+    expect(recommendationState.view.currentRoute).toEqual({ kind: "importPage" });
+    expect(recommendationState.view.toastMessage).toBe("Imported source.");
+
+    const searchState = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "home" },
+      },
+      importState: {
+        importSubmittedQuery: "starter",
+        searchGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const searchViewModel = new ImportViewModel(searchState, { importer });
+
+    await searchViewModel.importGroup("starter");
+
+    expect(searchState.importState.searchGroups[0].isInstalledLocally).toBe(true);
+    expect(searchState.view.currentRoute).toEqual({ kind: "detail", sourceId: "starter" });
+    expect(searchState.view.selectedSourceId).toBe("starter");
+    expect(searchState.view.toastMessage).toBe("Imported source.");
   });
 
   it("prefers persisted draft selections over preview defaults during import", async () => {
@@ -333,37 +386,7 @@ describe("import view model", () => {
     });
   });
 
-  it("marks imported search results as installed and routes to detail outside import page", async () => {
-    const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
-    const state = createDesktopAppState({
-      view: {
-        currentRoute: { kind: "home" },
-      },
-      importState: {
-        importSubmittedQuery: "starter",
-        searchGroups: [
-          {
-            id: "starter",
-            title: "Starter",
-            locator: "obra/starter",
-            previewPhase: { kind: "ready" },
-            skills: [{ id: "skill-a", selectedByDefault: true }],
-            targets: [{ id: "codex", selectedByDefault: true }],
-          },
-        ],
-      },
-    });
-    const viewModel = new ImportViewModel(state, { importer });
-
-    await viewModel.importGroup("starter");
-
-    expect(state.importState.searchGroups[0].isInstalledLocally).toBe(true);
-    expect(state.view.currentRoute).toEqual({ kind: "detail", sourceId: "starter" });
-    expect(state.view.selectedSourceId).toBe("starter");
-    expect(state.view.toastMessage).toBe("Imported source.");
-  });
-
-  it("synchronizes installed state across recommended and search copies of the same group", async () => {
+  it("keeps installed state synchronized across recommendation and search copies after import", async () => {
     const importer = vi.fn().mockResolvedValue({ sourceId: "starter" });
     const state = createDesktopAppState({
       view: {

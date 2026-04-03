@@ -9,6 +9,49 @@ import { ImportViewModel } from "../view-models/import-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("import screen", () => {
+  it("keeps import screen search text and placeholder state across route round-trips", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    const searchInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
+    await act(async () => {
+      searchInput.props.onChange({ target: { value: "anthropic/skills" } });
+    });
+
+    expect(searchInput.props.value).toBe("anthropic/skills");
+
+    await act(async () => {
+      state.view.currentRoute = { kind: "home" };
+      renderer!.update(<Harness />);
+    });
+    await act(async () => {
+      state.view.currentRoute = { kind: "importPage" };
+      renderer!.update(<Harness />);
+    });
+
+    const restoredInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
+    expect(restoredInput.props.value).toBe("anthropic/skills");
+    expect(renderer!.root.findByProps({ "data-placeholder-index": 0 })).toBeDefined();
+  });
+
   it("renders recommendation rails when no query is submitted", () => {
     const state = createDesktopAppState({
       importState: {
@@ -170,6 +213,47 @@ describe("import screen", () => {
 
     const searchInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
     expect(searchInput.props.value).toBe("");
+  });
+
+  it("projects recommendation and search business state exactly from shared import state", () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "openai",
+        importSearchPhase: { kind: "loading" },
+        recommendedGroups: [
+          {
+            id: "recommended",
+            title: "Recommended",
+            locator: "anthropic/skills",
+            categoryId: "general",
+            categoryTitle: "General",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "browse", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+        searchGroups: [
+          {
+            id: "search",
+            title: "Search",
+            locator: "openai/skills",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "ship", selectedByDefault: true }],
+            targets: [{ id: "cursor", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <ImportScreen viewModel={new ImportViewModel(state)} />,
+    );
+
+    expect(markup).toContain("Search Results");
+    expect(markup).toContain("openai");
+    expect(markup).toContain("Loading");
+    expect(markup).toContain("search");
+    expect(markup).not.toContain("recommended");
   });
 
   it("disables the import action for groups that already exist locally", () => {
