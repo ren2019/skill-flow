@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DIST_ROOT="${SKILL_FLOW_RELEASE_DIST_ROOT:-$ROOT_DIR/dist}"
 
 detect_platform() {
   case "$(uname -s)" in
@@ -21,8 +22,8 @@ detect_platform() {
 }
 
 PLATFORM="${1:-$(detect_platform)}"
-CLI_DIR="$ROOT_DIR/dist/cli/$PLATFORM"
-DESKTOP_DIR="$ROOT_DIR/dist/desktop/$PLATFORM"
+CLI_DIR="$DIST_ROOT/cli/$PLATFORM"
+DESKTOP_DIR="$DIST_ROOT/desktop/$PLATFORM"
 CLI_HELPER="$CLI_DIR/skill-flow-helper"
 
 if [[ "$PLATFORM" == "windows" ]]; then
