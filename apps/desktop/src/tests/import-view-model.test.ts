@@ -121,6 +121,52 @@ describe("import view model", () => {
     });
   });
 
+  it("preserves hydrated recommendation content when the import page loads again", async () => {
+    const recommendationsLoader = vi.fn().mockReturnValue([
+      {
+        id: "starter",
+        title: "Starter",
+        locator: "obra/starter",
+        categoryId: "development",
+        categoryTitle: "Development",
+      },
+    ]);
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "stale query",
+        importSearchPhase: { kind: "failed", message: "boom" },
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            categoryId: "development",
+            categoryTitle: "Development",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [{ id: "codex", selectedByDefault: true }],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state, {
+      recommendationsLoader,
+    });
+
+    await viewModel.loadImportPageIfNeeded();
+
+    expect(recommendationsLoader).not.toHaveBeenCalled();
+    expect(viewModel.importSubmittedQuery).toBe("");
+    expect(viewModel.searchPhase).toEqual({ kind: "failed", message: "boom" });
+    expect(state.importState.recommendedGroups[0]).toEqual(
+      expect.objectContaining({
+        previewPhase: { kind: "ready" },
+        skills: [{ id: "skill-a", selectedByDefault: true }],
+        targets: [{ id: "codex", selectedByDefault: true }],
+      }),
+    );
+  });
+
   it("preserves recommendation section order from the local seed list", async () => {
     const viewModel = new ImportViewModel(createDesktopAppState(), {
       recommendationsLoader: () => [
