@@ -14,6 +14,7 @@ import {
   type DesktopIntegration,
 } from "../runtime/desktop-integration";
 import { createDesktopMaintenance } from "../runtime/desktop-maintenance";
+import { createDesktopSettingsStorage, DesktopSettingsStore } from "../runtime/settings-store";
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
 import { ImportViewModel } from "../view-models/import-view-model";
@@ -31,8 +32,12 @@ export function App({ state: providedState, integration }: AppProps) {
   const activeDetailEntryRef = useRef<string | undefined>(undefined);
   const mutationCoordinatorRef = useRef(createMutationCoordinator());
   const defaultIntegrationRef = useRef<DesktopIntegration | undefined>(undefined);
+  const settingsStoreRef = useRef<DesktopSettingsStore | undefined>(undefined);
   if (!integration && !defaultIntegrationRef.current) {
     defaultIntegrationRef.current = createDesktopIntegration(stateRef.current);
+  }
+  if (!settingsStoreRef.current) {
+    settingsStoreRef.current = new DesktopSettingsStore(createDesktopSettingsStorage());
   }
   const activeIntegration = integration ?? defaultIntegrationRef.current;
   if (stateRef.current.view.currentRoute.kind !== "detail") {
@@ -65,6 +70,7 @@ export function App({ state: providedState, integration }: AppProps) {
   );
   const settingsViewModelRef = useRef(
     new SettingsViewModel(stateRef.current, {
+      store: settingsStoreRef.current,
       maintenance: createDesktopMaintenance(),
       onChange: notifyChange,
     }),

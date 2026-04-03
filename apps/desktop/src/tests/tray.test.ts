@@ -44,4 +44,25 @@ describe("tray menu model", () => {
 
     expect(routes).toEqual([{ kind: "importPage" }, { kind: "settings" }]);
   });
+
+  it("maps tray quick actions to the same route inventory as the macOS app", () => {
+    expect(buildTrayMenuModel().map((item) => item.id)).toEqual([
+      "open-home",
+      "open-import",
+      "open-settings",
+    ]);
+    expect(buildTrayMenuModel().map((item) => item.route.kind)).toEqual([
+      "home",
+      "importPage",
+      "settings",
+    ]);
+  });
+
+  it("keeps quick-config entry behavior aligned with the intended current cutover scope", () => {
+    expect(resolveTrayRoute("open-home")).toEqual({ kind: "home" });
+    expect(resolveTrayRoute("open-import")).toEqual({ kind: "importPage" });
+    expect(resolveTrayRoute("open-settings")).toEqual({ kind: "settings" });
+    expect(resolveTrayRoute("open-detail")).toBeUndefined();
+    expect(resolveTrayRoute("quit")).toBeUndefined();
+  });
 });

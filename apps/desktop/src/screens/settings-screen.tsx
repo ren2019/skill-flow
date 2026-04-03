@@ -28,9 +28,65 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
 
       <div style={gridStyle}>
         <SettingsSection title={t("settings.section.appearance")}>
-          <SettingsControlRow title={t("settings.row.theme.title")} value={viewModel.themeMode} />
-          <SettingsControlRow title={t("settings.row.accent.title")} value={viewModel.themeAccent} />
-          <SettingsControlRow title={t("settings.row.language.title")} value={viewModel.desktopLanguage} />
+          <SettingsSelectRow
+            title={t("settings.row.theme.title")}
+            value={viewModel.themeMode}
+            options={[
+              { value: "light", label: "light" },
+              { value: "dark", label: "dark" },
+            ]}
+            onChange={(value) => {
+              viewModel.themeMode = value;
+            }}
+          />
+          <SettingsSelectRow
+            title={t("settings.row.accent.title")}
+            value={viewModel.themeAccent}
+            options={[
+              { value: "blue", label: "blue" },
+              { value: "green", label: "green" },
+              { value: "orange", label: "orange" },
+              { value: "amber", label: "amber" },
+            ]}
+            onChange={(value) => {
+              viewModel.themeAccent = value;
+            }}
+          />
+          <SettingsSelectRow
+            title={t("settings.row.language.title")}
+            value={viewModel.desktopLanguage}
+            options={[
+              { value: "system", label: "system" },
+              { value: "en", label: "en" },
+              { value: "zh-Hans", label: "zh-Hans" },
+              { value: "ja", label: "ja" },
+            ]}
+            onChange={(value) => {
+              viewModel.desktopLanguage = value;
+            }}
+          />
+          <SettingsSelectRow
+            title="Home Card Density"
+            value={viewModel.homeCardDensity}
+            options={[
+              { value: "comfortable", label: "comfortable" },
+              { value: "compact", label: "compact" },
+            ]}
+            onChange={(value) => {
+              viewModel.homeCardDensity = value;
+            }}
+          />
+          <SettingsSelectRow
+            title="Menu Card Density"
+            value={viewModel.menuCardDensity}
+            options={[
+              { value: "compact", label: "compact" },
+              { value: "comfortable", label: "comfortable" },
+            ]}
+            onChange={(value) => {
+              viewModel.menuCardDensity = value;
+            }}
+          />
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.agent_display")}>
@@ -81,17 +137,35 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.general")}>
-          <SettingsControlRow
+          <SettingsToggleRow
             title={t("settings.auto_launch")}
-            value={viewModel.autoLaunch ? t("settings.enabled") : t("settings.disabled")}
+            value={viewModel.autoLaunch}
+            onToggle={() => {
+              viewModel.autoLaunch = !viewModel.autoLaunch;
+            }}
           />
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.advanced")}>
-          <SettingsControlRow title={t("settings.log_level")} value={viewModel.logLevel} />
-          <SettingsControlRow
+          <SettingsSelectRow
+            title={t("settings.log_level")}
+            value={viewModel.logLevel}
+            options={[
+              { value: "info", label: "info" },
+              { value: "warn", label: "warn" },
+              { value: "error", label: "error" },
+              { value: "debug", label: "debug" },
+            ]}
+            onChange={(value) => {
+              viewModel.logLevel = value;
+            }}
+          />
+          <SettingsToggleRow
             title={t("settings.row.external_helper_override.title")}
-            value={viewModel.externalHelperOverride ? t("settings.enabled") : t("settings.disabled")}
+            value={viewModel.externalHelperOverride}
+            onToggle={() => {
+              viewModel.externalHelperOverride = !viewModel.externalHelperOverride;
+            }}
           />
         </SettingsSection>
 
@@ -126,6 +200,49 @@ function SettingsControlRow({ title, value }: SettingsControlRowProps) {
     <div data-view="settings-control-row" style={controlRowStyle}>
       <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{title}</span>
       <span style={{ fontSize: "12px", color: "#475569" }}>{value}</span>
+    </div>
+  );
+}
+
+type SettingsSelectRowProps = {
+  title: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+};
+
+function SettingsSelectRow({ title, value, options, onChange }: SettingsSelectRowProps) {
+  return (
+    <div data-view="settings-control-row" style={controlRowStyle}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{title}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        style={selectStyle}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+type SettingsToggleRowProps = {
+  title: string;
+  value: boolean;
+  onToggle: () => void;
+};
+
+function SettingsToggleRow({ title, value, onToggle }: SettingsToggleRowProps) {
+  return (
+    <div data-view="settings-control-row" style={controlRowStyle}>
+      <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{title}</span>
+      <button type="button" onClick={onToggle} style={actionButtonStyle()}>
+        {value ? "enabled" : "disabled"}
+      </button>
     </div>
   );
 }
@@ -174,6 +291,17 @@ const controlRowStyle: CSSProperties = {
   padding: "12px 14px",
   borderRadius: "14px",
   background: "rgba(248, 250, 252, 0.92)",
+};
+
+const selectStyle: CSSProperties = {
+  height: "32px",
+  minWidth: "140px",
+  padding: "0 10px",
+  borderRadius: "10px",
+  border: "1px solid rgba(148, 163, 184, 0.2)",
+  background: "rgba(255, 255, 255, 0.92)",
+  color: "#0f172a",
+  fontSize: "12px",
 };
 
 const agentListStyle: CSSProperties = {

@@ -12,6 +12,34 @@ export type SettingsStorage = {
   setItem(key: string, value: string): void;
 };
 
+const fallbackSettingsValues = new Map<string, string>();
+
+export function createDesktopSettingsStorage(): SettingsStorage {
+  if (
+    typeof globalThis.localStorage !== "undefined"
+    && typeof globalThis.localStorage.getItem === "function"
+    && typeof globalThis.localStorage.setItem === "function"
+  ) {
+    return {
+      getItem(key: string): string | null {
+        return globalThis.localStorage.getItem(key);
+      },
+      setItem(key: string, value: string): void {
+        globalThis.localStorage.setItem(key, value);
+      },
+    };
+  }
+
+  return {
+    getItem(key: string): string | null {
+      return fallbackSettingsValues.get(key) ?? null;
+    },
+    setItem(key: string, value: string): void {
+      fallbackSettingsValues.set(key, value);
+    },
+  };
+}
+
 export type AgentDisplayRow = {
   targetId: string;
   title: string;

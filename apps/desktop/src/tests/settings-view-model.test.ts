@@ -2,6 +2,25 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { SettingsViewModel } from "../view-models/settings-view-model";
 
+function createSettingsStateSeed() {
+  return {
+    autoLaunch: true,
+    logLevel: "warn",
+    experimentalExternalHelper: true,
+    desktopLanguageRawValue: "ja",
+    themeModeRawValue: "dark",
+    themeAccentRawValue: "green",
+    homeCardDensityRawValue: "compact",
+    menuCardDensityRawValue: "comfortable",
+    selectedProjectScope: { kind: "global" } as const,
+    recentProjectScopes: [],
+    agentDisplayPreferences: [
+      { targetId: "codex", isVisible: false, sortOrder: 0 },
+      { targetId: "unknown", isVisible: true, sortOrder: 1 },
+    ],
+  };
+}
+
 afterEach(() => {
   vi.restoreAllMocks();
 });
@@ -69,7 +88,43 @@ describe("settings view model", () => {
     expect(viewModel.updateStatus).toBe("upToDate");
   });
 
-  it("restores the full desktop settings slice to defaults", () => {
+  it("loads, normalizes, and writes the full settings surface immediately", () => {
+    const save = vi.fn();
+    const store = {
+      load: vi.fn(() => createSettingsStateSeed()),
+      save,
+    };
+    const state = createDesktopAppState();
+    const viewModel = new SettingsViewModel(state, { store } as never);
+
+    expect(viewModel.autoLaunch).toBe(true);
+    expect(viewModel.logLevel).toBe("warn");
+    expect(viewModel.externalHelperOverride).toBe(true);
+    expect(viewModel.desktopLanguage).toBe("ja");
+    expect(viewModel.themeMode).toBe("dark");
+    expect(viewModel.themeAccent).toBe("green");
+    expect(state.settings.agentDisplayPreferences[0]?.targetId).toBe("codex");
+    expect(state.settings.agentDisplayPreferences.find((row) => row.targetId === "unknown")).toBeUndefined();
+
+    viewModel.autoLaunch = false;
+    viewModel.logLevel = "error";
+
+    expect(save).toHaveBeenCalled();
+    expect(save).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        autoLaunch: false,
+        logLevel: "error",
+        experimentalExternalHelper: true,
+        desktopLanguageRawValue: "ja",
+        themeModeRawValue: "dark",
+        themeAccentRawValue: "green",
+        homeCardDensityRawValue: "compact",
+        menuCardDensityRawValue: "comfortable",
+      }),
+    );
+  });
+
+  it("resets configuration back to full defaults", () => {
     const state = createDesktopAppState({
       settings: {
         autoLaunch: true,
@@ -111,7 +166,7 @@ describe("settings view model", () => {
     });
   });
 
-  it("delegates metadata cache cleanup to the desktop maintenance boundary", async () => {
+  it("clears metadata cache through the Tauri maintenance boundary only", async () => {
     const clearMetadataCache = vi.fn().mockResolvedValue(undefined);
     const viewModel = new SettingsViewModel(createDesktopAppState(), {
       maintenance: { clearMetadataCache },
