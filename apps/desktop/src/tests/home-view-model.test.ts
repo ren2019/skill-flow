@@ -189,6 +189,25 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("Switched to Global.");
   });
 
+  it("normalizes source ids before opening detail routes", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.home(),
+      },
+    });
+    const viewModel = new HomeViewModel(state);
+
+    viewModel.openDetail("  alpha  ");
+
+    expect(state.view.currentRoute).toEqual(desktopRoute.detail("alpha"));
+    expect(state.view.selectedSourceId).toBe("alpha");
+
+    viewModel.openDetail("   ");
+
+    expect(state.view.currentRoute).toEqual(desktopRoute.detail("alpha"));
+    expect(state.view.selectedSourceId).toBe("alpha");
+  });
+
   it("localizes project scope switch toasts for zh-Hans", async () => {
     const state = createDesktopAppState({
       settings: {
