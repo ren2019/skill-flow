@@ -197,4 +197,38 @@ describe("import screen", () => {
     expect(markup).toContain("Installed");
     expect(markup).toContain("disabled=\"\"");
   });
+
+  it("falls back to visible targets when no preview target draft is available", () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "",
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "loading" },
+            skills: [],
+            targets: [
+              { id: "claude-code", selectedByDefault: true },
+              { id: "cursor", selectedByDefault: true },
+            ],
+          },
+        ],
+        draftsByItemId: {
+          starter: {
+            selectedSkillIds: [],
+            enabledTargetIds: [],
+          },
+        },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <ImportScreen viewModel={new ImportViewModel(state)} />,
+    );
+
+    expect(markup).toContain("claude-code");
+    expect(markup).toContain("cursor");
+  });
 });
