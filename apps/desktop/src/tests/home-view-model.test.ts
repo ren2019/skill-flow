@@ -425,4 +425,53 @@ describe("home view model", () => {
       community: 1,
     });
   });
+
+  it("derives home tags from bundled recommendations when no custom tags exist", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["garrytan-gstack", "plain-local"],
+        inventorySummaries: [
+          {
+            sourceId: "garrytan-gstack",
+            title: "gstack",
+            locator: "https://github.com/garrytan/gstack/",
+            repoUrl: "https://github.com/garrytan/gstack",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+          },
+          {
+            sourceId: "plain-local",
+            title: "Local Only",
+            locator: "/tmp/plain-local",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 0,
+          },
+        ],
+      },
+    });
+
+    const viewModel = new HomeViewModel(state);
+
+    expect(viewModel.homeTagFilters).toEqual([
+      expect.objectContaining({ id: "preset:development", title: "Development" }),
+      expect.objectContaining({ id: "preset:teamwork", title: "Teamwork" }),
+    ]);
+    expect(viewModel.homeTagCountById).toEqual({
+      "preset:development": 1,
+      "preset:teamwork": 1,
+    });
+    expect(viewModel.inventoryTags("garrytan-gstack")).toEqual([
+      expect.objectContaining({ id: "preset:development", title: "Development" }),
+      expect.objectContaining({ id: "preset:teamwork", title: "Teamwork" }),
+    ]);
+    expect(viewModel.inventoryTags("plain-local")).toEqual([]);
+  });
 });
