@@ -32,6 +32,17 @@ describe("home screen", () => {
             groupPath: "/groups/alpha",
             enabledTargetLabels: ["Codex", "Claude Code"],
             selectedSkillNames: ["browse", "review"],
+            skillSelection: "partial",
+            targetSelection: "full",
+            skills: [
+              { id: "alpha:browse", title: "browse", isEnabled: true },
+              { id: "alpha:review", title: "review", isEnabled: true },
+              { id: "alpha:ship", title: "ship", isEnabled: false },
+            ],
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+              { id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true },
+            ],
           },
           {
             sourceId: "beta",
@@ -79,6 +90,9 @@ describe("home screen", () => {
     expect(markup).toContain("data-group-card-stat=\"star\"");
     expect(markup).toContain("data-group-card-stat=\"github\"");
     expect(markup).toContain("data-group-card-stat=\"local-file\"");
+    expect(markup).toContain("data-delete-source-id=\"alpha\"");
+    expect(markup).toContain("data-skill-toggle-id=\"alpha:alpha:browse\"");
+    expect(markup).toContain("data-target-toggle-id=\"alpha:codex\"");
     expect(markup).toContain("Alpha Starter");
     expect(markup).toContain("Beta Tools");
     expect(markup).toContain("by obra");
@@ -259,7 +273,6 @@ describe("home screen", () => {
       renderer = create(<Harness />);
     });
 
-    const buttons = renderer!.root.findAllByType("button");
     const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
     const scopeToggleButton = renderer!.root.findByProps({ "data-testid": "home-scope-toggle" });
 
@@ -278,6 +291,103 @@ describe("home screen", () => {
 
     expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
     expect(state.settings.selectedProjectScope).toEqual({ kind: "project", projectId: "repo-a" });
+  });
+
+  it("wires the group delete action", async () => {
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "beta"], pinnedSourceIds: ["alpha"] },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    const deleteButton = renderer!.root.findByProps({ "data-delete-source-id": "alpha" });
+
+    await act(async () => {
+      deleteButton.props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(state.workspace.sourceIds).toEqual(["beta"]);
+    expect(state.workspace.pinnedSourceIds).toEqual([]);
+    expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
+  });
+
+  it("wires home card skill and target toggles", async () => {
+    const updateSelection = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 0,
+            skillSelection: "partial",
+            targetSelection: "empty",
+            skills: [
+              { id: "alpha:browse", title: "browse", isEnabled: true },
+              { id: "alpha:review", title: "review", isEnabled: false },
+            ],
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: false },
+            ],
+          },
+        ],
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          updateSelection,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-skill-toggle-id": "alpha:alpha:review" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-target-toggle-id": "alpha:codex" }).props.onClick();
+    });
+
+    expect(updateSelection).toHaveBeenCalledTimes(2);
+    expect(state.workspace.inventorySummaries[0].enabledSkillCount).toBe(2);
+    expect(state.workspace.inventorySummaries[0].activeTargetCount).toBe(1);
   });
 
   it("filters the inventory list and toggles the project scope bar", async () => {

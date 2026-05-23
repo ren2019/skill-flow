@@ -279,4 +279,105 @@ describe("detail screen", () => {
       selectedSkillIds: ["skill-a"],
     });
   });
+
+  it("renders nested file tree items and selects the owning skill from tree clicks", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [
+              {
+                id: "root",
+                title: "alpha",
+                path: "/alpha",
+                isDirectory: true,
+                isSkillRoot: false,
+                isSkillDocument: false,
+                children: [
+                  {
+                    id: "root/debug",
+                    title: "debug",
+                    path: "/alpha/debug",
+                    isDirectory: true,
+                    isSkillRoot: true,
+                    isSkillDocument: false,
+                    skillId: "debug",
+                    children: [
+                      {
+                        id: "root/debug/SKILL.md",
+                        title: "SKILL.md",
+                        path: "/alpha/debug/SKILL.md",
+                        isDirectory: false,
+                        isSkillRoot: false,
+                        isSkillDocument: true,
+                        skillId: "debug",
+                        children: [],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              {
+                id: "debug",
+                title: "Debug",
+                isEnabled: true,
+                documents: [
+                  {
+                    id: "debug-md",
+                    title: "DEBUG.md",
+                    path: "DEBUG.md",
+                    metadata: [],
+                    renderCacheKey: "debug-md",
+                    content: "# Debug",
+                    isLoaded: true,
+                  },
+                ],
+              },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new DetailViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <DetailScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findByProps({ "data-tree-item-id": "root/debug/SKILL.md" })).toBeTruthy();
+
+    const treeButton = renderer!.root.findByProps({ "data-tree-item-id": "root/debug" });
+    await act(async () => {
+      treeButton.props.onClick();
+    });
+
+    expect(state.detailState.ui.showsGroupOverviewByGroup.alpha).toBe(false);
+    expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("debug");
+    expect(JSON.stringify(renderer!.toJSON())).toContain("# Debug");
+  });
 });

@@ -18,6 +18,16 @@ export type AgentDisplayPreference = {
   sortOrder: number;
 };
 
+export type CustomAgentDefinition = {
+  id: string;
+  name: string;
+  globalPath: string;
+  projectPathTemplate: string;
+  strategy: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type SettingsState = {
   autoLaunch: boolean;
   logLevel: string;
@@ -30,6 +40,7 @@ export type SettingsState = {
   selectedProjectScope: ProjectScopeSelection;
   recentProjectScopes: RecentProjectScopeItem[];
   agentDisplayPreferences: AgentDisplayPreference[];
+  customAgents: CustomAgentDefinition[];
 };
 
 export function createSettingsState(seed: Partial<SettingsState> = {}): SettingsState {
@@ -45,5 +56,6 @@ export function createSettingsState(seed: Partial<SettingsState> = {}): Settings
     selectedProjectScope: seed.selectedProjectScope ?? { kind: "global" },
     recentProjectScopes: [...(seed.recentProjectScopes ?? [])],
     agentDisplayPreferences: [...(seed.agentDisplayPreferences ?? [])],
+    customAgents: [...(seed.customAgents ?? [])],
   };
 }

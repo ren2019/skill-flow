@@ -1,3 +1,18 @@
+export type InventorySelectionState = "empty" | "partial" | "full";
+
+export type InventorySkillState = {
+  id: string;
+  title: string;
+  isEnabled: boolean;
+};
+
+export type InventoryTargetState = {
+  id: string;
+  label: string;
+  shortLabel: string;
+  isEnabled: boolean;
+};
+
 export type InventorySummaryState = {
   sourceId: string;
   title: string;
@@ -15,6 +30,10 @@ export type InventorySummaryState = {
   groupPath?: string;
   enabledTargetLabels?: string[];
   selectedSkillNames?: string[];
+  skillSelection?: InventorySelectionState;
+  targetSelection?: InventorySelectionState;
+  skills?: InventorySkillState[];
+  targets?: InventoryTargetState[];
 };
 
 export type WorkspaceTagPreference = {

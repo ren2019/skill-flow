@@ -48,16 +48,47 @@ export function App({ state: providedState, integration }: AppProps) {
   };
   const mainViewModelRef = useRef(new MainViewModel(stateRef.current));
   const refreshInventory = activeIntegration?.refreshInventory;
+  const updateSource = activeIntegration?.updateSource;
+  const updateSources = activeIntegration?.updateSources;
+  const updateSelection = activeIntegration?.updateSelection;
+  const searchImportGroups = activeIntegration?.searchImportGroups;
+  const previewImportSource = activeIntegration?.previewImportSource;
+  const importSource = activeIntegration?.importSource;
+  const togglePinnedSource = activeIntegration?.togglePinnedSource;
+  const deleteSource = activeIntegration?.deleteSource;
   const homeViewModelRef = useRef(
     new HomeViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
       ...(refreshInventory ? { refreshList: refreshInventory } : {}),
+      ...(updateSource ? { updateGroup: updateSource } : {}),
+      ...(updateSources ? { updateGroups: updateSources } : {}),
+      ...(updateSelection ? { updateSelection } : {}),
+      ...(togglePinnedSource ? { togglePinnedSource } : {}),
+      ...(deleteSource ? { deleteSource } : {}),
+      persistSettings: () => settingsStoreRef.current?.save(stateRef.current.settings),
       onChange: notifyChange,
     }),
   );
   const importViewModelRef = useRef(
     new ImportViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
+      ...(searchImportGroups ? { searchLoader: searchImportGroups } : {}),
+      ...(previewImportSource
+        ? {
+          previewLoader: (groupId) => {
+            const group = findImportGroup(stateRef.current, groupId);
+            return previewImportSource(group?.locator ?? groupId);
+          },
+        }
+        : {}),
+      ...(importSource
+        ? {
+          importer: (groupId, draft) => {
+            const group = findImportGroup(stateRef.current, groupId);
+            return importSource(group?.locator ?? groupId, draft);
+          },
+        }
+        : {}),
       onImportCompleted: () => homeViewModelRef.current.refresh(),
       onChange: notifyChange,
     }),
@@ -65,6 +96,7 @@ export function App({ state: providedState, integration }: AppProps) {
   const detailViewModelRef = useRef(
     new DetailViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
+      ...(updateSelection ? { updateSelection } : {}),
       onChange: notifyChange,
     }),
   );
@@ -194,4 +226,8 @@ export function App({ state: providedState, integration }: AppProps) {
     case "settings":
       return <SettingsScreen viewModel={settingsViewModelRef.current} />;
   }
+}
+
+function findImportGroup(state: DesktopAppState, groupId: string) {
+  return [...state.importState.recommendedGroups, ...state.importState.searchGroups].find((group) => group.id === groupId);
 }

@@ -90,6 +90,17 @@ describe("desktop integration runtime", () => {
         groupPath: "/groups/alpha",
         enabledTargetLabels: ["Codex", "Claude Code"],
         selectedSkillNames: ["browse", "review"],
+        skillSelection: "partial",
+        targetSelection: "full",
+        skills: [
+          { id: "alpha:browse", title: "browse", isEnabled: true },
+          { id: "alpha:review", title: "review", isEnabled: true },
+          { id: "alpha:ship", title: "ship", isEnabled: false },
+        ],
+        targets: [
+          { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+          { id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true },
+        ],
       }),
     ]);
   });
@@ -307,5 +318,221 @@ describe("desktop integration runtime", () => {
       }),
     );
     expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("alpha:overview");
+  });
+
+  it("sends update requests for a single source through the bridge", async () => {
+    const state = createDesktopAppState();
+    const invoke = vi.fn().mockResolvedValue({
+      protocolVersion: "1.0",
+      command: "update",
+      ok: true,
+      warnings: [],
+      errors: [],
+      data: { updated: 1 },
+    });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    const result = await integration.updateSource?.(" alpha ");
+
+    expect(invoke).toHaveBeenCalledWith("update", {
+      sourceIds: ["alpha"],
+    });
+    expect(result).toEqual({ updated: 1 });
+  });
+
+  it("sends batched update requests through the bridge", async () => {
+    const state = createDesktopAppState();
+    const invoke = vi.fn().mockResolvedValue({
+      protocolVersion: "1.0",
+      command: "update",
+      ok: true,
+      warnings: [],
+      errors: [],
+      data: {
+        updated: [{ sourceId: "alpha", changed: true }],
+      },
+    });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    const result = await integration.updateSources?.([" alpha ", "", "beta"]);
+
+    expect(invoke).toHaveBeenCalledWith("update", {
+      sourceIds: ["alpha", "beta"],
+    });
+    expect(result).toEqual({
+      updated: [{ sourceId: "alpha", changed: true }],
+    });
+  });
+
+  it("persists detail skill and target selection through the bridge apply command", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        selectedProjectScope: { kind: "project", projectId: "repo-a" },
+      },
+    });
+    const invoke = vi.fn().mockResolvedValue({
+      protocolVersion: "1.0",
+      command: "apply",
+      ok: true,
+      warnings: [],
+      errors: [],
+      data: { applied: true },
+    });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    await integration.updateSelection?.(" alpha ", {
+      selectedSkillIds: ["alpha:browse"],
+      enabledTargetIds: ["codex"],
+    });
+
+    expect(invoke).toHaveBeenCalledWith("apply", {
+      sourceId: "alpha",
+      scope: { kind: "project", projectId: "repo-a" },
+      draft: {
+        selectedLeafIds: ["alpha:browse"],
+        enabledTargets: ["codex"],
+      },
+    });
+  });
+
+  it("maps import search, preview, and import bridge responses", async () => {
+    const state = createDesktopAppState();
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "search-import-groups",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          groups: [
+            {
+              id: "starter",
+              title: "Starter",
+              locator: "obra/starter",
+              installed: true,
+              snapshot: {
+                skills: [
+                  { skillId: "browse", title: "Browse" },
+                ],
+              },
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "preview-import-source",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          status: "ready",
+          selectedSkillIds: ["browse"],
+          enabledTargets: ["codex"],
+          skills: [{ id: "browse", title: "Browse" }],
+          targets: [{ id: "codex" }, { id: "cursor" }],
+        },
+      })
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "import-source",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          status: "ready",
+          sourceId: "starter",
+        },
+      });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    await expect(integration.searchImportGroups?.("starter")).resolves.toEqual([
+      expect.objectContaining({
+        id: "starter",
+        title: "Starter",
+        locator: "obra/starter",
+        isInstalledLocally: true,
+        previewPhase: { kind: "ready" },
+        skills: [{ id: "browse", selectedByDefault: true }],
+        targets: [],
+      }),
+    ]);
+    await expect(integration.previewImportSource?.(" obra/starter ")).resolves.toEqual({
+      skills: [{ id: "browse", selectedByDefault: true }],
+      targets: [
+        { id: "codex", selectedByDefault: true },
+        { id: "cursor", selectedByDefault: false },
+      ],
+    });
+    await expect(integration.importSource?.(" obra/starter ", {
+      selectedSkillIds: ["browse"],
+      enabledTargets: ["codex"],
+    })).resolves.toEqual({ sourceId: "starter" });
+
+    expect(invoke).toHaveBeenNthCalledWith(1, "search-import-groups", { query: "starter" });
+    expect(invoke).toHaveBeenNthCalledWith(2, "preview-import-source", { locator: "obra/starter" });
+    expect(invoke).toHaveBeenNthCalledWith(3, "import-source", {
+      locator: "obra/starter",
+      draft: {
+        selectedSkillIds: ["browse"],
+        enabledTargets: ["codex"],
+      },
+    });
+  });
+
+  it("persists pinned source changes through the bridge", async () => {
+    const state = createDesktopAppState();
+    const invoke = vi.fn().mockResolvedValue({
+      protocolVersion: "1.0",
+      command: "toggle-pin",
+      ok: true,
+      warnings: [],
+      errors: [],
+      data: {
+        pinnedSourceIds: ["beta", "alpha", "", 42],
+      },
+    });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    const pinnedSourceIds = await integration.togglePinnedSource?.(" alpha ");
+
+    expect(invoke).toHaveBeenCalledWith("toggle-pin", {
+      sourceId: "alpha",
+    });
+    expect(pinnedSourceIds).toEqual(["beta", "alpha"]);
+  });
+
+  it("sends uninstall requests for a single source through the bridge", async () => {
+    const state = createDesktopAppState();
+    const invoke = vi.fn().mockResolvedValue({
+      protocolVersion: "1.0",
+      command: "uninstall",
+      ok: true,
+      warnings: [],
+      errors: [],
+      data: {
+        removed: ["alpha"],
+      },
+    });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    await integration.deleteSource?.(" alpha ");
+
+    expect(invoke).toHaveBeenCalledWith("uninstall", {
+      sourceIds: ["alpha"],
+    });
   });
 });

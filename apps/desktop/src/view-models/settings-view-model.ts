@@ -1,8 +1,13 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
 import { createSettingsState } from "../store/settings-state";
-import type { AgentDisplayPreference } from "../store/settings-state";
+import type { AgentDisplayPreference, CustomAgentDefinition } from "../store/settings-state";
 import { DesktopUpdateChecker } from "../runtime/update-checker";
-import { DesktopSettingsStore, normalizeAgentDisplayPreferences } from "../runtime/settings-store";
+import {
+  DesktopSettingsStore,
+  detectedAgentRows,
+  normalizeAgentDisplayPreferences,
+  type AgentDisplayRow,
+} from "../runtime/settings-store";
 
 type DesktopMaintenance = {
   clearMetadataCache(): Promise<void> | void;
@@ -13,6 +18,7 @@ export type UpdateStatus =
   | "checking"
   | "upToDate"
   | "updateAvailable"
+  | "runningNewerBuild"
   | "failed";
 
 type UpdateStateSeed = {
@@ -28,6 +34,13 @@ type SettingsViewModelOptions = {
   releasePageOpener?: (url: string) => void;
   maintenance?: DesktopMaintenance;
   onChange?: () => void;
+};
+
+export type CustomAgentDraft = {
+  name: string;
+  globalPath: string;
+  projectPathTemplate: string;
+  strategy: string;
 };
 
 export class SettingsViewModel {
@@ -60,7 +73,9 @@ export class SettingsViewModel {
         ...loadedSettings,
         agentDisplayPreferences: normalizeAgentDisplayPreferences(
           loadedSettings.agentDisplayPreferences,
+          loadedSettings.customAgents,
         ),
+        customAgents: loadedSettings.customAgents,
       });
     }
   }
@@ -85,6 +100,12 @@ export class SettingsViewModel {
 
   get agentDisplayPreferences(): AgentDisplayPreference[] {
     return this.state.settings.agentDisplayPreferences;
+  }
+
+  get customAgents(): CustomAgentDefinition[] {
+    return this.state.settings.customAgents
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
   }
 
   get themeMode(): string {
@@ -165,10 +186,13 @@ export class SettingsViewModel {
       const release = await this.updateChecker.fetchLatestRelease();
       this.currentLatestVersion = release.version;
       this.latestReleaseUrl = release.releaseUrl;
-      this.currentUpdateStatus =
-        compareVersions(release.version, this.currentVersion) > 0
-          ? "updateAvailable"
-          : "upToDate";
+      if (compareVersions(release.version, this.currentVersion) > 0) {
+        this.currentUpdateStatus = "updateAvailable";
+      } else if (compareVersions(this.currentVersion, release.version) > 0) {
+        this.currentUpdateStatus = "runningNewerBuild";
+      } else {
+        this.currentUpdateStatus = "upToDate";
+      }
     } catch {
       this.currentLatestVersion = undefined;
       this.latestReleaseUrl = undefined;
@@ -207,7 +231,10 @@ export class SettingsViewModel {
   }
 
   setAgentVisibility(targetId: string, isVisible: boolean): void {
-    const nextPreferences = normalizeAgentDisplayPreferences(this.state.settings.agentDisplayPreferences);
+    const nextPreferences = normalizeAgentDisplayPreferences(
+      this.state.settings.agentDisplayPreferences,
+      this.state.settings.customAgents,
+    );
     const targetPreference = nextPreferences.find((preference) => preference.targetId === targetId);
     if (!targetPreference) {
       return;
@@ -223,12 +250,200 @@ export class SettingsViewModel {
     this.persistSettings();
   }
 
+  allAgentRows(): AgentDisplayRow[] {
+    return detectedAgentRows(
+      this.state.settings.agentDisplayPreferences,
+      this.state.settings.customAgents,
+    );
+  }
+
+  detectedAgentRows(detectedTargetIds: string[]): AgentDisplayRow[] {
+    return detectedAgentRows(
+      this.state.settings.agentDisplayPreferences,
+      this.state.settings.customAgents,
+      detectedTargetIds,
+    );
+  }
+
+  moveAgents(fromIndex: number, toIndex: number, detectedTargetIds: string[]): void {
+    const detectedSet = new Set(detectedTargetIds);
+    const customTargetIds = new Set(this.state.settings.customAgents.map((agent) => agent.id));
+    const preferences = normalizeAgentDisplayPreferences(
+      this.state.settings.agentDisplayPreferences,
+      this.state.settings.customAgents,
+    );
+    const detectedPreferences = preferences.filter((preference) =>
+      detectedSet.has(preference.targetId) || customTargetIds.has(preference.targetId),
+    );
+    if (
+      fromIndex < 0 ||
+      fromIndex >= detectedPreferences.length ||
+      toIndex < 0 ||
+      toIndex > detectedPreferences.length ||
+      fromIndex === toIndex
+    ) {
+      return;
+    }
+
+    const reordered = detectedPreferences.slice();
+    const [moved] = reordered.splice(fromIndex, 1);
+    if (!moved) {
+      return;
+    }
+    reordered.splice(toIndex, 0, moved);
+
+    const reorderedIterator = reordered[Symbol.iterator]();
+    const nextPreferences = preferences.map((preference) => {
+      if (!detectedSet.has(preference.targetId) && !customTargetIds.has(preference.targetId)) {
+        return preference;
+      }
+      const nextPreference = reorderedIterator.next().value as AgentDisplayPreference | undefined;
+      return nextPreference
+        ? {
+          ...nextPreference,
+          sortOrder: preference.sortOrder,
+        }
+        : preference;
+    });
+
+    this.state.settings.agentDisplayPreferences = normalizeAgentDisplayPreferences(
+      nextPreferences,
+      this.state.settings.customAgents,
+    );
+    this.persistSettings();
+  }
+
+  customAgentDraft(editingId?: string): CustomAgentDraft {
+    const existing = editingId
+      ? this.state.settings.customAgents.find((agent) => agent.id === editingId)
+      : undefined;
+    return {
+      name: existing?.name ?? "",
+      globalPath: existing?.globalPath ?? "",
+      projectPathTemplate: existing?.projectPathTemplate ?? "",
+      strategy: existing?.strategy ?? "symlink",
+    };
+  }
+
+  upsertCustomAgent(draft: CustomAgentDraft, editingId?: string): Record<string, string> {
+    const errors = this.validateCustomAgent(draft, editingId);
+    if (Object.keys(errors).length > 0) {
+      return errors;
+    }
+
+    const now = new Date().toISOString();
+    const name = draft.name.trim();
+    const globalPath = draft.globalPath.trim();
+    const projectPathTemplate = normalizeProjectPath(draft.projectPathTemplate) ?? draft.projectPathTemplate.trim();
+    const resolvedId = editingId ?? this.makeCustomAgentId(name);
+    const existingIndex = this.state.settings.customAgents.findIndex((agent) => agent.id === editingId);
+    const nextAgent: CustomAgentDefinition = {
+      id: resolvedId,
+      name,
+      globalPath,
+      projectPathTemplate,
+      strategy: draft.strategy,
+      createdAt: existingIndex >= 0 ? this.state.settings.customAgents[existingIndex]?.createdAt ?? now : now,
+      updatedAt: now,
+    };
+
+    if (existingIndex >= 0) {
+      this.state.settings.customAgents = this.state.settings.customAgents.map((agent, index) =>
+        index === existingIndex ? nextAgent : agent,
+      );
+    } else {
+      this.state.settings.customAgents = [...this.state.settings.customAgents, nextAgent];
+    }
+
+    const preferences = normalizeAgentDisplayPreferences(
+      this.state.settings.agentDisplayPreferences,
+      this.state.settings.customAgents,
+    );
+    if (!preferences.some((preference) => preference.targetId === resolvedId)) {
+      preferences.push({ targetId: resolvedId, isVisible: true, sortOrder: preferences.length });
+    }
+    this.state.settings.agentDisplayPreferences = normalizeAgentDisplayPreferences(
+      preferences,
+      this.state.settings.customAgents,
+    );
+    this.persistSettings();
+    return {};
+  }
+
+  deleteCustomAgent(id: string): void {
+    this.state.settings.customAgents = this.state.settings.customAgents.filter((agent) => agent.id !== id);
+    this.state.settings.agentDisplayPreferences = normalizeAgentDisplayPreferences(
+      this.state.settings.agentDisplayPreferences.filter((preference) => preference.targetId !== id),
+      this.state.settings.customAgents,
+    );
+    this.persistSettings();
+  }
+
   private persistSettings(): void {
     this.store?.save(this.state.settings);
     this.onChange();
+  }
+
+  private validateCustomAgent(draft: CustomAgentDraft, editingId?: string): Record<string, string> {
+    const errors: Record<string, string> = {};
+    const name = draft.name.trim();
+    const globalPath = draft.globalPath.trim();
+
+    if (!name) {
+      errors.name = "Name is required.";
+    }
+    if (!globalPath) {
+      errors.globalPath = "Global path is required.";
+    } else if (!isAbsolutePath(globalPath)) {
+      errors.globalPath = "Global path must be absolute.";
+    }
+    if (normalizeProjectPath(draft.projectPathTemplate) === undefined) {
+      errors.projectPathTemplate = "Project path must be relative.";
+    }
+    if (this.state.settings.customAgents.some((agent) =>
+      agent.id !== editingId && agent.name.localeCompare(name, undefined, { sensitivity: "accent" }) === 0
+    )) {
+      errors.name = "Name is already in use.";
+    }
+
+    return errors;
+  }
+
+  private makeCustomAgentId(name: string): string {
+    const base = name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "custom-agent";
+    const usedIds = new Set([
+      ...this.state.settings.customAgents.map((agent) => agent.id),
+      ...normalizeAgentDisplayPreferences([], []).map((preference) => preference.targetId),
+    ]);
+    let candidate = base;
+    let suffix = 2;
+    while (usedIds.has(candidate)) {
+      candidate = `${base}-${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
   }
 }
 
 function compareVersions(left: string, right: string): number {
   return left.localeCompare(right, undefined, { numeric: true });
+}
+
+function normalizeProjectPath(value: string): string | undefined {
+  const trimmed = value.trim();
+  if (!trimmed || isAbsolutePath(trimmed)) {
+    return undefined;
+  }
+  const normalized = trimmed.replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!normalized || normalized === "." || normalized === ".." || normalized.startsWith("../")) {
+    return undefined;
+  }
+  return normalized;
+}
+
+function isAbsolutePath(value: string): boolean {
+  return value.startsWith("/") || /^[A-Za-z]:[\\/]/.test(value);
 }

@@ -1,7 +1,6 @@
-import os from "node:os";
-import path from "node:path";
 import type {
   AgentDisplayPreference,
+  CustomAgentDefinition,
   RecentProjectScopeItem,
   SettingsState,
   ProjectScopeSelection,
@@ -13,19 +12,9 @@ export type SettingsStorage = {
 };
 
 export function createDesktopSettingsStorage(): SettingsStorage {
-  if (
-    typeof globalThis.localStorage !== "undefined"
-    && typeof globalThis.localStorage.getItem === "function"
-    && typeof globalThis.localStorage.setItem === "function"
-  ) {
-    return {
-      getItem(key: string): string | null {
-        return globalThis.localStorage.getItem(key);
-      },
-      setItem(key: string, value: string): void {
-        globalThis.localStorage.setItem(key, value);
-      },
-    };
+  const storage = readBrowserLocalStorage();
+  if (storage) {
+    return storage;
   }
 
   const fallbackSettingsValues = new Map<string, string>();
@@ -40,12 +29,41 @@ export function createDesktopSettingsStorage(): SettingsStorage {
   };
 }
 
+function readBrowserLocalStorage(): SettingsStorage | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    const storage = window.localStorage;
+    if (
+      typeof storage?.getItem !== "function" ||
+      typeof storage.setItem !== "function"
+    ) {
+      return undefined;
+    }
+
+    return {
+      getItem(key: string): string | null {
+        return storage.getItem(key);
+      },
+      setItem(key: string, value: string): void {
+        storage.setItem(key, value);
+      },
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export type AgentDisplayRow = {
   targetId: string;
   title: string;
   shortLabel: string;
   mountPath: string;
+  projectPath?: string;
   isVisible: boolean;
+  isBuiltIn: boolean;
 };
 
 export const settingsKeys = {
@@ -60,6 +78,7 @@ export const settingsKeys = {
   selectedProjectScope: "desktop.selectedProjectScope",
   recentProjectScopes: "desktop.recentProjectScopes",
   agentDisplayPreferences: "desktop.agentDisplayPreferences",
+  customAgents: "desktop.customAgents",
 } as const;
 
 const defaultTargetOrder = [
@@ -70,7 +89,9 @@ const defaultTargetOrder = [
   "gemini-cli",
   "opencode",
   "openclaw",
+  "hermes-agent",
   "pi",
+  "trae",
   "windsurf",
   "roo-code",
   "cline",
@@ -86,7 +107,9 @@ const labelsByTargetId: Record<string, string> = {
   "gemini-cli": "Gemini CLI",
   opencode: "OpenCode",
   openclaw: "OpenClaw",
+  "hermes-agent": "Hermes Agent",
   pi: "Pi",
+  trae: "Trae",
   windsurf: "Windsurf",
   "roo-code": "Roo Code",
   cline: "Cline",
@@ -102,7 +125,9 @@ const shortLabelsByTargetId: Record<string, string> = {
   "gemini-cli": "GM",
   opencode: "OP",
   openclaw: "OC",
+  "hermes-agent": "HA",
   pi: "PI",
+  trae: "TR",
   windsurf: "WS",
   "roo-code": "RO",
   cline: "CL",
@@ -118,11 +143,31 @@ const globalPathSuffixByTargetId: Record<string, string> = {
   "gemini-cli": ".gemini/skills",
   opencode: ".config/opencode/skills",
   openclaw: ".openclaw/skills",
+  "hermes-agent": ".hermes/skills",
   pi: ".pi/agent/skills",
+  trae: ".trae/skills",
   windsurf: ".codeium/windsurf/skills",
   "roo-code": ".roo/skills",
   cline: ".agents/skills",
   amp: ".config/agents/skills",
+  kiro: ".kiro/skills",
+};
+
+const projectPathByTargetId: Record<string, string> = {
+  "claude-code": ".claude/skills",
+  codex: ".agents/skills",
+  cursor: ".agents/skills",
+  "github-copilot": ".agents/skills",
+  "gemini-cli": ".agents/skills",
+  opencode: ".agents/skills",
+  openclaw: "skills",
+  "hermes-agent": ".hermes/skills",
+  pi: ".pi/skills",
+  trae: ".trae/skills",
+  windsurf: ".windsurf/skills",
+  "roo-code": ".roo/skills",
+  cline: ".agents/skills",
+  amp: ".agents/skills",
   kiro: ".kiro/skills",
 };
 
@@ -152,6 +197,14 @@ export class DesktopSettingsStore {
           this.storage.getItem(settingsKeys.agentDisplayPreferences),
           [],
         ),
+        parseJson<CustomAgentDefinition[]>(
+          this.storage.getItem(settingsKeys.customAgents),
+          [],
+        ),
+      ),
+      customAgents: parseJson<CustomAgentDefinition[]>(
+        this.storage.getItem(settingsKeys.customAgents),
+        [],
       ),
     };
   }
@@ -169,13 +222,16 @@ export class DesktopSettingsStore {
     this.storage.setItem(settingsKeys.recentProjectScopes, JSON.stringify(state.recentProjectScopes));
     this.storage.setItem(
       settingsKeys.agentDisplayPreferences,
-      JSON.stringify(normalizeAgentDisplayPreferences(state.agentDisplayPreferences)),
+      JSON.stringify(normalizeAgentDisplayPreferences(state.agentDisplayPreferences, state.customAgents)),
     );
+    this.storage.setItem(settingsKeys.customAgents, JSON.stringify(state.customAgents));
   }
 }
 
-export function defaultAgentDisplayPreferences(): AgentDisplayPreference[] {
-  return defaultTargetOrder.map((targetId, index) => ({
+export function defaultAgentDisplayPreferences(
+  customAgents: CustomAgentDefinition[] = [],
+): AgentDisplayPreference[] {
+  return orderedTargetIds(customAgents).map((targetId, index) => ({
     targetId,
     isVisible: true,
     sortOrder: index,
@@ -184,8 +240,10 @@ export function defaultAgentDisplayPreferences(): AgentDisplayPreference[] {
 
 export function normalizeAgentDisplayPreferences(
   rawPreferences: AgentDisplayPreference[],
+  customAgents: CustomAgentDefinition[] = [],
 ): AgentDisplayPreference[] {
-  const knownTargetIds = new Set<string>(defaultTargetOrder);
+  const targetOrder = orderedTargetIds(customAgents);
+  const knownTargetIds = new Set<string>(targetOrder);
   const validPreferences = rawPreferences.filter((item) => knownTargetIds.has(item.targetId));
   const rawByTargetId = new Map(validPreferences.map((item) => [item.targetId, item]));
   const baseOrder = validPreferences
@@ -194,15 +252,15 @@ export function normalizeAgentDisplayPreferences(
       if (left.sortOrder !== right.sortOrder) {
         return left.sortOrder - right.sortOrder;
       }
-      return defaultIndex(left.targetId) - defaultIndex(right.targetId);
+      return defaultIndex(left.targetId, customAgents) - defaultIndex(right.targetId, customAgents);
     })
     .map((item) => item.targetId);
-  const orderedTargetIds = [
+  const normalizedTargetIds = [
     ...baseOrder,
-    ...defaultTargetOrder.filter((targetId) => !rawByTargetId.has(targetId)),
+    ...targetOrder.filter((targetId) => !rawByTargetId.has(targetId)),
   ];
 
-  return orderedTargetIds.map((targetId, index) => ({
+  return normalizedTargetIds.map((targetId, index) => ({
     targetId,
     isVisible: rawByTargetId.get(targetId)?.isVisible ?? true,
     sortOrder: index,
@@ -213,34 +271,85 @@ export function agentDisplayLabel(targetId: string): string {
   return labelsByTargetId[targetId] ?? targetId;
 }
 
-export function agentDisplayShortLabel(targetId: string): string {
+export function agentDisplayShortLabel(
+  targetId: string,
+  customAgents: CustomAgentDefinition[] = [],
+): string {
+  const customAgent = customAgents.find((agent) => agent.id === targetId);
+  if (customAgent) {
+    return monogram(customAgent.name);
+  }
   return shortLabelsByTargetId[targetId] ?? agentDisplayLabel(targetId).slice(0, 2).toUpperCase();
 }
 
-export function agentMountPath(targetId: string): string {
+export function agentDisplayTitle(
+  targetId: string,
+  customAgents: CustomAgentDefinition[] = [],
+): string {
+  return customAgents.find((agent) => agent.id === targetId)?.name ?? agentDisplayLabel(targetId);
+}
+
+export function agentMountPath(
+  targetId: string,
+  customAgents: CustomAgentDefinition[] = [],
+): string {
+  const customAgent = customAgents.find((agent) => agent.id === targetId);
+  if (customAgent) {
+    return customAgent.globalPath;
+  }
   const suffix = globalPathSuffixByTargetId[targetId];
   if (!suffix) {
     return targetId;
   }
 
-  return path.join(os.homedir(), suffix);
+  return joinHomePath(suffix);
 }
 
-export function detectedAgentRows(preferences: AgentDisplayPreference[]): AgentDisplayRow[] {
-  return normalizeAgentDisplayPreferences(preferences).map((preference) => ({
-    targetId: preference.targetId,
-    title: agentDisplayLabel(preference.targetId),
-    shortLabel: agentDisplayShortLabel(preference.targetId),
-    mountPath: agentMountPath(preference.targetId),
-    isVisible: preference.isVisible,
-  }));
+export function agentProjectPath(
+  targetId: string,
+  customAgents: CustomAgentDefinition[] = [],
+): string | undefined {
+  const customAgent = customAgents.find((agent) => agent.id === targetId);
+  return customAgent?.projectPathTemplate || projectPathByTargetId[targetId];
 }
 
-function defaultIndex(targetId: string): number {
-  const index = defaultTargetOrder.indexOf(
+export function detectedAgentRows(
+  preferences: AgentDisplayPreference[],
+  customAgents: CustomAgentDefinition[] = [],
+  detectedTargetIds?: string[],
+): AgentDisplayRow[] {
+  const detectedSet = new Set(detectedTargetIds);
+  const customTargetIds = new Set(customAgents.map((agent) => agent.id));
+  return normalizeAgentDisplayPreferences(preferences, customAgents)
+    .filter((preference) => detectedTargetIds === undefined || detectedSet.has(preference.targetId) || customTargetIds.has(preference.targetId))
+    .map((preference) => {
+      const projectPath = agentProjectPath(preference.targetId, customAgents);
+      return {
+        targetId: preference.targetId,
+        title: agentDisplayTitle(preference.targetId, customAgents),
+        shortLabel: agentDisplayShortLabel(preference.targetId, customAgents),
+        mountPath: agentMountPath(preference.targetId, customAgents),
+        ...(projectPath ? { projectPath } : {}),
+        isVisible: preference.isVisible,
+        isBuiltIn: isBuiltInTarget(preference.targetId),
+      };
+    });
+}
+
+export function isBuiltInTarget(targetId: string): boolean {
+  return defaultTargetOrder.includes(targetId as (typeof defaultTargetOrder)[number]);
+}
+
+function orderedTargetIds(customAgents: CustomAgentDefinition[]): string[] {
+  return [...defaultTargetOrder, ...customAgents.map((agent) => agent.id)];
+}
+
+function defaultIndex(targetId: string, customAgents: CustomAgentDefinition[]): number {
+  const targetOrder = orderedTargetIds(customAgents);
+  const index = targetOrder.indexOf(
     targetId as (typeof defaultTargetOrder)[number],
   );
-  return index === -1 ? defaultTargetOrder.length : index;
+  return index === -1 ? targetOrder.length : index;
 }
 
 function parseJson<T>(value: string | null, fallback: T): T {
@@ -253,4 +362,28 @@ function parseJson<T>(value: string | null, fallback: T): T {
   } catch {
     return fallback;
   }
+}
+
+function joinHomePath(suffix: string): string {
+  const home = homeDirectory();
+  const trimmedHome = home.replace(/[\\/]+$/, "");
+  return `${trimmedHome}/${suffix.replace(/^[\\/]+/, "")}`;
+}
+
+function homeDirectory(): string {
+  const maybeProcess = (globalThis as typeof globalThis & {
+    process?: { env?: Record<string, string | undefined> };
+  }).process;
+  return maybeProcess?.env?.HOME ?? maybeProcess?.env?.USERPROFILE ?? "~";
+}
+
+function monogram(name: string): string {
+  const tokens = name
+    .split(/[\s_-]+/)
+    .map((token) => token.trim())
+    .filter((token) => token.length > 0);
+  if (tokens.length >= 2) {
+    return tokens.slice(0, 2).map((token) => token[0]).join("").toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
 }

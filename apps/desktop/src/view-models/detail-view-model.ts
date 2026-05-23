@@ -9,6 +9,7 @@ import type {
   DetailDocumentTab,
   DetailFileTreeItem,
   DetailRecord,
+  DetailSelectionState,
 } from "../store/detail-state";
 
 export class DetailViewModel {
@@ -185,6 +186,11 @@ export class DetailViewModel {
       return;
     }
     this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = itemId;
+    const item = findTreeItem(this.detail?.fileTree ?? [], itemId);
+    if (item?.skillId) {
+      this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = false;
+      this.state.detailState.ui.selectedSkillIdByGroup[sourceId] = item.skillId;
+    }
     this.onChange();
   }
 
@@ -245,10 +251,12 @@ export class DetailViewModel {
     const previousSkills = detail.skills;
     const previousTargets = detail.targets;
     const previousLabels = detail.enabledTargetLabels;
+    const previousSummary = detailSelectionSummary(detail);
 
     try {
       this.state.view.toastMessage = undefined;
       applyLocalChange();
+      applyDetailSelectionSummary(detail);
       await this.mutationCoordinator.run(() =>
         this.updateSelection(sourceId, {
           selectedSkillIds: detail.skills.filter((skill) => skill.isEnabled).map((skill) => skill.id),
@@ -259,6 +267,10 @@ export class DetailViewModel {
       detail.skills = previousSkills;
       detail.targets = previousTargets;
       detail.enabledTargetLabels = previousLabels;
+      detail.skillSelection = previousSummary.skillSelection;
+      detail.targetSelection = previousSummary.targetSelection;
+      restoreOptionalNumber(detail, "enabledSkillCount", previousSummary.enabledSkillCount);
+      restoreOptionalNumber(detail, "enabledTargetCount", previousSummary.enabledTargetCount);
       this.state.view.toastMessage =
         error instanceof Error
           ? error.message
@@ -266,6 +278,48 @@ export class DetailViewModel {
     }
     this.onChange();
   }
+}
+
+function detailSelectionSummary(detail: DetailRecord): {
+  skillSelection: DetailSelectionState;
+  targetSelection: DetailSelectionState;
+  enabledSkillCount: number | undefined;
+  enabledTargetCount: number | undefined;
+} {
+  return {
+    skillSelection: detail.skillSelection,
+    targetSelection: detail.targetSelection,
+    enabledSkillCount: detail.enabledSkillCount,
+    enabledTargetCount: detail.enabledTargetCount,
+  };
+}
+
+function applyDetailSelectionSummary(detail: DetailRecord): void {
+  const enabledSkillCount = detail.skills.filter((skill) => skill.isEnabled).length;
+  const enabledTargetCount = detail.targets.filter((target) => target.isEnabled).length;
+  detail.enabledSkillCount = enabledSkillCount;
+  detail.enabledTargetCount = enabledTargetCount;
+  detail.skillSelection = selectionState(enabledSkillCount, detail.skills.length);
+  detail.targetSelection = selectionState(enabledTargetCount, detail.targets.length);
+}
+
+function selectionState(enabledCount: number, totalCount: number): DetailSelectionState {
+  if (totalCount === 0 || enabledCount === 0) {
+    return "empty";
+  }
+  return enabledCount >= totalCount ? "full" : "partial";
+}
+
+function restoreOptionalNumber(
+  detail: DetailRecord,
+  key: "enabledSkillCount" | "enabledTargetCount",
+  value: number | undefined,
+): void {
+  if (value === undefined) {
+    delete detail[key];
+    return;
+  }
+  detail[key] = value;
 }
 
 export function seedDetailUiSelectionState(

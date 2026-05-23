@@ -165,9 +165,27 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                     stateTransition(() => viewModel.updateSource(card.sourceId));
                   }}
                   onTogglePinned={() => {
-                    viewModel.togglePinned(card.sourceId);
+                    stateTransition(() => viewModel.togglePinned(card.sourceId));
+                  }}
+                  onDelete={() => {
+                    stateTransition(() => viewModel.deleteSource(card.sourceId));
+                  }}
+                  onToggleSkill={(skillId) => {
+                    stateTransition(() => viewModel.toggleCardSkill(card.sourceId, skillId));
+                  }}
+                  onToggleAllSkills={() => {
+                    stateTransition(() => viewModel.toggleAllCardSkills(card.sourceId));
+                  }}
+                  onToggleTarget={(targetId) => {
+                    stateTransition(() => viewModel.toggleCardTarget(card.sourceId, targetId));
+                  }}
+                  onToggleAllTargets={() => {
+                    stateTransition(() => viewModel.toggleAllCardTargets(card.sourceId));
                   }}
                   labels={{
+                    update: t("action.update"),
+                    delete: t("action.delete"),
+                    all: t("action.all"),
                     pin: t("action.pin"),
                     unpin: t("action.unpin"),
                     pinned: t("state.pinned"),

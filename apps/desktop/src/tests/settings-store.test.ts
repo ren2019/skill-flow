@@ -26,6 +26,7 @@ describe("settings store", () => {
     expect(state.settings.selectedProjectScope).toEqual({ kind: "global" });
     expect(state.settings.recentProjectScopes).toEqual([]);
     expect(state.settings.agentDisplayPreferences).toEqual([]);
+    expect(state.settings.customAgents).toEqual([]);
   });
 
   it("loads and persists desktop settings state", () => {
@@ -49,6 +50,18 @@ describe("settings store", () => {
       { targetId: "codex", isVisible: false, sortOrder: 0 },
       { targetId: "claude-code", isVisible: true, sortOrder: 1 },
     ];
+    state.customAgents = [
+      {
+        id: "my-agent",
+        name: "My Agent",
+        globalPath: "/Users/test/.my-agent/skills",
+        projectPathTemplate: ".my-agent/skills",
+        strategy: "copy",
+        createdAt: "2026-04-08T00:00:00.000Z",
+        updatedAt: "2026-04-08T01:00:00.000Z",
+      },
+    ];
+    state.agentDisplayPreferences.push({ targetId: "my-agent", isVisible: true, sortOrder: 2 });
 
     store.save(state);
 
@@ -67,5 +80,7 @@ describe("settings store", () => {
       { targetId: "codex", isVisible: false, sortOrder: 0 },
       { targetId: "claude-code", isVisible: true, sortOrder: 1 },
     ]);
+    expect(reloaded.agentDisplayPreferences.some((preference) => preference.targetId === "my-agent")).toBe(true);
+    expect(reloaded.customAgents).toEqual(state.customAgents);
   });
 });

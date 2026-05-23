@@ -345,4 +345,51 @@ describe("app", () => {
     expect(text).toContain("GUIDE.md");
     expect(text).not.toContain("tree-v1");
   });
+
+  it("wires detail selection changes to the desktop integration apply path", async () => {
+    const updateSelection = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "detail", sourceId: "alpha" },
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [{ id: "codex", label: "Codex", isEnabled: false }],
+            skills: [{ id: "alpha:browse", title: "Browse", isEnabled: true, documents: [] }],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} integration={{ refreshInventory: vi.fn(), updateSelection }} />);
+    });
+
+    const targetButton = renderer!.root.findByProps({ "data-target-toggle-id": "codex" });
+    await act(async () => {
+      await targetButton.props.onClick();
+    });
+
+    expect(updateSelection).toHaveBeenCalledWith("alpha", {
+      selectedSkillIds: ["alpha:browse"],
+      enabledTargetIds: ["codex"],
+    });
+    expect(state.detailState.detailsBySourceId.alpha.targetSelection).toBe("full");
+    expect(state.detailState.detailsBySourceId.alpha.enabledTargetCount).toBe(1);
+  });
 });

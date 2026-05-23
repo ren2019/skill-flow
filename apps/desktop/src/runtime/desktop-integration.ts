@@ -2,6 +2,7 @@ import type { DesktopBridgeClient } from "../bridge/client";
 import type { DesktopBridgeResponse } from "../bridge/types";
 import type { DesktopAppState } from "../store/desktop-app-state";
 import type { DetailRecord, DetailDocumentTab, DetailFileTreeItem, DetailSkillState, DetailTargetState } from "../store/detail-state";
+import type { ImportGroupState, ImportSkillState, ImportTargetState } from "../store/import-state";
 import type { ProjectScopeSelection, RecentProjectScopeItem } from "../store/settings-state";
 import type { InventorySummaryState } from "../store/workspace-state";
 import { seedDetailUiSelectionState } from "../view-models/detail-view-model";
@@ -9,6 +10,20 @@ import { seedDetailUiSelectionState } from "../view-models/detail-view-model";
 export type DesktopIntegration = {
   refreshInventory(): Promise<void>;
   loadDetail?(sourceId: string): Promise<void>;
+  updateSource?(sourceId: string): Promise<unknown>;
+  updateSources?(sourceIds: string[]): Promise<unknown>;
+  updateSelection?(
+    sourceId: string,
+    draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
+  ): Promise<void>;
+  searchImportGroups?(query: string): Promise<ImportGroupState[]>;
+  previewImportSource?(locator: string): Promise<{ skills: ImportSkillState[]; targets: ImportTargetState[] }>;
+  importSource?(
+    locator: string,
+    draft: { selectedSkillIds: string[]; enabledTargets: string[] },
+  ): Promise<{ sourceId: string }>;
+  togglePinnedSource?(sourceId: string): Promise<string[] | undefined>;
+  deleteSource?(sourceId: string): Promise<void>;
 };
 
 type DesktopIntegrationOptions = {
@@ -21,7 +36,7 @@ type DesktopWorkflowSummary = {
     displayName?: string;
     locator?: string;
   };
-  leafs?: Array<{ id?: string; name?: string; linkName?: string }>;
+  leafs?: Array<{ id?: string; name?: string; linkName?: string; title?: string }>;
   bindings?: {
     selectedLeafIds?: string[];
     targets?: Record<string, { enabled?: boolean }>;
@@ -113,6 +128,48 @@ type DesktopInspectEnrichmentResult = {
   };
 };
 
+type DesktopImportSearchResult = {
+  groups?: Array<{
+    id?: string;
+    title?: string;
+    locator?: string;
+    canonicalRepo?: string;
+    installed?: boolean;
+    snapshot?: {
+      skills?: Array<{
+        skillId?: string;
+        title?: string;
+      }>;
+    };
+    previewState?: DesktopImportPreviewState;
+  }>;
+};
+
+type DesktopImportPreviewState = {
+  status?: string;
+  reasonCode?: string;
+};
+
+type DesktopImportPreviewResult = {
+  status?: string;
+  reasonCode?: string;
+  selectedSkillIds?: string[];
+  enabledTargets?: string[];
+  skills?: Array<{
+    id?: string;
+    title?: string;
+  }>;
+  targets?: Array<{
+    id?: string;
+  }>;
+};
+
+type DesktopImportSourceResult = {
+  status?: string;
+  reasonCode?: string;
+  sourceId?: string;
+};
+
 const targetLabelsById: Record<string, string> = {
   "claude-code": "Claude Code",
   codex: "Codex",
@@ -121,12 +178,32 @@ const targetLabelsById: Record<string, string> = {
   "gemini-cli": "Gemini CLI",
   opencode: "OpenCode",
   openclaw: "OpenClaw",
+  "hermes-agent": "Hermes Agent",
   pi: "PI",
+  trae: "Trae",
   windsurf: "Windsurf",
   "roo-code": "Roo Code",
   cline: "Cline",
   amp: "Amp",
   kiro: "Kiro",
+};
+
+const targetShortLabelsById: Record<string, string> = {
+  "claude-code": "CC",
+  codex: "CX",
+  cursor: "CU",
+  "github-copilot": "GH",
+  "gemini-cli": "GM",
+  opencode: "OP",
+  openclaw: "OC",
+  "hermes-agent": "HA",
+  pi: "PI",
+  trae: "TR",
+  windsurf: "WS",
+  "roo-code": "RO",
+  cline: "CL",
+  amp: "AM",
+  kiro: "KI",
 };
 
 export function createDesktopIntegration(
@@ -173,6 +250,118 @@ export function createDesktopIntegration(
       const detail = toDetailRecord(normalizedSourceId, inspectResponse, enrichmentResponse);
       state.detailState.detailsBySourceId[normalizedSourceId] = detail;
       seedDetailUiSelectionState(state, normalizedSourceId, detail);
+    },
+    async updateSource(sourceId: string) {
+      const normalizedSourceId = sourceId.trim();
+      if (!normalizedSourceId) {
+        return;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("update", {
+        sourceIds: [normalizedSourceId],
+      });
+      return expectOptionalOkRecord(response, "update");
+    },
+    async updateSources(sourceIds: string[]) {
+      const normalizedSourceIds = sourceIds.map((sourceId) => sourceId.trim()).filter((sourceId) => sourceId.length > 0);
+      if (normalizedSourceIds.length === 0) {
+        return undefined;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("update", {
+        sourceIds: normalizedSourceIds,
+      });
+      return expectOptionalOkRecord(response, "update");
+    },
+    async updateSelection(sourceId, draft) {
+      const normalizedSourceId = sourceId.trim();
+      if (!normalizedSourceId) {
+        return;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("apply", {
+        sourceId: normalizedSourceId,
+        scope: toBridgeProjectScope(state.settings.selectedProjectScope),
+        draft: {
+          selectedLeafIds: draft.selectedSkillIds,
+          enabledTargets: draft.enabledTargetIds,
+        },
+      });
+      expectOptionalOkRecord(response, "apply");
+    },
+    async searchImportGroups(query) {
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("search-import-groups", {
+        query,
+      });
+      const data = expectOkRecord(response, "search-import-groups") as DesktopImportSearchResult;
+      return toImportGroups(data);
+    },
+    async previewImportSource(locator) {
+      const normalizedLocator = locator.trim();
+      if (!normalizedLocator) {
+        return { skills: [], targets: [] };
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("preview-import-source", {
+        locator: normalizedLocator,
+      });
+      const data = expectOkRecord(response, "preview-import-source") as DesktopImportPreviewResult;
+      return toImportPreview(data);
+    },
+    async importSource(locator, draft) {
+      const normalizedLocator = locator.trim();
+      if (!normalizedLocator) {
+        throw new Error("Import source locator is required.");
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("import-source", {
+        locator: normalizedLocator,
+        draft: {
+          selectedSkillIds: draft.selectedSkillIds,
+          enabledTargets: draft.enabledTargets,
+        },
+      });
+      const data = expectOkRecord(response, "import-source") as DesktopImportSourceResult;
+      if (data.status !== "ready") {
+        throw new Error(data.reasonCode ?? "unknown");
+      }
+      if (typeof data.sourceId !== "string" || data.sourceId.length === 0) {
+        throw new Error("Desktop bridge import-source response requires a sourceId.");
+      }
+      return { sourceId: data.sourceId };
+    },
+    async togglePinnedSource(sourceId: string) {
+      const normalizedSourceId = sourceId.trim();
+      if (!normalizedSourceId) {
+        return undefined;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("toggle-pin", {
+        sourceId: normalizedSourceId,
+      });
+      const data = expectOkRecord(response, "toggle-pin");
+      return Array.isArray(data.pinnedSourceIds)
+        ? data.pinnedSourceIds.filter((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0)
+        : undefined;
+    },
+    async deleteSource(sourceId: string) {
+      const normalizedSourceId = sourceId.trim();
+      if (!normalizedSourceId) {
+        return;
+      }
+
+      const bridgeClient = await getBridgeClient();
+      const response = await bridgeClient.invoke("uninstall", {
+        sourceIds: [normalizedSourceId],
+      });
+      expectOptionalOkRecord(response, "uninstall");
     },
   };
 }
@@ -247,16 +436,29 @@ function toInventorySummary(
   const selectedLeafIds = Array.isArray(summary.bindings?.selectedLeafIds)
     ? summary.bindings?.selectedLeafIds.filter((leafId): leafId is string => typeof leafId === "string")
     : [];
-  const selectedSkillNames = Array.isArray(summary.leafs)
-    ? summary.leafs
-      .filter((leaf): leaf is { id?: string; name?: string; linkName?: string } => typeof leaf === "object" && leaf !== null)
-      .filter((leaf) => selectedLeafIds.includes(leaf.id ?? ""))
-      .map((leaf) => leaf.linkName ?? leaf.name ?? leaf.id ?? "")
-      .filter((name) => name.length > 0)
-    : [];
-  const enabledTargetLabels = Object.entries(summary.bindings?.targets ?? {})
-    .filter(([, target]) => target?.enabled === true)
-    .map(([targetId]) => targetLabelsById[targetId] ?? targetId);
+  const skills = (summary.leafs ?? []).flatMap((leaf) => {
+    if (typeof leaf?.id !== "string" || leaf.id.length === 0) {
+      return [];
+    }
+    return [{
+      id: leaf.id,
+      title: leaf.linkName ?? leaf.title ?? leaf.name ?? leaf.id,
+      isEnabled: selectedLeafIds.includes(leaf.id),
+    }];
+  });
+  const selectedSkillNames = skills.filter((skill) => skill.isEnabled).map((skill) => skill.title);
+  const targets = Object.entries(summary.bindings?.targets ?? {}).flatMap(([targetId, target]) => {
+    if (!target || typeof target !== "object") {
+      return [];
+    }
+    return [{
+      id: targetId,
+      label: targetLabelsById[targetId] ?? targetId,
+      shortLabel: targetShortLabelsById[targetId] ?? targetLabelsById[targetId] ?? targetId,
+      isEnabled: target.enabled === true,
+    }];
+  });
+  const enabledTargetLabels = targets.filter((target) => target.isEnabled).map((target) => target.label);
   const activeTargetCount = typeof summary.activeTargetCount === "number"
     ? summary.activeTargetCount
     : Object.values(summary.bindings?.targets ?? {}).filter((target) => target?.enabled === true).length;
@@ -284,9 +486,13 @@ function toInventorySummary(
     health: typeof summary.health === "string" ? summary.health : "HEALTHY",
     warningCount: typeof summary.issueCounts?.warning === "number" ? summary.issueCounts.warning : 0,
     errorCount: typeof summary.issueCounts?.error === "number" ? summary.issueCounts.error : 0,
-    skillCount: Array.isArray(summary.leafs) ? summary.leafs.length : 0,
+    skillCount: skills.length,
     enabledSkillCount: selectedLeafIds.length,
     activeTargetCount,
+    skillSelection: toSelectionState(selectedLeafIds.length, skills.length),
+    targetSelection: toSelectionState(enabledTargetLabels.length, targets.length),
+    ...(skills.length > 0 ? { skills } : {}),
+    ...(targets.length > 0 ? { targets } : {}),
     ...(downloadCount !== undefined ? { downloadCount } : {}),
     ...(starCount !== undefined ? { starCount } : {}),
     ...(repoUrl ? { repoUrl } : {}),
@@ -328,23 +534,27 @@ function toDetailRecord(
       : undefined;
     return [targetPath ? `${targetLabel} -> ${targetPath}` : targetLabel];
   });
+  const revision = summary?.lock?.resolvedVersion ?? summary?.lock?.commitSha;
+  const author = enrichmentData?.sourceMetadata?.status === "ready"
+    ? enrichmentData.sourceMetadata.data?.ownerDisplayName ?? enrichmentData.sourceMetadata.data?.ownerHandle
+    : undefined;
+  const starCount = typeof enrichmentData?.sourceSnapshot?.repoStars === "number"
+    ? enrichmentData.sourceSnapshot.repoStars
+    : enrichmentData?.sourceMetadata?.status === "ready"
+    ? enrichmentData.sourceMetadata.data?.starCount
+    : undefined;
+  const locator = source?.locator ?? summary?.source?.locator;
 
   return {
     sourceId,
-    revision: summary?.lock?.resolvedVersion ?? summary?.lock?.commitSha,
     title: source?.displayName ?? summary?.source?.displayName ?? sourceId,
-    subtitle: typeof source?.kind === "string" ? source.kind : undefined,
-    author: enrichmentData?.sourceMetadata?.status === "ready"
-      ? enrichmentData.sourceMetadata.data?.ownerDisplayName ?? enrichmentData.sourceMetadata.data?.ownerHandle
-      : undefined,
-    starCount: typeof enrichmentData?.sourceSnapshot?.repoStars === "number"
-      ? enrichmentData.sourceSnapshot.repoStars
-      : enrichmentData?.sourceMetadata?.status === "ready"
-      ? enrichmentData.sourceMetadata.data?.starCount
-      : undefined,
-    locator: source?.locator ?? summary?.source?.locator,
-    groupPath: summary?.lock?.checkoutPath,
-    updatedAt: summary?.lock?.updatedAt,
+    ...(revision ? { revision } : {}),
+    ...(typeof source?.kind === "string" ? { subtitle: source.kind } : {}),
+    ...(author ? { author } : {}),
+    ...(starCount !== undefined ? { starCount } : {}),
+    ...(locator ? { locator } : {}),
+    ...(summary?.lock?.checkoutPath ? { groupPath: summary.lock.checkoutPath } : {}),
+    ...(summary?.lock?.updatedAt ? { updatedAt: summary.lock.updatedAt } : {}),
     health: typeof summary?.health === "string" ? summary.health : "HEALTHY",
     warningCount: typeof summary?.issueCounts?.warning === "number" ? summary.issueCounts.warning : 0,
     errorCount: typeof summary?.issueCounts?.error === "number" ? summary.issueCounts.error : 0,
@@ -364,7 +574,7 @@ function toDetailRecord(
 }
 
 function toDetailTargets(
-  targets: DesktopInspectResult["binding"] extends { targets?: infer T } ? T : never,
+  targets: Record<string, { enabled?: boolean; leafIds?: string[] }> | undefined,
 ): DetailTargetState[] {
   return Object.entries(targets ?? {}).flatMap(([targetId, targetState]) => {
     if (!targetState || typeof targetState !== "object") {
@@ -521,6 +731,77 @@ function toSelectionState(enabledCount: number, totalCount: number): DetailRecor
   return "partial";
 }
 
+function toImportGroups(data: DesktopImportSearchResult): ImportGroupState[] {
+  return (data.groups ?? []).flatMap((group) => {
+    const id = stringValue(group.id);
+    const title = stringValue(group.title);
+    const locator = stringValue(group.locator);
+    if (!id || !title || !locator) {
+      return [];
+    }
+
+    const skills = (group.snapshot?.skills ?? []).flatMap((skill) => {
+      const skillId = stringValue(skill.skillId);
+      if (!skillId) {
+        return [];
+      }
+      return [{ id: skillId, selectedByDefault: true }];
+    });
+    const previewPhase = skills.length > 0
+      ? { kind: "ready" as const }
+      : toResourcePhase(group.previewState);
+
+    return [{
+      id,
+      title,
+      locator,
+      previewPhase,
+      skills,
+      targets: [],
+      ...(group.installed === true ? { isInstalledLocally: true } : {}),
+    }];
+  });
+}
+
+function toImportPreview(data: DesktopImportPreviewResult): { skills: ImportSkillState[]; targets: ImportTargetState[] } {
+  if (data.status !== "ready") {
+    throw new Error(data.reasonCode ?? "unknown");
+  }
+
+  const selectedSkillIds = new Set(data.selectedSkillIds?.filter((id): id is string => typeof id === "string") ?? []);
+  const enabledTargets = new Set(data.enabledTargets?.filter((id): id is string => typeof id === "string") ?? []);
+
+  return {
+    skills: (data.skills ?? []).flatMap((skill) => {
+      const id = stringValue(skill.id);
+      if (!id) {
+        return [];
+      }
+      return [{ id, selectedByDefault: selectedSkillIds.has(id) }];
+    }),
+    targets: (data.targets ?? []).flatMap((target) => {
+      const id = stringValue(target.id);
+      if (!id) {
+        return [];
+      }
+      return [{ id, selectedByDefault: enabledTargets.has(id) }];
+    }),
+  };
+}
+
+function toResourcePhase(value: DesktopImportPreviewState | undefined): ImportGroupState["previewPhase"] {
+  if (!isRecord(value) || typeof value.status !== "string") {
+    return { kind: "idle" };
+  }
+  if (value.status === "loading" || value.status === "ready") {
+    return { kind: value.status };
+  }
+  if (value.status === "failed") {
+    return { kind: "failed", message: stringValue(value.reasonCode) ?? "unknown" };
+  }
+  return { kind: "idle" };
+}
+
 function expectOkRecord(response: DesktopBridgeResponse, command: string): Record<string, unknown> {
   if (!response.ok) {
     throw new Error(response.errors[0]?.message ?? `Unable to ${command}.`);
@@ -556,6 +837,10 @@ function toBridgeProjectScope(scope: ProjectScopeSelection): { kind: "global" } 
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function stringValue(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function isProjectScopeSelection(value: unknown): value is ProjectScopeSelection {

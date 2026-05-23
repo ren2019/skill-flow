@@ -12,7 +12,15 @@ type SharedGroupCardProps = {
   onOpen(): void;
   onUpdate(): void;
   onTogglePinned(): void;
+  onDelete(): void;
+  onToggleSkill(skillId: string): void;
+  onToggleAllSkills(): void;
+  onToggleTarget(targetId: string): void;
+  onToggleAllTargets(): void;
   labels: {
+    update: string;
+    delete: string;
+    all: string;
     pin: string;
     unpin: string;
     pinned: string;
@@ -31,6 +39,11 @@ export function SharedGroupCard({
   onOpen,
   onUpdate,
   onTogglePinned,
+  onDelete,
+  onToggleSkill,
+  onToggleAllSkills,
+  onToggleTarget,
+  onToggleAllTargets,
   labels,
 }: SharedGroupCardProps) {
   return (
@@ -80,7 +93,33 @@ export function SharedGroupCard({
       <section data-view="shared-group-card-agents" style={sectionStyle}>
         <SectionLabel label={labels.agents} themeMode={themeMode} />
         <div style={chipRowStyle}>
-          {(card.enabledTargetLabels ?? []).length > 0
+          {(card.targets ?? []).length > 0 ? (
+            <>
+              <ToggleChip
+                label={labels.all}
+                selected={card.targetSelection === "full"}
+                partial={card.targetSelection === "partial"}
+                themeMode={themeMode}
+                accent={themeAccent}
+                onClick={onToggleAllTargets}
+                dataProps={{ "data-target-toggle-all-source-id": card.sourceId }}
+              />
+              {(card.targets ?? []).map((target) => (
+                <ToggleChip
+                  key={target.id}
+                  label={target.shortLabel || target.label}
+                  ariaLabel={target.label}
+                  selected={target.isEnabled}
+                  themeMode={themeMode}
+                  accent={themeAccent}
+                  onClick={() => {
+                    onToggleTarget(target.id);
+                  }}
+                  dataProps={{ "data-target-toggle-id": `${card.sourceId}:${target.id}` }}
+                />
+              ))}
+            </>
+          ) : (card.enabledTargetLabels ?? []).length > 0
             ? (card.enabledTargetLabels ?? []).map((label) => (
               <InfoChip key={label} label={label} themeMode={themeMode} />
             ))
@@ -91,7 +130,33 @@ export function SharedGroupCard({
       <section data-view="shared-group-card-skills" style={sectionStyle}>
         <SectionLabel label={labels.skills} themeMode={themeMode} />
         <div style={chipRowStyle}>
-          {(card.selectedSkillNames ?? []).length > 0
+          {(card.skills ?? []).length > 0 ? (
+            <>
+              <ToggleChip
+                label={labels.all}
+                selected={card.skillSelection === "full"}
+                partial={card.skillSelection === "partial"}
+                themeMode={themeMode}
+                accent={themeAccent}
+                onClick={onToggleAllSkills}
+                dataProps={{ "data-skill-toggle-all-source-id": card.sourceId }}
+              />
+              {(card.skills ?? []).slice(0, 6).map((skill) => (
+                <ToggleChip
+                  key={skill.id}
+                  label={skill.title}
+                  ariaLabel={skill.title}
+                  selected={skill.isEnabled}
+                  themeMode={themeMode}
+                  accent={themeAccent}
+                  onClick={() => {
+                    onToggleSkill(skill.id);
+                  }}
+                  dataProps={{ "data-skill-toggle-id": `${card.sourceId}:${skill.id}` }}
+                />
+              ))}
+            </>
+          ) : (card.selectedSkillNames ?? []).length > 0
             ? (card.selectedSkillNames ?? []).slice(0, 4).map((label) => (
               <InfoChip key={label} label={label} themeMode={themeMode} />
             ))
@@ -114,7 +179,7 @@ export function SharedGroupCard({
           onClick={onUpdate}
           style={updateButtonStyle(themeAccent, themeMode)}
         >
-          Update
+          {labels.update}
         </button>
         <button
           type="button"
@@ -123,6 +188,14 @@ export function SharedGroupCard({
           style={secondaryButtonStyle(pinned, themeMode)}
         >
           {pinned ? labels.unpin : labels.pin}
+        </button>
+        <button
+          type="button"
+          data-delete-source-id={card.sourceId}
+          onClick={onDelete}
+          style={secondaryButtonStyle(false, themeMode)}
+        >
+          {labels.delete}
         </button>
       </footer>
     </article>
@@ -166,6 +239,38 @@ function InfoChip(
   { label, themeMode, accent }: { label: string; themeMode: DesktopThemeMode; accent?: DesktopAccentColor },
 ) {
   return <span style={infoChipStyle(themeMode, accent)}>{label}</span>;
+}
+
+function ToggleChip({
+  label,
+  ariaLabel,
+  selected,
+  partial = false,
+  themeMode,
+  accent,
+  onClick,
+  dataProps,
+}: {
+  label: string;
+  ariaLabel?: string;
+  selected: boolean;
+  partial?: boolean;
+  themeMode: DesktopThemeMode;
+  accent: DesktopAccentColor;
+  onClick(): void;
+  dataProps: Record<string, string>;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={ariaLabel ?? label}
+      onClick={onClick}
+      style={toggleChipStyle(themeMode, accent, selected, partial)}
+      {...dataProps}
+    >
+      {label}
+    </button>
+  );
 }
 
 const cardStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
@@ -302,6 +407,18 @@ const infoChipStyle = (themeMode: DesktopThemeMode, accent?: DesktopAccentColor)
   color: accent ? desktopTheme.brand(accent, themeMode) : desktopTheme.textPrimary(themeMode),
   fontSize: "12px",
   fontWeight: 600,
+});
+
+const toggleChipStyle = (
+  themeMode: DesktopThemeMode,
+  accent: DesktopAccentColor,
+  selected: boolean,
+  partial: boolean,
+): CSSProperties => ({
+  ...infoChipStyle(themeMode, selected || partial ? accent : undefined),
+  border: "none",
+  cursor: "pointer",
+  opacity: selected ? 1 : partial ? 0.88 : 0.58,
 });
 
 const footerStyle: CSSProperties = {

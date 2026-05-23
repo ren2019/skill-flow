@@ -3,31 +3,32 @@ export type DesktopReleaseInfo = {
   releaseUrl: string;
 };
 
-export type UpdateCheckerFetcher = (input: string) => Promise<{
+export type UpdateCheckerFetcher = (input: string, init?: RequestInit) => Promise<{
   ok: boolean;
-  json(): Promise<{ tag_name: string; html_url: string }>;
+  url: string;
 }>;
 
 export class DesktopUpdateChecker {
   private readonly latestReleaseUrl =
-    "https://api.github.com/repos/VintLin/skill-flow/releases/latest";
+    "https://github.com/VintLin/skill-flow/releases/latest";
 
   constructor(private readonly fetcher: UpdateCheckerFetcher = (input) => fetch(input) as never) {}
 
   async fetchLatestRelease(): Promise<DesktopReleaseInfo> {
-    const response = await this.fetcher(this.latestReleaseUrl);
+    const response = await this.fetcher(this.latestReleaseUrl, { method: "HEAD" });
     if (!response.ok) {
       throw new Error("Invalid latest release response.");
     }
 
-    const payload = await response.json();
-    if (!payload.html_url) {
+    const releaseUrl = response.url;
+    const version = versionFromReleaseUrl(releaseUrl);
+    if (!version) {
       throw new Error("Latest release URL is invalid.");
     }
 
     return {
-      version: normalizeVersion(payload.tag_name),
-      releaseUrl: payload.html_url,
+      version,
+      releaseUrl,
     };
   }
 }
@@ -38,4 +39,9 @@ export function normalizeVersion(rawValue: string): string {
     return trimmed.slice(1);
   }
   return trimmed;
+}
+
+function versionFromReleaseUrl(rawValue: string): string | undefined {
+  const match = rawValue.match(/\/releases\/tag\/([^/?#]+)(?:[?#].*)?$/);
+  return match?.[1] ? normalizeVersion(decodeURIComponent(match[1])) : undefined;
 }

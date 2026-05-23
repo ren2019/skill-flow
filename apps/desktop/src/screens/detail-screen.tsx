@@ -3,6 +3,7 @@ import { DetailHeader } from "../components/detail-header";
 import { DetailSidebar } from "../components/detail-sidebar";
 import { localize } from "../i18n";
 import { MarkdownDocument } from "../components/markdown-document";
+import type { DetailFileTreeItem } from "../store/detail-state";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
 type DetailScreenProps = {
@@ -54,22 +55,7 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
           <div data-view="detail-body" style={bodyStyle}>
             <aside data-view="detail-tree-panel" style={treePanelStyle}>
               <h2 style={sectionLabelStyle}>Files</h2>
-              <ul style={treeListStyle}>
-                {detail.fileTree.map((item) => (
-                  <li key={item.id}>
-                    <button
-                      type="button"
-                      data-tree-item-id={item.id}
-                      onClick={() => {
-                        viewModel.selectTreeItem(item.id);
-                      }}
-                      style={treeButtonStyle(viewModel.selectedTreeItemId === item.id)}
-                    >
-                      {item.title}
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              <FileTree items={detail.fileTree} viewModel={viewModel} />
             </aside>
             <section style={contentColumnStyle}>
               <section data-view="detail-fact-rail" style={factRailStyle}>
@@ -157,6 +143,38 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
         </section>
       </div>
     </main>
+  );
+}
+
+function FileTree({
+  items,
+  viewModel,
+  depth = 0,
+}: {
+  items: DetailFileTreeItem[];
+  viewModel: DetailViewModel;
+  depth?: number;
+}) {
+  return (
+    <ul style={treeListStyle}>
+      {items.map((item) => (
+        <li key={item.id}>
+          <button
+            type="button"
+            data-tree-item-id={item.id}
+            onClick={() => {
+              viewModel.selectTreeItem(item.id);
+            }}
+            style={treeButtonStyle(viewModel.selectedTreeItemId === item.id, depth)}
+          >
+            {item.title}
+          </button>
+          {item.children.length > 0 ? (
+            <FileTree items={item.children} viewModel={viewModel} depth={depth + 1} />
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -268,11 +286,11 @@ const sectionLabelStyle: CSSProperties = {
   color: "#475569",
 };
 
-function treeButtonStyle(active: boolean): CSSProperties {
+function treeButtonStyle(active: boolean, depth = 0): CSSProperties {
   return {
     width: "100%",
     minHeight: "38px",
-    padding: "0 12px",
+    padding: `0 12px 0 ${12 + depth * 14}px`,
     borderRadius: "10px",
     border: active ? "1px solid rgba(14, 116, 144, 0.28)" : "1px solid rgba(148, 163, 184, 0.18)",
     background: active ? "rgba(224, 242, 254, 0.88)" : "rgba(255, 255, 255, 0.92)",

@@ -3,6 +3,7 @@ import { EmptyState } from "../components/empty-state";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
 import { localize, localizePhaseKind } from "../i18n";
+import type { ImportGroupState } from "../store/import-state";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 type ImportScreenProps = {
@@ -12,12 +13,25 @@ type ImportScreenProps = {
 export function ImportScreen({ viewModel }: ImportScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const content = viewModel.content;
+  const autoPreviewIds = previewGroupIds(groupsForContent(content));
+  const autoPreviewKey = autoPreviewTaskKey(autoPreviewIds, viewModel.importSubmittedQuery);
 
   useEffect(() => {
     startTransition(() => {
       void viewModel.loadImportPageIfNeeded();
     });
   }, [viewModel]);
+
+  useEffect(() => {
+    if (autoPreviewIds.length === 0) {
+      return;
+    }
+    startTransition(() => {
+      for (const groupId of autoPreviewIds) {
+        void viewModel.previewImportGroupIfNeeded(groupId);
+      }
+    });
+  }, [autoPreviewKey, viewModel]);
 
   const hasDisplayedGroups = content.kind === "recommended"
     ? content.sections.some((section) => section.groups.length > 0)
@@ -77,53 +91,9 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
               <h3 style={railTitleStyle}># {section.title}</h3>
               <div data-view="import-rail" style={railStyle}>
                 {section.groups.map((group) => {
-                  const draft = viewModel.draftsByItemId[group.id];
-                  const selectedSkillIds = draft?.selectedSkillIds ?? group.skills.map((skill) => skill.id);
-                  const enabledTargetIds = draft?.enabledTargetIds ?? [];
-
                   return (
                     <div key={group.id} style={railCardStyle}>
-                      <GroupCard
-                        title={group.id}
-                        subtitle={group.recommendationDescription ?? t("page.import.draft_selection")}
-                        meta={localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}
-                      >
-                        <div style={buttonRowStyle}>
-                          <button
-                            type="button"
-                            data-preview-group-id={group.id}
-                            onClick={() => {
-                              startTransition(() => {
-                                void viewModel.previewImportGroupIfNeeded(group.id);
-                              });
-                            }}
-                            style={primaryButtonStyle(false)}
-                          >
-                            {t("action.preview")}
-                          </button>
-                          <button
-                            type="button"
-                            data-import-group-id={group.id}
-                            disabled={Boolean(group.isInstalledLocally)}
-                            onClick={() => {
-                              startTransition(() => {
-                                void viewModel.importGroup(group.id);
-                              });
-                            }}
-                            style={primaryButtonStyle(Boolean(group.isInstalledLocally))}
-                          >
-                            {group.isInstalledLocally ? t("state.installed") : t("action.import")}
-                          </button>
-                        </div>
-                        <div style={detailStackStyle}>
-                          <p style={labelStyle}>{t("page.import.skills")}</p>
-                          <GroupTags tags={selectedSkillIds} />
-                        </div>
-                        <div style={detailStackStyle}>
-                          <p style={labelStyle}>{t("page.import.targets")}</p>
-                          <GroupTags tags={enabledTargetIds.length > 0 ? enabledTargetIds : group.targets.map((target) => target.id)} />
-                        </div>
-                      </GroupCard>
+                      {renderImportGroupCard(group, viewModel, t)}
                     </div>
                   );
                 })}
@@ -141,26 +111,91 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
           </section>
           <div data-view="import-search-grid" style={searchGridStyle}>
             {content.groups.map((group) => (
-              <GroupCard
-                key={group.id}
-                title={group.id}
-                subtitle={group.locator}
-                meta={localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}
-              >
-                <div style={detailStackStyle}>
-                  <p style={labelStyle}>{t("page.import.skills")}</p>
-                  <GroupTags tags={group.skills.map((skill) => skill.id)} />
-                </div>
-                <div style={detailStackStyle}>
-                  <p style={labelStyle}>{t("page.import.targets")}</p>
-                  <GroupTags tags={group.targets.map((target) => target.id)} />
-                </div>
-              </GroupCard>
+              <div key={group.id}>
+                {renderImportGroupCard(group, viewModel, t)}
+              </div>
             ))}
           </div>
         </section>
       )}
     </main>
+  );
+}
+
+type ImportContent =
+  | { kind: "recommended"; sections: Array<{ groups: ImportGroupState[] }> }
+  | { kind: "searchResults"; groups: ImportGroupState[] };
+
+export function previewGroupIds(groups: ImportGroupState[]): string[] {
+  return groups
+    .filter((group) => group.previewPhase.kind === "idle")
+    .map((group) => group.id);
+}
+
+export function autoPreviewTaskKey(groupIds: string[], submittedQuery: string): string {
+  return [submittedQuery, ...groupIds].join("|");
+}
+
+function groupsForContent(content: ImportContent): ImportGroupState[] {
+  return content.kind === "recommended"
+    ? content.sections.flatMap((section) => section.groups)
+    : content.groups;
+}
+
+function renderImportGroupCard(
+  group: ImportGroupState,
+  viewModel: ImportViewModel,
+  t: (key: string) => string,
+) {
+  const draft = viewModel.draftsByItemId[group.id];
+  const selectedSkillIds = draft?.selectedSkillIds ?? group.skills.map((skill) => skill.id);
+  const enabledTargetIds = draft?.enabledTargetIds ?? [];
+  const visibleTargetIds = enabledTargetIds.length > 0
+    ? enabledTargetIds
+    : group.targets.map((target) => target.id);
+
+  return (
+    <GroupCard
+      title={group.id}
+      subtitle={group.recommendationDescription ?? group.locator}
+      meta={localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}
+    >
+      <div style={buttonRowStyle}>
+        <button
+          type="button"
+          data-preview-group-id={group.id}
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.previewImportGroupIfNeeded(group.id);
+            });
+          }}
+          style={primaryButtonStyle(false)}
+        >
+          {t("action.preview")}
+        </button>
+        <button
+          type="button"
+          data-import-group-id={group.id}
+          disabled={Boolean(group.isInstalledLocally)}
+          onClick={() => {
+            startTransition(() => {
+              void viewModel.importGroup(group.id);
+            });
+          }}
+          style={primaryButtonStyle(Boolean(group.isInstalledLocally))}
+        >
+          {group.isInstalledLocally ? t("state.installed") : t("action.import")}
+        </button>
+      </div>
+      <div style={detailStackStyle}>
+        <p style={labelStyle}>{t("page.import.skills")}</p>
+        <GroupTags tags={selectedSkillIds} />
+      </div>
+      <div style={detailStackStyle}>
+        <p style={labelStyle}>{t("page.import.targets")}</p>
+        <GroupTags tags={visibleTargetIds} />
+      </div>
+    </GroupCard>
   );
 }
 

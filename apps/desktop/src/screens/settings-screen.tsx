@@ -11,7 +11,7 @@ type SettingsScreenProps = {
 
 export function SettingsScreen({ viewModel }: SettingsScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
-  const rows = detectedAgentRows(viewModel.agentDisplayPreferences);
+  const rows = detectedAgentRows(viewModel.agentDisplayPreferences, viewModel.customAgents);
 
   useEffect(() => {
     startTransition(() => {

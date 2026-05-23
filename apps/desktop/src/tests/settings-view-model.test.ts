@@ -18,6 +18,7 @@ function createSettingsStateSeed() {
       { targetId: "codex", isVisible: false, sortOrder: 0 },
       { targetId: "unknown", isVisible: true, sortOrder: 1 },
     ],
+    customAgents: [],
   };
 }
 
@@ -69,6 +70,22 @@ describe("settings view model", () => {
     expect(viewModel.releaseUrl).toBe(
       "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
     );
+  });
+
+  it("marks the current app as a newer build when it is ahead of latest release", async () => {
+    const viewModel = new SettingsViewModel(createDesktopAppState(), {
+      updateChecker: {
+        fetchLatestRelease: vi.fn().mockResolvedValue({
+          version: "1.3.1",
+          releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+        }),
+      },
+      currentVersionProvider: () => "1.4.0",
+    });
+
+    await viewModel.checkForUpdates();
+
+    expect(viewModel.updateStatus).toBe("runningNewerBuild");
   });
 
   it("performs background update checking only once per view model instance", async () => {
@@ -163,6 +180,7 @@ describe("settings view model", () => {
       selectedProjectScope: { kind: "global" },
       recentProjectScopes: [],
       agentDisplayPreferences: [],
+      customAgents: [],
     });
   });
 
@@ -175,5 +193,78 @@ describe("settings view model", () => {
     await viewModel.clearMetadataCache();
 
     expect(clearMetadataCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps custom agents in the unified detected agent list", () => {
+    const state = createDesktopAppState();
+    const viewModel = new SettingsViewModel(state);
+
+    const result = viewModel.upsertCustomAgent({
+      name: "My Agent",
+      globalPath: "/Users/test/.my-agent/skills",
+      projectPathTemplate: ".my-agent/skills",
+      strategy: "copy",
+    });
+
+    expect(result).toEqual({});
+    expect(state.settings.customAgents.map((agent) => agent.id)).toEqual(["my-agent"]);
+    expect(viewModel.detectedAgentRows(["cursor"]).map((row) => row.targetId)).toEqual(["cursor", "my-agent"]);
+    expect(viewModel.detectedAgentRows(["cursor"]).find((row) => row.targetId === "my-agent")).toEqual(
+      expect.objectContaining({
+        title: "My Agent",
+        shortLabel: "MA",
+        mountPath: "/Users/test/.my-agent/skills",
+        projectPath: ".my-agent/skills",
+        isBuiltIn: false,
+      }),
+    );
+  });
+
+  it("moves detected agents while preserving each target visibility", () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "claude-code", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: false, sortOrder: 1 },
+          { targetId: "cursor", isVisible: true, sortOrder: 2 },
+        ],
+      },
+    });
+    const viewModel = new SettingsViewModel(state);
+
+    viewModel.moveAgents(1, 0, ["claude-code", "codex", "cursor"]);
+
+    expect(state.settings.agentDisplayPreferences.slice(0, 3)).toEqual([
+      { targetId: "codex", isVisible: false, sortOrder: 0 },
+      { targetId: "claude-code", isVisible: true, sortOrder: 1 },
+      { targetId: "cursor", isVisible: true, sortOrder: 2 },
+    ]);
+  });
+
+  it("validates and deletes custom agents", () => {
+    const state = createDesktopAppState();
+    const viewModel = new SettingsViewModel(state);
+
+    expect(viewModel.upsertCustomAgent({
+      name: "",
+      globalPath: "relative/path",
+      projectPathTemplate: "/absolute/project/path",
+      strategy: "copy",
+    })).toEqual({
+      name: "Name is required.",
+      globalPath: "Global path must be absolute.",
+      projectPathTemplate: "Project path must be relative.",
+    });
+
+    viewModel.upsertCustomAgent({
+      name: "My Agent",
+      globalPath: "/Users/test/.my-agent/skills",
+      projectPathTemplate: ".my-agent/skills",
+      strategy: "copy",
+    });
+    viewModel.deleteCustomAgent("my-agent");
+
+    expect(state.settings.customAgents).toEqual([]);
+    expect(state.settings.agentDisplayPreferences.some((preference) => preference.targetId === "my-agent")).toBe(false);
   });
 });

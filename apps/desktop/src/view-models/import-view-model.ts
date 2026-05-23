@@ -1,5 +1,6 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
 import { localize } from "../i18n";
+import recommendations from "../assets/ImportRecommendations/recommendations.json";
 import type {
   ImportDraftState,
   ImportGroupState,
@@ -23,10 +24,20 @@ type ImportRecommendationSeed = {
   recommendationDescription?: string;
 };
 
+type BundledRecommendationEntry = {
+  canonicalRepo: string;
+  locator: string;
+  categoryId: string;
+  descriptionKey: string;
+  sortOrder: number;
+};
+
 type ImportPreviewResult = {
   skills: ImportSkillState[];
   targets: ImportTargetState[];
 };
+
+const bundledRecommendations = recommendations as BundledRecommendationEntry[];
 
 type ImportViewModelOptions = {
   recommendationsLoader?: () => ImportRecommendationSeed[];
@@ -71,7 +82,8 @@ export class ImportViewModel {
     private readonly state: DesktopAppState,
     options: ImportViewModelOptions = {},
   ) {
-    this.recommendationsLoader = options.recommendationsLoader ?? (() => []);
+    this.recommendationsLoader = options.recommendationsLoader
+      ?? (() => defaultRecommendationSeeds(this.state, this.desktopLanguage));
     this.searchLoader = options.searchLoader ?? (async () => []);
     this.previewLoader = options.previewLoader ?? (async () => ({ skills: [], targets: [] }));
     this.importer = options.importer ?? (async (sourceId) => ({ sourceId }));
@@ -98,7 +110,7 @@ export class ImportViewModel {
   }
 
   get importPlaceholderText(): string {
-    return searchPlaceholders[this.internalPlaceholderIndex] ?? searchPlaceholders[0];
+    return searchPlaceholders[this.internalPlaceholderIndex] ?? searchPlaceholders[0]!;
   }
 
   setSearchText(value: string): void {
@@ -301,4 +313,63 @@ function stripRecommendationFields(group: ImportGroupState): ImportGroupState {
   };
   delete stripped.recommendationDescription;
   return stripped;
+}
+
+function defaultRecommendationSeeds(state: DesktopAppState, language: string): ImportRecommendationSeed[] {
+  const installedLocators = new Set(
+    state.workspace.inventorySummaries.flatMap((summary) => [
+      normalizedRecommendationKey(summary.sourceId),
+      normalizedRecommendationKey(summary.locator),
+      normalizedRecommendationKey(summary.repoUrl),
+    ]).filter((value): value is string => value.length > 0),
+  );
+
+  return bundledRecommendations
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder || left.canonicalRepo.localeCompare(right.canonicalRepo))
+    .map((entry) => {
+      const normalizedRepo = normalizedRecommendationKey(entry.canonicalRepo);
+      return {
+        id: normalizedRepo.replaceAll("/", "-"),
+        title: titleFromRepo(entry.canonicalRepo),
+        locator: entry.locator,
+        isInstalledLocally: installedLocators.has(normalizedRepo),
+        categoryId: entry.categoryId,
+        categoryTitle: localize(`import.recommendation.category.${entry.categoryId}`, language),
+        recommendationDescription: localize(entry.descriptionKey, language),
+      };
+    });
+}
+
+function normalizedRecommendationKey(value: string | undefined): string {
+  const trimmed = value?.trim().toLowerCase().replace(/\/+$/, "");
+  if (!trimmed) {
+    return "";
+  }
+
+  const githubMatch = trimmed.match(/github\.com[/:]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#].*)?$/);
+  if (githubMatch?.[1] && githubMatch[2]) {
+    return recommendationAlias(`${githubMatch[1]}/${githubMatch[2].replace(/\.git$/, "")}`);
+  }
+
+  const shorthand = trimmed.match(/^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#].*)?$/);
+  if (shorthand?.[1] && shorthand[2]) {
+    return recommendationAlias(`${shorthand[1]}/${shorthand[2].replace(/\.git$/, "")}`);
+  }
+
+  return recommendationAlias(trimmed.replace(/\.git$/, ""));
+}
+
+function recommendationAlias(repo: string): string {
+  return repo === "anthropic/skills" ? "anthropics/skills" : repo;
+}
+
+function titleFromRepo(canonicalRepo: string): string {
+  const repoName = canonicalRepo.split("/").pop() ?? canonicalRepo;
+  return repoName
+    .replace(/[-_]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((token) => `${token.slice(0, 1).toUpperCase()}${token.slice(1)}`)
+    .join(" ");
 }

@@ -146,6 +146,43 @@ describe("import view model", () => {
     });
   });
 
+  it("loads bundled recommendations by default and marks installed local sources", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["anthropics-skills"],
+        inventorySummaries: [
+          {
+            sourceId: "anthropics-skills",
+            title: "Anthropic Skills",
+            locator: "anthropics/skills",
+            repoUrl: "https://github.com/anthropics/skills",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state);
+
+    await viewModel.loadImportPageIfNeeded();
+
+    const firstSection = viewModel.content.kind === "recommended" ? viewModel.content.sections[0] : undefined;
+    expect(firstSection?.title).toBe("General");
+    expect(firstSection?.groups[0]).toEqual(
+      expect.objectContaining({
+        id: "anthropics-skills",
+        title: "Skills",
+        locator: "anthropics/skills",
+        isInstalledLocally: true,
+        recommendationDescription: expect.stringContaining("Anthropic"),
+      }),
+    );
+  });
+
   it("preserves hydrated recommendation content when the import page loads again", async () => {
     const recommendationsLoader = vi.fn().mockReturnValue([
       {

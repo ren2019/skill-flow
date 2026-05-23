@@ -3,7 +3,7 @@ import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
 import { createDesktopAppState } from "../store/desktop-app-state";
-import { ImportScreen } from "../screens/import-screen";
+import { autoPreviewTaskKey, ImportScreen, previewGroupIds } from "../screens/import-screen";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -187,6 +187,122 @@ describe("import screen", () => {
     expect(text).toContain("search-result");
     expect(text).toContain("skill-b");
     expect(text).toContain("import-search-grid");
+  });
+
+  it("auto-previews every rendered idle card instead of only the first few", async () => {
+    const state = createDesktopAppState({
+      importState: {
+        recommendedGroups: Array.from({ length: 6 }, (_, index) => ({
+          id: `card-${index}`,
+          title: `Card ${index}`,
+          locator: `owner/repo-${index}`,
+          previewPhase: { kind: "idle" as const },
+          skills: [],
+          targets: [],
+        })),
+      },
+    });
+    const previewLoader = vi.fn().mockResolvedValue({
+      skills: [{ id: "skill-a", selectedByDefault: true }],
+      targets: [{ id: "codex", selectedByDefault: true }],
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          previewLoader,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    await act(async () => {
+      create(<Harness />);
+    });
+
+    expect(previewLoader.mock.calls.map(([groupId]) => groupId)).toEqual([
+      "card-0",
+      "card-1",
+      "card-2",
+      "card-3",
+      "card-4",
+      "card-5",
+    ]);
+  });
+
+  it("derives auto preview task keys from all idle groups", () => {
+    const groups = [
+      {
+        id: "ready-card",
+        title: "Ready",
+        locator: "owner/ready",
+        previewPhase: { kind: "ready" as const },
+        skills: [],
+        targets: [],
+      },
+      {
+        id: "idle-card",
+        title: "Idle",
+        locator: "owner/idle",
+        previewPhase: { kind: "idle" as const },
+        skills: [],
+        targets: [],
+      },
+    ];
+
+    expect(previewGroupIds(groups)).toEqual(["idle-card"]);
+    expect(autoPreviewTaskKey(["idle-card"], "browse")).toBe("browse|idle-card");
+  });
+
+  it("renders import actions for search result cards", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "search" });
+    const state = createDesktopAppState();
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          searchLoader: async () => [
+            {
+              id: "search",
+              title: "Search",
+              locator: "openai/skills",
+              previewPhase: { kind: "ready" as const },
+              skills: [{ id: "ship", selectedByDefault: true }],
+              targets: [{ id: "cursor", selectedByDefault: true }],
+            },
+          ],
+          importer,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+    const searchInput = renderer!.root.findByProps({ "data-testid": "import-search-input" });
+    const searchButton = renderer!.root.findByProps({ "data-testid": "import-search-submit" });
+    await act(async () => {
+      searchInput.props.onChange({ target: { value: "openai" } });
+    });
+    await act(async () => {
+      await searchButton.props.onClick();
+    });
+    const importButton = renderer!.root.findByProps({ "data-import-group-id": "search" });
+    await act(async () => {
+      await importButton.props.onClick();
+    });
+
+    expect(importer).toHaveBeenCalledWith("search", {
+      selectedSkillIds: ["ship"],
+      enabledTargets: [],
+    });
+    expect(state.importState.searchGroups[0].isInstalledLocally).toBe(true);
   });
 
   it("syncs the search input back to the shared query after the page resets", async () => {
