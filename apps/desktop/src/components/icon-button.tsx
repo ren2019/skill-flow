@@ -5,6 +5,7 @@ type IconButtonProps = {
   icon: ActionIconId;
   label: string;
   active?: boolean;
+  disabled?: boolean;
   onClick?: (() => void) | undefined;
   children?: ReactNode;
   "data-testid"?: string;
@@ -14,6 +15,7 @@ export function IconButton({
   icon,
   label,
   active = false,
+  disabled = false,
   onClick,
   children,
   "data-testid": dataTestId,
@@ -25,8 +27,9 @@ export function IconButton({
       type="button"
       aria-label={label}
       aria-pressed={active || undefined}
+      disabled={disabled}
       onClick={onClick}
-      style={buttonStyle(active)}
+      style={buttonStyle(active, disabled)}
     >
       <img src={resolveActionIcon(icon)} alt="" aria-hidden="true" style={iconStyle} />
       <span style={srOnlyStyle}>{label}</span>
@@ -53,7 +56,7 @@ const srOnlyStyle: CSSProperties = {
   border: 0,
 };
 
-function buttonStyle(active: boolean): CSSProperties {
+function buttonStyle(active: boolean, disabled: boolean): CSSProperties {
   return {
     position: "relative",
     display: "inline-flex",
@@ -67,5 +70,7 @@ function buttonStyle(active: boolean): CSSProperties {
     background: active ? "rgba(255, 255, 255, 0.72)" : "rgba(255, 255, 255, 0.55)",
     boxShadow: "0 6px 14px rgba(0, 0, 0, 0.08)",
     backdropFilter: "blur(8px)",
+    opacity: disabled ? 0.5 : 1,
+    cursor: disabled ? "default" : "pointer",
   };
 }

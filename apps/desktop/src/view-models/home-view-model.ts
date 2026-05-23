@@ -44,6 +44,7 @@ export class HomeViewModel {
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly onChange: () => void;
   private readonly groupTags: GroupTagController;
+  private readonly updatingSourceIds = new Set<string>();
 
   constructor(
     private readonly state: DesktopAppState,
@@ -176,6 +177,18 @@ export class HomeViewModel {
     return this.state.settings.themeAccentRawValue as DesktopAccentColor;
   }
 
+  get homeCardDensity(): string {
+    return this.state.settings.homeCardDensityRawValue;
+  }
+
+  get menuCardDensity(): string {
+    return this.state.settings.menuCardDensityRawValue;
+  }
+
+  isUpdatingSource(sourceId: string): boolean {
+    return this.updatingSourceIds.has(sourceId);
+  }
+
   showImportPage(): void {
     this.state.view.currentRoute = { kind: "importPage" };
     this.onChange();
@@ -216,6 +229,10 @@ export class HomeViewModel {
 
     try {
       this.state.view.toastMessage = undefined;
+      for (const sourceId of sourceIds) {
+        this.updatingSourceIds.add(sourceId);
+      }
+      this.onChange();
       let updateSummary: unknown;
       await this.mutationCoordinator.run(async () => {
         if (this.updateGroups) {
@@ -234,6 +251,9 @@ export class HomeViewModel {
       const message = error instanceof Error ? error.message : String(error);
       this.state.view.toastMessage = localize("toast.update.failed", this.desktopLanguage).replace("%@", message);
     } finally {
+      for (const sourceId of sourceIds) {
+        this.updatingSourceIds.delete(sourceId);
+      }
       this.onChange();
     }
   }
@@ -258,6 +278,8 @@ export class HomeViewModel {
     try {
       this.state.view.toastMessage = undefined;
       this.state.view.selectedSourceId = normalizedSourceId;
+      this.updatingSourceIds.add(normalizedSourceId);
+      this.onChange();
       let updateSummary: unknown;
       await this.mutationCoordinator.run(async () => {
         updateSummary = await this.updateGroup(normalizedSourceId);
@@ -267,6 +289,7 @@ export class HomeViewModel {
       const message = error instanceof Error ? error.message : String(error);
       this.state.view.toastMessage = localize("toast.update.failed", this.desktopLanguage).replace("%@", message);
     } finally {
+      this.updatingSourceIds.delete(normalizedSourceId);
       this.onChange();
     }
   }

@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useState, type CSSProperties, type DragEvent, type ReactNode } from "react";
 import { AgentIcon } from "../components/agent-icon";
+import { DesktopTopBar } from "../components/desktop-top-bar";
 import { SettingsSection } from "../components/settings-section";
 import { resolveActionIcon } from "../icons/action-icons";
 import { localize, localizeUpdateStatus } from "../i18n";
@@ -71,10 +72,21 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
 
   return (
     <main data-view="settings-page" style={pageStyle}>
-      <header style={headerStyle}>
-        <p style={eyebrowStyle}>{t("route.settings")}</p>
-        <h1 style={headingStyle}>{t("page.settings.title")}</h1>
-      </header>
+      <DesktopTopBar
+        routeKind="settings"
+        desktopLanguage={viewModel.desktopLanguage}
+        themeMode={viewModel.themeMode}
+        themeAccent={viewModel.themeAccent}
+        title={t("page.settings.title")}
+        searchValue=""
+        onSearchChange={() => undefined}
+        onBack={() => {
+          viewModel.showHome();
+        }}
+        onImport={() => undefined}
+        onUpdate={() => undefined}
+        onSettings={() => undefined}
+      />
 
       <div style={gridStyle}>
         <SettingsSection title={t("settings.section.appearance")}>
@@ -552,29 +564,8 @@ const pageStyle: CSSProperties = {
   minHeight: "100vh",
   display: "grid",
   gap: "18px",
-  padding: "20px",
+  padding: 0,
   background: "#f2f2f2",
-};
-
-const headerStyle: CSSProperties = {
-  display: "grid",
-  gap: "6px",
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "11px",
-  fontWeight: 700,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "#475569",
-};
-
-const headingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "28px",
-  fontWeight: 700,
-  color: "#0f172a",
 };
 
 const gridStyle: CSSProperties = {
@@ -582,6 +573,7 @@ const gridStyle: CSSProperties = {
   gap: "14px",
   gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
   alignItems: "start",
+  padding: "0 20px 20px",
 };
 
 const controlRowStyle: CSSProperties = {

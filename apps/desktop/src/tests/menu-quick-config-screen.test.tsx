@@ -62,6 +62,8 @@ describe("menu quick config screen", () => {
     });
 
     expect(renderer!.root.findAllByProps({ "data-view": "menu-quick-config" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-card-display-mode": "menuCompact" })).toHaveLength(2);
+    expect(renderer!.root.findAllByProps({ "data-view": "shared-group-card-stats" })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(1);
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
 
@@ -111,6 +113,7 @@ describe("menu quick config screen", () => {
     });
 
     expect(renderer!.root.findAllByProps({ "data-skill-toggle-id": "alpha:browse" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ "data-view": "shared-group-card-skills" })).toHaveLength(0);
     await act(async () => {
       renderer!.root.findByProps({ "data-menu-card-shell": "alpha" }).props.onMouseEnter();
     });
@@ -122,6 +125,7 @@ describe("menu quick config screen", () => {
     await act(async () => {
       vi.advanceTimersByTime(1);
     });
+    expect(renderer!.root.findAllByProps({ "data-view": "shared-group-card-skills" })).toHaveLength(1);
     expect(renderer!.root.findAllByProps({ "data-skill-toggle-id": "alpha:browse" })).toHaveLength(1);
 
     await act(async () => {

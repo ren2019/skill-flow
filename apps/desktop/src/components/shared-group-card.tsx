@@ -1,15 +1,55 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { IconButton } from "./icon-button";
+import { resolveActionIcon, type ActionIconId } from "../icons/action-icons";
 import { resolveGroupCardIcon, type GroupCardIconId } from "../icons/group-card-icons";
 import { desktopTheme, type DesktopAccentColor, type DesktopThemeMode } from "../theme/app-theme";
 import type { InventorySummaryState, WorkspaceTagPreference } from "../store/workspace-state";
+
+export type GroupCardDisplayMode =
+  | "homeComfortable"
+  | "homeCompact"
+  | "menuComfortable"
+  | "menuCompact"
+  | "importSearch"
+  | "importRecommendation";
+
+type GroupCardScale = {
+  cardInset: number;
+  cardSpacing: number;
+  titleSize: number;
+  metaSize: number;
+  sectionLabelSize: number;
+  chipHeight: number;
+  chipFontSize: number;
+  cornerRadius: number;
+  shadowRadius: number;
+  minHeight: number;
+};
+
+type GroupCardDisplayProfile = {
+  scale: GroupCardScale;
+  showsSubtitle: boolean;
+  showsMetaLine: boolean;
+  showsSectionTitles: boolean;
+  supportsCollapsedSkills: boolean;
+  showsHeaderDivider: boolean;
+  showsSummaryDivider: boolean;
+  reservesMinimumHeight: boolean;
+  usesPlainPrimaryActionIcon: boolean;
+};
 
 type SharedGroupCardProps = {
   card: InventorySummaryState;
   themeMode: DesktopThemeMode;
   themeAccent: DesktopAccentColor;
   pinned: boolean;
+  displayMode?: GroupCardDisplayMode;
   skillsCollapsed?: boolean;
+  isUpdating?: boolean;
+  actionButtonTitle?: string | undefined;
+  actionButtonIcon?: ActionIconId;
+  isActionButtonDisabled?: boolean;
+  onActionButton?: (() => void) | undefined;
   onOpen(): void;
   onUpdate(): void;
   onTogglePinned(): void;
@@ -32,10 +72,16 @@ type SharedGroupCardProps = {
     pin: string;
     unpin: string;
     pinned: string;
+    import: string;
+    updating: string;
     agents: string;
     skills: string;
     tags: string;
     addTag: string;
+    editTags: string;
+    cancelEditTags: string;
+    deleteTags: string;
+    doneDeleteTags: string;
     tagPlaceholder: string;
     activeTargets(count: number): string;
     enabledSkills(count: number, totalCount: number): string;
@@ -47,7 +93,13 @@ export function SharedGroupCard({
   themeMode,
   themeAccent,
   pinned,
+  displayMode = "homeComfortable",
   skillsCollapsed = false,
+  isUpdating = false,
+  actionButtonTitle,
+  actionButtonIcon = "import",
+  isActionButtonDisabled = false,
+  onActionButton,
   onOpen,
   onUpdate,
   onTogglePinned,
@@ -65,70 +117,144 @@ export function SharedGroupCard({
   onSelectGroupTag,
   labels,
 }: SharedGroupCardProps) {
+  const profile = groupCardDisplayProfile(displayMode);
+  const shouldRenderSkills = !profile.supportsCollapsedSkills || !skillsCollapsed;
+  const [isActionMenuOpen, setIsActionMenuOpen] = useState(false);
+  const [isEditingTags, setIsEditingTags] = useState(false);
+  const [isDeletingTags, setIsDeletingTags] = useState(false);
+  const shouldRenderTags = groupTagItems.length > 0 || canCreateGroupTag || isEditingTags;
+  const isBusy = isUpdating;
+  const showsPrimaryAction = onActionButton !== undefined;
+
   return (
-    <article data-view="shared-group-card" style={cardStyle(themeMode)}>
+    <article data-view="shared-group-card" data-card-display-mode={displayMode} style={cardStyle(themeMode, profile)}>
+      <div style={cardContentStyle(isBusy)}>
       <header data-view="shared-group-card-header" style={headerStyle}>
         <div style={headerCopyStyle}>
-          <button type="button" data-source-id={card.sourceId} onClick={onOpen} style={titleButtonStyle(themeAccent, themeMode)}>
+          <button type="button" data-source-id={card.sourceId} disabled={isBusy} onClick={onOpen} style={titleButtonStyle(themeAccent, themeMode, profile)}>
             {card.title}
           </button>
-          <p style={subtitleStyle(themeMode)}>{card.byline ?? card.locator}</p>
+          {profile.showsSubtitle ? (
+            <p style={subtitleStyle(themeMode, profile)}>{card.byline ?? card.locator}</p>
+          ) : null}
         </div>
         <div style={headerActionStyle}>
-          <IconButton
-            icon={pinned ? "pin" : "more"}
+          {showsPrimaryAction ? (
+            <PrimaryActionButton
+              icon={actionButtonIcon}
+              title={actionButtonTitle ?? labels.import}
+              plainIcon={profile.usesPlainPrimaryActionIcon}
+              disabled={isBusy || isActionButtonDisabled}
+              themeMode={themeMode}
+              themeAccent={themeAccent}
+              dataProps={{ "data-import-group-id": card.sourceId }}
+              onClick={onActionButton}
+            />
+          ) : (
+            <>
+              <IconButton
+            icon={pinned && !isActionMenuOpen ? "pin" : "more"}
             label={pinned ? labels.unpin : labels.pin}
-            active={pinned}
-            onClick={onTogglePinned}
-          />
+            active={isActionMenuOpen || pinned}
+            data-testid={`group-card-action-menu-${card.sourceId}`}
+            disabled={isBusy}
+            onClick={() => {
+              setIsActionMenuOpen((current) => !current);
+            }}
+              />
+              {isActionMenuOpen ? (
+                <div data-view="shared-group-card-action-menu" style={actionMenuStyle(themeMode)}>
+                  <ActionMenuButton
+                icon="pin"
+                label={pinned ? labels.unpin : labels.pin}
+                themeMode={themeMode}
+                dataProps={{ "data-pin-source-id": card.sourceId }}
+                onClick={() => {
+                  setIsActionMenuOpen(false);
+                  onTogglePinned();
+                }}
+              />
+              <ActionMenuButton
+                icon="update"
+                label={labels.update}
+                themeMode={themeMode}
+                dataProps={{ "data-update-source-id": card.sourceId }}
+                onClick={() => {
+                  setIsActionMenuOpen(false);
+                  onUpdate();
+                }}
+              />
+              <ActionMenuButton
+                icon={isEditingTags ? "close" : "tag-add"}
+                label={isEditingTags ? labels.cancelEditTags : labels.editTags}
+                themeMode={themeMode}
+                dataProps={{ "data-edit-tags-source-id": card.sourceId }}
+                onClick={() => {
+                  setIsActionMenuOpen(false);
+                  setIsDeletingTags(false);
+                  setIsEditingTags((current) => !current);
+                }}
+              />
+              {canDeleteGroupTags ? (
+                <ActionMenuButton
+                  icon={isDeletingTags ? "close" : "tag-delete"}
+                  label={isDeletingTags ? labels.doneDeleteTags : labels.deleteTags}
+                  themeMode={themeMode}
+                  dataProps={{ "data-delete-tags-source-id": card.sourceId }}
+                  onClick={() => {
+                    setIsActionMenuOpen(false);
+                    setIsEditingTags(false);
+                    setIsDeletingTags((current) => !current);
+                  }}
+                />
+              ) : null}
+              <ActionMenuButton
+                icon="delete"
+                label={labels.delete}
+                themeMode={themeMode}
+                tone="danger"
+                dataProps={{ "data-delete-source-id": card.sourceId }}
+                onClick={() => {
+                  setIsActionMenuOpen(false);
+                  onDelete();
+                }}
+                  />
+                </div>
+              ) : null}
+            </>
+          )}
         </div>
       </header>
 
-      <div data-view="shared-group-card-stats" style={statsRowStyle(themeMode)}>
-        <MetadataIcon icon="skills" label={`${card.skillCount} skills`} statId="skills" />
-        {card.downloadCount !== undefined ? (
-          <MetadataIcon icon="download" label={formatCount(card.downloadCount)} statId="download" />
-        ) : null}
-        {card.starCount !== undefined ? (
-          <MetadataIcon icon="star" label={formatCount(card.starCount)} statId="star" />
-        ) : null}
-        {card.repoUrl ? (
-          <MetadataLink icon="github" href={card.repoUrl} statId="github" />
-        ) : null}
-        {card.groupPath ? (
-          <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" />
-        ) : null}
-        <MetadataPill label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
-        {card.warningCount > 0 ? (
-          <MetadataPill label={`${card.warningCount} warnings`} themeMode={themeMode} tone="warning" />
-        ) : null}
-        {card.errorCount > 0 ? (
-          <MetadataPill label={`${card.errorCount} errors`} themeMode={themeMode} tone="error" />
-        ) : null}
-      </div>
+      {profile.showsMetaLine ? (
+        <div data-view="shared-group-card-stats" style={statsRowStyle(themeMode, profile)}>
+          <MetadataIcon icon="skills" label={`${card.skillCount} skills`} statId="skills" />
+          {card.downloadCount !== undefined ? (
+            <MetadataIcon icon="download" label={formatCount(card.downloadCount)} statId="download" />
+          ) : null}
+          {card.starCount !== undefined ? (
+            <MetadataIcon icon="star" label={formatCount(card.starCount)} statId="star" />
+          ) : null}
+          {card.repoUrl ? (
+            <MetadataLink icon="github" href={card.repoUrl} statId="github" />
+          ) : null}
+          {card.groupPath ? (
+            <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" />
+          ) : null}
+          <MetadataPill label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
+          {card.warningCount > 0 ? (
+            <MetadataPill label={`${card.warningCount} warnings`} themeMode={themeMode} tone="warning" />
+          ) : null}
+          {card.errorCount > 0 ? (
+            <MetadataPill label={`${card.errorCount} errors`} themeMode={themeMode} tone="error" />
+          ) : null}
+        </div>
+      ) : null}
 
-      <div style={dividerStyle(themeMode)} />
-
-      <section data-view="shared-group-card-tags" style={sectionStyle}>
-        <SectionLabel label={labels.tags} themeMode={themeMode} />
-        <GroupTagSection
-          sourceId={card.sourceId}
-          items={groupTagItems}
-          suggestions={groupTagSuggestions}
-          canCreate={canCreateGroupTag}
-          canDelete={canDeleteGroupTags}
-          themeMode={themeMode}
-          themeAccent={themeAccent}
-          addLabel={labels.addTag}
-          placeholder={labels.tagPlaceholder}
-          onCreate={onCreateGroupTag}
-          onDelete={onDeleteGroupTag}
-          onSelect={onSelectGroupTag}
-        />
-      </section>
+      {profile.showsHeaderDivider ? <div data-view="shared-group-card-header-divider" style={dividerStyle(themeMode)} /> : null}
 
       <section data-view="shared-group-card-agents" style={sectionStyle}>
-        <SectionLabel label={labels.agents} themeMode={themeMode} />
+        <SectionLabel label={labels.agents} themeMode={themeMode} profile={profile} />
         <div style={chipRowStyle}>
           {(card.targets ?? []).length > 0 ? (
             <>
@@ -138,6 +264,7 @@ export function SharedGroupCard({
                 partial={card.targetSelection === "partial"}
                 themeMode={themeMode}
                 accent={themeAccent}
+                profile={profile}
                 onClick={onToggleAllTargets}
                 dataProps={{ "data-target-toggle-all-source-id": card.sourceId }}
               />
@@ -149,6 +276,7 @@ export function SharedGroupCard({
                   selected={target.isEnabled}
                   themeMode={themeMode}
                   accent={themeAccent}
+                  profile={profile}
                   onClick={() => {
                     onToggleTarget(target.id);
                   }}
@@ -158,16 +286,17 @@ export function SharedGroupCard({
             </>
           ) : (card.enabledTargetLabels ?? []).length > 0
             ? (card.enabledTargetLabels ?? []).map((label) => (
-              <InfoChip key={label} label={label} themeMode={themeMode} />
+              <InfoChip key={label} label={label} themeMode={themeMode} profile={profile} />
             ))
-            : <InfoChip label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />}
+            : <InfoChip label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} profile={profile} />}
         </div>
       </section>
 
-      <section data-view="shared-group-card-skills" style={sectionStyle}>
-        <SectionLabel label={labels.skills} themeMode={themeMode} />
-        <div style={chipRowStyle}>
-          {(card.skills ?? []).length > 0 && !skillsCollapsed ? (
+      {shouldRenderSkills ? (
+        <section data-view="shared-group-card-skills" style={sectionStyle}>
+          <SectionLabel label={labels.skills} themeMode={themeMode} profile={profile} />
+          <div style={chipRowStyle}>
+            {(card.skills ?? []).length > 0 ? (
             <>
               <ToggleChip
                 label={labels.all}
@@ -175,6 +304,7 @@ export function SharedGroupCard({
                 partial={card.skillSelection === "partial"}
                 themeMode={themeMode}
                 accent={themeAccent}
+                profile={profile}
                 onClick={onToggleAllSkills}
                 dataProps={{ "data-skill-toggle-all-source-id": card.sourceId }}
               />
@@ -186,6 +316,7 @@ export function SharedGroupCard({
                   selected={skill.isEnabled}
                   themeMode={themeMode}
                   accent={themeAccent}
+                  profile={profile}
                   onClick={() => {
                     onToggleSkill(skill.id);
                   }}
@@ -193,54 +324,120 @@ export function SharedGroupCard({
                 />
               ))}
             </>
-          ) : skillsCollapsed ? (
-            <InfoChip
-              label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
-              themeMode={themeMode}
-            />
           ) : (card.selectedSkillNames ?? []).length > 0
             ? (card.selectedSkillNames ?? []).slice(0, 4).map((label) => (
-              <InfoChip key={label} label={label} themeMode={themeMode} />
+              <InfoChip key={label} label={label} themeMode={themeMode} profile={profile} />
             ))
             : (
               <InfoChip
                 label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
                 themeMode={themeMode}
+                profile={profile}
               />
             )}
           {pinned ? (
-            <InfoChip label={labels.pinned} themeMode={themeMode} accent={themeAccent} />
+            <InfoChip label={labels.pinned} themeMode={themeMode} accent={themeAccent} profile={profile} />
           ) : null}
-        </div>
-      </section>
+          </div>
+        </section>
+      ) : null}
 
-      <footer style={footerStyle}>
-        <button
-          type="button"
-          data-update-source-id={card.sourceId}
-          onClick={onUpdate}
-          style={updateButtonStyle(themeAccent, themeMode)}
-        >
-          {labels.update}
-        </button>
-        <button
-          type="button"
-          data-pin-source-id={card.sourceId}
-          onClick={onTogglePinned}
-          style={secondaryButtonStyle(pinned, themeMode)}
-        >
-          {pinned ? labels.unpin : labels.pin}
-        </button>
-        <button
-          type="button"
-          data-delete-source-id={card.sourceId}
-          onClick={onDelete}
-          style={secondaryButtonStyle(false, themeMode)}
-        >
-          {labels.delete}
-        </button>
-      </footer>
+      {shouldRenderTags ? (
+        <>
+          {profile.showsSummaryDivider ? <div data-view="shared-group-card-summary-divider" style={dividerStyle(themeMode)} /> : null}
+          <section data-view="shared-group-card-tags" style={sectionStyle}>
+            <SectionLabel label={labels.tags} themeMode={themeMode} profile={profile} />
+            <GroupTagSection
+              sourceId={card.sourceId}
+              items={groupTagItems}
+              suggestions={groupTagSuggestions}
+              canCreate={canCreateGroupTag && isEditingTags}
+              canStartEditing={canCreateGroupTag && !isEditingTags && !isDeletingTags}
+              canDelete={canDeleteGroupTags && isDeletingTags}
+              themeMode={themeMode}
+              themeAccent={themeAccent}
+              addLabel={labels.addTag}
+              placeholder={labels.tagPlaceholder}
+              onStartEditing={() => {
+                setIsDeletingTags(false);
+                setIsEditingTags(true);
+              }}
+              onCreate={(title, accent) => {
+                onCreateGroupTag(title, accent);
+                setIsEditingTags(false);
+              }}
+              onDelete={onDeleteGroupTag}
+              onSelect={onSelectGroupTag}
+            />
+          </section>
+        </>
+      ) : null}
+
+      </div>
+      {isBusy ? (
+        <div data-view="shared-group-card-busy-overlay" style={busyOverlayStyle(themeMode, profile)}>
+          <span aria-hidden="true" style={busySpinnerStyle(themeAccent, themeMode)} />
+          <span>{labels.updating}</span>
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+function ActionMenuButton({
+  icon,
+  label,
+  themeMode,
+  tone = "default",
+  dataProps,
+  onClick,
+}: {
+  icon: ActionIconId;
+  label: string;
+  themeMode: DesktopThemeMode;
+  tone?: "default" | "danger";
+  dataProps: Record<string, string>;
+  onClick(): void;
+}) {
+  return (
+    <button type="button" onClick={onClick} style={actionMenuButtonStyle(themeMode, tone)} {...dataProps}>
+      <img src={resolveActionIcon(icon)} alt="" aria-hidden="true" style={actionMenuIconStyle} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function PrimaryActionButton({
+  icon,
+  title,
+  plainIcon,
+  disabled,
+  themeMode,
+  themeAccent,
+  dataProps,
+  onClick,
+}: {
+  icon: ActionIconId;
+  title: string;
+  plainIcon: boolean;
+  disabled: boolean;
+  themeMode: DesktopThemeMode;
+  themeAccent: DesktopAccentColor;
+  dataProps: Record<string, string>;
+  onClick(): void;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={title}
+      disabled={disabled}
+      onClick={onClick}
+      style={primaryActionButtonStyle(themeMode, themeAccent, plainIcon, disabled)}
+      {...dataProps}
+    >
+      <img src={resolveActionIcon(icon)} alt="" aria-hidden="true" style={primaryActionIconStyle} />
+      {plainIcon ? <span style={visuallyHiddenStyle}>{title}</span> : <span>{title}</span>}
+    </button>
   );
 }
 
@@ -273,14 +470,24 @@ function MetadataPill(
   return <span style={metadataPillStyle(themeMode, tone)}>{label}</span>;
 }
 
-function SectionLabel({ label, themeMode }: { label: string; themeMode: DesktopThemeMode }) {
-  return <p style={sectionLabelStyle(themeMode)}>{label}</p>;
+function SectionLabel(
+  { label, themeMode, profile }: { label: string; themeMode: DesktopThemeMode; profile: GroupCardDisplayProfile },
+) {
+  if (!profile.showsSectionTitles) {
+    return null;
+  }
+  return <p style={sectionLabelStyle(themeMode, profile)}>{label}</p>;
 }
 
 function InfoChip(
-  { label, themeMode, accent }: { label: string; themeMode: DesktopThemeMode; accent?: DesktopAccentColor },
+  {
+    label,
+    themeMode,
+    profile,
+    accent,
+  }: { label: string; themeMode: DesktopThemeMode; profile: GroupCardDisplayProfile; accent?: DesktopAccentColor },
 ) {
-  return <span style={infoChipStyle(themeMode, accent)}>{label}</span>;
+  return <span style={infoChipStyle(themeMode, profile, accent)}>{label}</span>;
 }
 
 function ToggleChip({
@@ -290,6 +497,7 @@ function ToggleChip({
   partial = false,
   themeMode,
   accent,
+  profile,
   onClick,
   dataProps,
 }: {
@@ -299,6 +507,7 @@ function ToggleChip({
   partial?: boolean;
   themeMode: DesktopThemeMode;
   accent: DesktopAccentColor;
+  profile: GroupCardDisplayProfile;
   onClick(): void;
   dataProps: Record<string, string>;
 }) {
@@ -307,7 +516,7 @@ function ToggleChip({
       type="button"
       aria-label={ariaLabel ?? label}
       onClick={onClick}
-      style={toggleChipStyle(themeMode, accent, selected, partial)}
+      style={toggleChipStyle(themeMode, accent, profile, selected, partial)}
       {...dataProps}
     >
       {label}
@@ -320,12 +529,14 @@ export function GroupTagSection({
   items,
   suggestions,
   canCreate,
+  canStartEditing,
   canDelete,
   themeMode,
   themeAccent,
   addLabel,
   placeholder,
   onCreate,
+  onStartEditing,
   onDelete,
   onSelect,
 }: {
@@ -333,26 +544,112 @@ export function GroupTagSection({
   items: WorkspaceTagPreference[];
   suggestions: WorkspaceTagPreference[];
   canCreate: boolean;
+  canStartEditing: boolean;
   canDelete: boolean;
   themeMode: DesktopThemeMode;
   themeAccent: DesktopAccentColor;
   addLabel: string;
   placeholder: string;
   onCreate(title: string, accent?: DesktopAccentColor): void;
+  onStartEditing(): void;
   onDelete(tagId: string): void;
   onSelect(tagId: string): void;
 }) {
   const [draft, setDraft] = useState("");
+  const [hoveredTagId, setHoveredTagId] = useState<string | undefined>(undefined);
+  const hoverCollapseTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const submitDraft = (title: string, accent?: DesktopAccentColor) => {
     onCreate(title, accent);
     setDraft("");
   };
+  const clearHoverCollapse = () => {
+    if (hoverCollapseTimerRef.current) {
+      clearTimeout(hoverCollapseTimerRef.current);
+      hoverCollapseTimerRef.current = undefined;
+    }
+  };
+  const scheduleHoverCollapse = () => {
+    clearHoverCollapse();
+    hoverCollapseTimerRef.current = setTimeout(() => {
+      setHoveredTagId(undefined);
+      hoverCollapseTimerRef.current = undefined;
+    }, 1000);
+  };
+  const showsHoverAddButton = canStartEditing && (items.length === 0 || hoveredTagId !== undefined);
+
+  useEffect(() => () => clearHoverCollapse(), []);
+
+  if (canCreate) {
+    return (
+      <div style={tagInputRowStyle}>
+        <input
+          data-group-tag-input-source-id={sourceId}
+          value={draft}
+          placeholder={placeholder}
+          onChange={(event) => {
+            setDraft(event.currentTarget.value);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              submitDraft(draft);
+            }
+          }}
+          style={tagInputStyle(themeMode)}
+        />
+        <button
+          type="button"
+          data-add-group-tag-source-id={sourceId}
+          onClick={() => {
+            submitDraft(draft);
+          }}
+          style={tagAddButtonStyle(themeMode, themeAccent)}
+        >
+          {addLabel}
+        </button>
+        <span aria-hidden="true" style={tagInputDividerStyle(themeMode)} />
+        {suggestions.slice(0, 4).map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            data-group-tag-suggestion-id={`${sourceId}:${item.id}`}
+            onClick={() => {
+              submitDraft(item.title, item.accent as DesktopAccentColor | undefined);
+            }}
+            style={tagPillStyle(themeMode, (item.accent as DesktopAccentColor | undefined) ?? themeAccent)}
+          >
+            #{item.title}
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div style={tagSectionStyle}>
       <div style={chipRowStyle}>
+        {canStartEditing ? (
+          <button
+            type="button"
+            aria-label={addLabel}
+            data-start-edit-group-tags-source-id={sourceId}
+            onClick={onStartEditing}
+            onMouseEnter={clearHoverCollapse}
+            onMouseLeave={scheduleHoverCollapse}
+            style={tagHoverAddButtonStyle(themeMode, themeAccent, showsHoverAddButton)}
+          >
+            <img src={resolveActionIcon("plus")} alt="" aria-hidden="true" style={tagHoverAddIconStyle} />
+          </button>
+        ) : null}
         {items.map((item) => (
-          <span key={item.id} style={tagPillWrapStyle}>
+          <span
+            key={item.id}
+            style={tagPillWrapStyle}
+            onMouseEnter={() => {
+              clearHoverCollapse();
+              setHoveredTagId(item.id);
+            }}
+            onMouseLeave={scheduleHoverCollapse}
+          >
             <button
               type="button"
               data-group-tag-id={`${sourceId}:${item.id}`}
@@ -379,62 +676,151 @@ export function GroupTagSection({
           </span>
         ))}
       </div>
-
-      {canCreate ? (
-        <div style={tagInputRowStyle}>
-          <input
-            data-group-tag-input-source-id={sourceId}
-            value={draft}
-            placeholder={placeholder}
-            onChange={(event) => {
-              setDraft(event.currentTarget.value);
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                submitDraft(draft);
-              }
-            }}
-            style={tagInputStyle(themeMode)}
-          />
-          <button
-            type="button"
-            data-add-group-tag-source-id={sourceId}
-            onClick={() => {
-              submitDraft(draft);
-            }}
-            style={tagAddButtonStyle(themeMode, themeAccent)}
-          >
-            {addLabel}
-          </button>
-          {suggestions.slice(0, 4).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              data-group-tag-suggestion-id={`${sourceId}:${item.id}`}
-              onClick={() => {
-                submitDraft(item.title, item.accent as DesktopAccentColor | undefined);
-              }}
-              style={tagPillStyle(themeMode, (item.accent as DesktopAccentColor | undefined) ?? themeAccent)}
-            >
-              #{item.title}
-            </button>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
 
-const cardStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDisplayProfile {
+  const homeScale: GroupCardScale = {
+    cardInset: 12,
+    cardSpacing: 10,
+    titleSize: 21,
+    metaSize: 12,
+    sectionLabelSize: 12,
+    chipHeight: 34,
+    chipFontSize: 12,
+    cornerRadius: 10,
+    shadowRadius: 16,
+    minHeight: 206,
+  };
+  const menuScale: GroupCardScale = {
+    ...homeScale,
+    cardInset: 9.6,
+    cardSpacing: 8,
+    cornerRadius: 8,
+    shadowRadius: 12.8,
+    minHeight: 165,
+  };
+  switch (displayMode) {
+    case "homeCompact":
+      return {
+        scale: homeScale,
+        showsSubtitle: true,
+        showsMetaLine: false,
+        showsSectionTitles: false,
+        supportsCollapsedSkills: false,
+        showsHeaderDivider: false,
+        showsSummaryDivider: false,
+        reservesMinimumHeight: false,
+        usesPlainPrimaryActionIcon: false,
+      };
+    case "menuComfortable":
+      return {
+        scale: menuScale,
+        showsSubtitle: true,
+        showsMetaLine: true,
+        showsSectionTitles: false,
+        supportsCollapsedSkills: true,
+        showsHeaderDivider: false,
+        showsSummaryDivider: false,
+        reservesMinimumHeight: false,
+        usesPlainPrimaryActionIcon: false,
+      };
+    case "menuCompact":
+      return {
+        scale: menuScale,
+        showsSubtitle: true,
+        showsMetaLine: false,
+        showsSectionTitles: false,
+        supportsCollapsedSkills: true,
+        showsHeaderDivider: false,
+        showsSummaryDivider: false,
+        reservesMinimumHeight: false,
+        usesPlainPrimaryActionIcon: false,
+      };
+    case "importSearch":
+      return {
+        scale: homeScale,
+        showsSubtitle: true,
+        showsMetaLine: true,
+        showsSectionTitles: true,
+        supportsCollapsedSkills: false,
+        showsHeaderDivider: true,
+        showsSummaryDivider: false,
+        reservesMinimumHeight: true,
+        usesPlainPrimaryActionIcon: true,
+      };
+    case "importRecommendation":
+      return {
+        scale: homeScale,
+        showsSubtitle: true,
+        showsMetaLine: true,
+        showsSectionTitles: true,
+        supportsCollapsedSkills: false,
+        showsHeaderDivider: true,
+        showsSummaryDivider: true,
+        reservesMinimumHeight: true,
+        usesPlainPrimaryActionIcon: true,
+      };
+    case "homeComfortable":
+    default:
+      return {
+        scale: homeScale,
+        showsSubtitle: true,
+        showsMetaLine: true,
+        showsSectionTitles: true,
+        supportsCollapsedSkills: false,
+        showsHeaderDivider: true,
+        showsSummaryDivider: true,
+        reservesMinimumHeight: true,
+        usesPlainPrimaryActionIcon: false,
+      };
+  }
+}
+
+const cardStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
+  position: "relative",
   display: "flex",
   flexDirection: "column",
-  gap: "10px",
-  minHeight: "206px",
-  padding: "12px",
-  borderRadius: "10px",
+  gap: `${profile.scale.cardSpacing}px`,
+  ...(profile.reservesMinimumHeight ? { minHeight: `${profile.scale.minHeight}px` } : {}),
+  padding: `${profile.scale.cardInset}px`,
+  borderRadius: `${profile.scale.cornerRadius}px`,
   background: themeMode === "light" ? "rgb(250, 250, 250)" : "rgb(20, 20, 20)",
   border: `0.5px solid ${desktopTheme.cardBorder(themeMode)}`,
-  boxShadow: `0 12px 24px ${desktopTheme.cardShadow(themeMode)}`,
+  boxShadow: `0 ${profile.scale.shadowRadius * 0.75}px ${profile.scale.shadowRadius * 1.5}px ${desktopTheme.cardShadow(themeMode)}`,
+});
+
+const cardContentStyle = (isBusy: boolean): CSSProperties => ({
+  display: "flex",
+  flexDirection: "column",
+  gap: "inherit",
+  opacity: isBusy ? 0.34 : 1,
+  filter: isBusy ? "blur(0.8px)" : "none",
+  pointerEvents: isBusy ? "none" : "auto",
+});
+
+const busyOverlayStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
+  position: "absolute",
+  inset: 0,
+  zIndex: 6,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "8px",
+  borderRadius: `${profile.scale.cornerRadius}px`,
+  background: themeMode === "light" ? "rgba(255, 255, 255, 0.64)" : "rgba(0, 0, 0, 0.24)",
+  color: desktopTheme.textPrimary(themeMode),
+  fontSize: `${profile.scale.metaSize}px`,
+  fontWeight: 600,
+});
+
+const busySpinnerStyle = (themeAccent: DesktopAccentColor, themeMode: DesktopThemeMode): CSSProperties => ({
+  width: "14px",
+  height: "14px",
+  borderRadius: "999px",
+  border: `2px solid ${desktopTheme.cardBorder(themeMode)}`,
+  borderTopColor: desktopTheme.brand(themeAccent, themeMode),
 });
 
 const headerStyle: CSSProperties = {
@@ -454,36 +840,122 @@ const headerCopyStyle: CSSProperties = {
 const headerActionStyle: CSSProperties = {
   display: "flex",
   alignItems: "flex-start",
+  position: "relative",
 };
 
-const titleButtonStyle = (themeAccent: DesktopAccentColor, themeMode: DesktopThemeMode): CSSProperties => ({
+const actionMenuStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  position: "absolute",
+  right: 0,
+  top: "34px",
+  zIndex: 5,
+  width: "176px",
+  display: "grid",
+  gap: "4px",
+  padding: "6px",
+  borderRadius: "8px",
+  background: desktopTheme.pageBackground(themeMode),
+  boxShadow: `0 12px 30px ${desktopTheme.cardShadow(themeMode)}`,
+});
+
+const actionMenuButtonStyle = (themeMode: DesktopThemeMode, tone: "default" | "danger"): CSSProperties => ({
+  display: "flex",
+  alignItems: "center",
+  gap: "8px",
+  width: "100%",
+  minHeight: "30px",
+  padding: "0 8px",
+  border: "none",
+  borderRadius: "6px",
+  background: "transparent",
+  color: tone === "danger"
+    ? themeMode === "light" ? "#b91c1c" : "#f87171"
+    : desktopTheme.textPrimary(themeMode),
+  fontSize: "12px",
+  fontWeight: 600,
+  textAlign: "left",
+  cursor: "pointer",
+});
+
+const actionMenuIconStyle: CSSProperties = {
+  width: "13px",
+  height: "13px",
+  objectFit: "contain",
+};
+
+const primaryActionButtonStyle = (
+  themeMode: DesktopThemeMode,
+  themeAccent: DesktopAccentColor,
+  plainIcon: boolean,
+  disabled: boolean,
+): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: "6px",
+  minWidth: plainIcon ? "30px" : "auto",
+  width: plainIcon ? "30px" : "auto",
+  height: "30px",
+  padding: plainIcon ? 0 : "0 10px",
+  border: "none",
+  borderRadius: "7px",
+  background: disabled ? desktopTheme.headerControlFill(themeMode) : desktopTheme.brand(themeAccent, themeMode),
+  color: disabled ? desktopTheme.textMuted(themeMode) : "#ffffff",
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.62 : 1,
+});
+
+const primaryActionIconStyle: CSSProperties = {
+  width: "14px",
+  height: "14px",
+  objectFit: "contain",
+};
+
+const visuallyHiddenStyle: CSSProperties = {
+  position: "absolute",
+  width: "1px",
+  height: "1px",
+  padding: 0,
+  margin: "-1px",
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
+
+const titleButtonStyle = (
+  themeAccent: DesktopAccentColor,
+  themeMode: DesktopThemeMode,
+  profile: GroupCardDisplayProfile,
+): CSSProperties => ({
   border: "none",
   background: "transparent",
   padding: 0,
   margin: 0,
   textAlign: "left",
-  fontSize: "21px",
+  fontSize: `${profile.scale.titleSize}px`,
   fontWeight: 400,
   lineHeight: 1.15,
   color: desktopTheme.brand(themeAccent, themeMode),
 });
 
-const subtitleStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+const subtitleStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
   margin: 0,
-  fontSize: "12px",
+  fontSize: `${profile.scale.metaSize}px`,
   color: desktopTheme.textMuted(themeMode),
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
 });
 
-const statsRowStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+const statsRowStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
   display: "flex",
   alignItems: "center",
   gap: "10px",
-  minHeight: "16px",
+  minHeight: `${profile.scale.metaSize + 4}px`,
   color: desktopTheme.textMuted(themeMode),
-  fontSize: "12px",
+  fontSize: `${profile.scale.metaSize}px`,
   flexWrap: "wrap",
 });
 
@@ -535,11 +1007,12 @@ const sectionStyle: CSSProperties = {
   gap: "6px",
 };
 
-const sectionLabelStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+const sectionLabelStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
   margin: 0,
-  fontSize: "12px",
+  fontSize: `${profile.scale.sectionLabelSize}px`,
   fontWeight: 600,
   color: desktopTheme.textPrimary(themeMode),
+  textTransform: "uppercase",
 });
 
 const chipRowStyle: CSSProperties = {
@@ -558,6 +1031,30 @@ const tagPillWrapStyle: CSSProperties = {
   display: "inline-flex",
   alignItems: "center",
   minHeight: "24px",
+};
+
+const tagHoverAddButtonStyle = (
+  themeMode: DesktopThemeMode,
+  accent: DesktopAccentColor,
+  isVisible: boolean,
+): CSSProperties => ({
+  width: isVisible ? "24px" : 0,
+  height: "24px",
+  padding: 0,
+  border: `0.5px solid ${desktopTheme.brand(accent, themeMode)}55`,
+  borderRadius: "8px",
+  background: `${desktopTheme.brand(accent, themeMode)}20`,
+  display: "grid",
+  placeItems: "center",
+  opacity: isVisible ? 1 : 0,
+  overflow: "hidden",
+  cursor: isVisible ? "pointer" : "default",
+  pointerEvents: isVisible ? "auto" : "none",
+});
+
+const tagHoverAddIconStyle: CSSProperties = {
+  width: "9px",
+  height: "9px",
 };
 
 const tagPillStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentColor): CSSProperties => ({
@@ -589,6 +1086,12 @@ const tagInputRowStyle: CSSProperties = {
   gap: "6px",
 };
 
+const tagInputDividerStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  width: "1px",
+  height: "24px",
+  borderLeft: `1px dashed ${desktopTheme.cardBorder(themeMode)}`,
+});
+
 const tagInputStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
   width: "98px",
   height: "24px",
@@ -612,57 +1115,34 @@ const tagAddButtonStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentCol
   cursor: "pointer",
 });
 
-const infoChipStyle = (themeMode: DesktopThemeMode, accent?: DesktopAccentColor): CSSProperties => ({
+const infoChipStyle = (
+  themeMode: DesktopThemeMode,
+  profile: GroupCardDisplayProfile,
+  accent?: DesktopAccentColor,
+): CSSProperties => ({
   display: "inline-flex",
   alignItems: "center",
-  minHeight: "34px",
+  minHeight: `${profile.scale.chipHeight}px`,
   padding: "0 12px",
-  borderRadius: "999px",
+  borderRadius: `${Math.max(6, profile.scale.cornerRadius - 2)}px`,
   background: accent ? `${desktopTheme.brand(accent, themeMode)}20` : themeMode === "light" ? "rgba(241, 245, 249, 0.95)" : "rgba(255, 255, 255, 0.08)",
   border: `1px solid ${accent ? `${desktopTheme.brand(accent, themeMode)}55` : themeMode === "light" ? "rgba(203, 213, 225, 0.9)" : "rgba(255, 255, 255, 0.12)"}`,
   color: accent ? desktopTheme.brand(accent, themeMode) : desktopTheme.textPrimary(themeMode),
-  fontSize: "12px",
+  fontSize: `${profile.scale.chipFontSize}px`,
   fontWeight: 600,
 });
 
 const toggleChipStyle = (
   themeMode: DesktopThemeMode,
   accent: DesktopAccentColor,
+  profile: GroupCardDisplayProfile,
   selected: boolean,
   partial: boolean,
 ): CSSProperties => ({
-  ...infoChipStyle(themeMode, selected || partial ? accent : undefined),
+  ...infoChipStyle(themeMode, profile, selected || partial ? accent : undefined),
   border: "none",
   cursor: "pointer",
   opacity: selected ? 1 : partial ? 0.88 : 0.58,
-});
-
-const footerStyle: CSSProperties = {
-  display: "flex",
-  gap: "8px",
-  marginTop: "auto",
-};
-
-const updateButtonStyle = (themeAccent: DesktopAccentColor, themeMode: DesktopThemeMode): CSSProperties => ({
-  height: "34px",
-  padding: "0 12px",
-  borderRadius: "999px",
-  border: "none",
-  background: desktopTheme.brand(themeAccent, themeMode),
-  color: themeMode === "light" ? "#ffffff" : "#111827",
-  fontSize: "12px",
-  fontWeight: 700,
-});
-
-const secondaryButtonStyle = (active: boolean, themeMode: DesktopThemeMode): CSSProperties => ({
-  height: "34px",
-  padding: "0 12px",
-  borderRadius: "999px",
-  border: `1px solid ${active ? "rgba(13, 148, 136, 0.26)" : "rgba(148, 163, 184, 0.22)"}`,
-  background: active ? "rgba(204, 251, 241, 0.88)" : themeMode === "light" ? "rgba(255, 255, 255, 0.9)" : "rgba(255, 255, 255, 0.08)",
-  color: desktopTheme.textPrimary(themeMode),
-  fontSize: "12px",
-  fontWeight: 600,
 });
 
 function formatCount(value: number): string {

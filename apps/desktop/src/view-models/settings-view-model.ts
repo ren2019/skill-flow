@@ -1,4 +1,5 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
+import { desktopRoute } from "../navigation/desktop-route";
 import { createSettingsState } from "../store/settings-state";
 import type { AgentDisplayPreference, CustomAgentDefinition } from "../store/settings-state";
 import { DesktopUpdateChecker } from "../runtime/update-checker";
@@ -8,6 +9,7 @@ import {
   normalizeAgentDisplayPreferences,
   type AgentDisplayRow,
 } from "../runtime/settings-store";
+import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 
 type DesktopMaintenance = {
   clearMetadataCache(): Promise<void> | void;
@@ -108,8 +110,8 @@ export class SettingsViewModel {
       .sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: "base" }));
   }
 
-  get themeMode(): string {
-    return this.state.settings.themeModeRawValue;
+  get themeMode(): DesktopThemeMode {
+    return this.state.settings.themeModeRawValue as DesktopThemeMode;
   }
 
   set themeMode(value: string) {
@@ -117,8 +119,8 @@ export class SettingsViewModel {
     this.persistSettings();
   }
 
-  get themeAccent(): string {
-    return this.state.settings.themeAccentRawValue;
+  get themeAccent(): DesktopAccentColor {
+    return this.state.settings.themeAccentRawValue as DesktopAccentColor;
   }
 
   set themeAccent(value: string) {
@@ -160,6 +162,11 @@ export class SettingsViewModel {
   set menuCardDensity(value: string) {
     this.state.settings.menuCardDensityRawValue = value;
     this.persistSettings();
+  }
+
+  showHome(): void {
+    this.state.view.currentRoute = desktopRoute.home();
+    this.onChange();
   }
 
   get currentVersion(): string {

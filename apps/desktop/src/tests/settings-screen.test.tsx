@@ -33,6 +33,8 @@ describe("settings screen", () => {
 
     expect(markup).toContain("Settings");
     expect(markup).toContain("data-view=\"settings-page\"");
+    expect(markup).toContain("data-view=\"desktop-route-title\"");
+    expect(markup).toContain("data-action-icon=\"back\"");
     expect(markup).toContain("data-view=\"settings-control-row\"");
     expect(markup).toContain("data-view=\"settings-agent-row\"");
     expect(markup).toContain("Appearance");
@@ -65,6 +67,35 @@ describe("settings screen", () => {
     expect(markup).toContain("Clear Cache");
     expect(markup).toContain("Reset Configuration");
     expect(markup).toContain("data-view=\"settings-action-row\"");
+  });
+
+  it("routes the settings top bar back button home", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "settings" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-action-icon": "back" }).props.onClick();
+    });
+
+    expect(state.view.currentRoute).toEqual({ kind: "home" });
   });
 
   it("wires agent visibility controls through the settings view model", async () => {

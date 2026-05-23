@@ -158,6 +158,11 @@ export class DetailViewModel {
     this.onChange();
   }
 
+  showHome(): void {
+    this.state.view.currentRoute = desktopRoute.home();
+    this.onChange();
+  }
+
   hydrateInspect(sourceId: string, detail: DetailRecord): void {
     this.state.detailState.detailsBySourceId[sourceId] = detail;
     seedDetailUiSelectionState(this.state, sourceId, detail);

@@ -1,4 +1,5 @@
-import { startTransition, type CSSProperties } from "react";
+import { startTransition, useState, type CSSProperties } from "react";
+import { DesktopTopBar } from "../components/desktop-top-bar";
 import { DetailHeader } from "../components/detail-header";
 import { DetailSidebar } from "../components/detail-sidebar";
 import { GroupTagSection } from "../components/shared-group-card";
@@ -15,12 +16,15 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const sourceId = viewModel.sourceId;
   const detail = viewModel.detail;
+  const [isEditingTags, setIsEditingTags] = useState(false);
 
   if (!sourceId) {
     return (
       <main style={pageStyle}>
-        <h1>{t("page.detail.title")}</h1>
-        <p>{t("page.detail.empty")}</p>
+        <DetailTopBar viewModel={viewModel} title={t("page.detail.title")} />
+        <section style={emptyStateStyle}>
+          <p>{t("page.detail.empty")}</p>
+        </section>
       </main>
     );
   }
@@ -28,8 +32,10 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
   if (!detail) {
     return (
       <main style={pageStyle}>
-        <h1>{t("page.detail.title")}</h1>
-        <p>{t("page.detail.loading")}</p>
+        <DetailTopBar viewModel={viewModel} title={t("page.detail.title")} />
+        <section style={emptyStateStyle}>
+          <p>{t("page.detail.loading")}</p>
+        </section>
       </main>
     );
   }
@@ -44,6 +50,7 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
 
   return (
     <main style={pageStyle}>
+      <DetailTopBar viewModel={viewModel} title={detail.title || t("page.detail.title")} />
       {viewModel.toastMessage ? (
         <div role="status" style={toastStyle}>
           {viewModel.toastMessage}
@@ -85,14 +92,19 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
                     sourceId={sourceId}
                     items={viewModel.groupTagItems(sourceId)}
                     suggestions={viewModel.groupTagSuggestions(sourceId)}
-                    canCreate={viewModel.canCreateGroupTag(sourceId)}
+                    canCreate={viewModel.canCreateGroupTag(sourceId) && isEditingTags}
+                    canStartEditing={viewModel.canCreateGroupTag(sourceId) && !isEditingTags}
                     canDelete={viewModel.canDeleteGroupTags(sourceId)}
                     themeMode={viewModel.themeMode}
                     themeAccent={viewModel.themeAccent}
                     addLabel={t("group_tag.action.add")}
                     placeholder={t("group_tag.input.placeholder")}
+                    onStartEditing={() => {
+                      setIsEditingTags(true);
+                    }}
                     onCreate={(title, accent) => {
                       viewModel.addCustomTag(sourceId, title, accent);
+                      setIsEditingTags(false);
                     }}
                     onDelete={(tagId) => {
                       viewModel.removeCustomTag(sourceId, tagId);
@@ -168,6 +180,26 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
   );
 }
 
+function DetailTopBar({ viewModel, title }: { viewModel: DetailViewModel; title: string }) {
+  return (
+    <DesktopTopBar
+      routeKind="detail"
+      desktopLanguage={viewModel.desktopLanguage}
+      themeMode={viewModel.themeMode}
+      themeAccent={viewModel.themeAccent}
+      title={title}
+      searchValue=""
+      onSearchChange={() => undefined}
+      onBack={() => {
+        viewModel.showHome();
+      }}
+      onImport={() => undefined}
+      onUpdate={() => undefined}
+      onSettings={() => undefined}
+    />
+  );
+}
+
 function FileTree({
   items,
   viewModel,
@@ -202,16 +234,20 @@ function FileTree({
 
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
-  padding: "20px",
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
+  padding: 0,
+  background: "#f2f2f2",
 };
 
 const toastStyle: CSSProperties = {
-  marginBottom: "14px",
+  margin: "14px 20px 0",
   padding: "12px 14px",
   borderRadius: "14px",
   border: "1px solid rgba(14, 116, 144, 0.18)",
   background: "rgba(240, 249, 255, 0.96)",
+};
+
+const emptyStateStyle: CSSProperties = {
+  padding: "20px",
 };
 
 const layoutStyle: CSSProperties = {
@@ -219,6 +255,7 @@ const layoutStyle: CSSProperties = {
   gridTemplateColumns: "280px minmax(0, 1fr)",
   gap: "14px",
   alignItems: "start",
+  padding: "20px",
 };
 
 const mainShellStyle: CSSProperties = {

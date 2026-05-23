@@ -52,6 +52,38 @@ describe("import screen", () => {
     expect(restoredInput.props.placeholder).toBe("search packages, authors, repos");
   });
 
+  it("renders the route top bar and routes the back button home", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "importPage" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "desktop-route-title" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-view": "import-search-shell" })).toHaveLength(1);
+    await act(async () => {
+      renderer!.root.findByProps({ "data-action-icon": "back" }).props.onClick();
+    });
+
+    expect(state.view.currentRoute).toEqual({ kind: "home" });
+  });
+
+
   it("renders recommendation rails when no query is submitted", () => {
     const state = createDesktopAppState({
       importState: {
@@ -368,6 +400,7 @@ describe("import screen", () => {
     expect(markup).toContain("Search Results");
     expect(markup).toContain("openai");
     expect(markup).toContain("Loading");
+    expect(markup).toContain("data-view=\"import-search-loading\"");
     expect(markup).toContain("search");
     expect(markup).not.toContain("recommended");
   });

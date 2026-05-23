@@ -11,7 +11,7 @@
 ## 分支基线
 
 - 当前分支：`feat-cross-platform`
-- 当前提交：`aaf1296`，另有本轮未提交的 Home / Detail 分组标签、菜单快速配置与 Settings 自定义 Agent 改动
+- 当前提交：`0fbbc46`，另有本轮未提交的 SharedGroupCard display mode 对齐改动
 - 远端分支：`origin/feat-cross-platform`，已与本地当前提交一致
 - 对比基线：`origin/main` at `1b43c33`
 - 分支差异：`94` 个提交，`147` 个新增文件，`12` 个修改文件
@@ -84,6 +84,12 @@
 - 已补齐 Settings Agent 排序入口，显式上移 / 下移和拖拽手柄都接入 `SettingsViewModel.moveAgents`。
 - 已对齐菜单快速配置卡片的默认技能折叠行为，hover 到卡片后展开技能切换控件；Home 卡片仍保持完整展示。
 - 已继续对齐菜单快速配置与 mac 端尺寸 / 交互：弹窗高度收敛到 `440px`，技能展开采用 `500ms` hover 延迟。
+- 已开始补齐 `GroupCardDisplayMode` 对齐：Home / Menu 按卡片密度传入 display mode，卡片按 mode 控制 meta 行、section 标题、header / summary divider、最小高度，以及菜单折叠状态下的技能区渲染。
+- 已将 Home / Menu 的 `SharedGroupCard` 主要操作从底部按钮迁移到右上角 action menu，对齐 mac 端 `more/pin` 菜单交互；分组标签编辑与删除模式也改为从该菜单进入。
+- 已补齐 Home / Menu source 级更新中状态：`HomeViewModel` 记录正在更新的 source，卡片显示 busy overlay 并在更新期间禁用卡片内容交互，贴近 mac 端卡片 busy 状态。
+- 已进一步对齐 mac 端 `EditableGroupTagSection`：标签区支持空标签 / hover 标签时显示 inline plus 进入编辑，编辑态显示输入框和建议，创建后退出编辑；Detail 页标签编辑也复用同一交互。
+- 已开始对齐 mac 端全局顶栏结构：Import 页搜索迁入共享 `DesktopTopBar`，非 Home 顶栏显示返回按钮和页面标题，Import 页面内部 header 去除并收敛背景。
+- 已将 Detail / Settings 也接入共享 `DesktopTopBar`，非 Home 页面统一显示返回按钮和页面标题，返回操作回到 Home。
 
 ### 当前未完成 / 风险
 
@@ -105,10 +111,14 @@ npm run desktop:test:cross-platform
 - `npx tsc -p apps/desktop/tsconfig.json --noEmit`：通过。
 - `npm run -w @skill-flow/desktop build:renderer`：通过。
 - `npm run -w @skill-flow/desktop test`：通过。
-- 最新测试汇总：`31` 个测试文件通过；`182` 个测试通过。
+- 最新测试汇总：`31` 个测试文件通过；`190` 个测试通过。
 - Vitest `--localstorage-file was provided without a valid path` warning 已清理。
 - 本轮补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/group-tag-store.test.ts src/tests/localization.test.tsx` 通过，`6` 个测试文件、`74` 个测试通过。
 - 菜单快速配置补充验证：`npm run -w @skill-flow/desktop test -- src/tests/menu-quick-config-screen.test.tsx src/tests/home-screen.test.tsx src/tests/tray.test.ts` 通过，`3` 个测试文件、`18` 个测试通过；此前 `src/tests/menu-quick-config-screen.test.tsx src/tests/tray.test.ts src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx` 通过，`6` 个测试文件、`75` 个测试通过。
+- SharedGroupCard display mode / action menu / busy overlay 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-screen.test.tsx src/tests/menu-quick-config-screen.test.tsx src/tests/home-view-model.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`58` 个测试通过。
+- 标签编辑交互补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-screen.test.tsx src/tests/detail-screen.test.tsx src/tests/home-view-model.test.ts src/tests/menu-quick-config-screen.test.tsx src/tests/localization.test.tsx` 通过，`5` 个测试文件、`67` 个测试通过。
+- Import 顶栏补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/home-screen.test.tsx src/tests/localization.test.tsx` 通过，`4` 个测试文件、`45` 个测试通过。
+- Detail / Settings 顶栏补充验证：`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`5` 个测试文件、`48` 个测试通过。
 - Settings 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`25` 个测试通过。
 - Tauri Rust 验证：`cargo test` 在 `apps/desktop/src-tauri` 通过，`4` 个单元测试通过。
 

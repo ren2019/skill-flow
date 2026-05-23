@@ -4,6 +4,7 @@ import { SharedGroupCard } from "../components/shared-group-card";
 import { localize } from "../i18n";
 import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
+import type { GroupCardDisplayMode } from "../components/shared-group-card";
 
 type HomeMainViewProps = {
   viewModel: HomeViewModel;
@@ -12,6 +13,7 @@ type HomeMainViewProps = {
 export function HomeMainView({ viewModel }: HomeMainViewProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const visibleCards = viewModel.inventoryCards;
+  const cardDisplayMode = homeGroupCardDisplayMode(viewModel.homeCardDensity);
 
   return (
     <main data-view="home-page" style={pageStyle}>
@@ -158,6 +160,8 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                   themeMode={viewModel.themeMode}
                   themeAccent={viewModel.themeAccent}
                   pinned={viewModel.isPinned(card.sourceId)}
+                  displayMode={cardDisplayMode}
+                  isUpdating={viewModel.isUpdatingSource(card.sourceId)}
                   onOpen={() => {
                     viewModel.openDetail(card.sourceId);
                   }}
@@ -202,10 +206,16 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                     pin: t("action.pin"),
                     unpin: t("action.unpin"),
                     pinned: t("state.pinned"),
+                    import: t("action.import"),
+                    updating: t("group_card.loading.updating"),
                     agents: t("common.section.agents"),
                     skills: t("common.section.skills"),
                     tags: t("common.section.tags"),
                     addTag: t("group_tag.action.add"),
+                    editTags: t("group_card.action.edit_tags"),
+                    cancelEditTags: t("group_card.action.cancel_edit_tags"),
+                    deleteTags: t("group_card.action.delete_tags"),
+                    doneDeleteTags: t("group_card.action.done_delete_tags"),
                     tagPlaceholder: t("group_tag.input.placeholder"),
                     activeTargets: (count) => `${count} active targets`,
                     enabledSkills: (enabledCount, totalCount) => `${enabledCount} / ${totalCount} skills`,
@@ -218,6 +228,10 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
       </section>
     </main>
   );
+}
+
+function homeGroupCardDisplayMode(density: string): GroupCardDisplayMode {
+  return density === "compact" ? "homeCompact" : "homeComfortable";
 }
 
 function stateTransition(action: () => Promise<unknown> | unknown) {

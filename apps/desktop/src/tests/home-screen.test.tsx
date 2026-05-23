@@ -91,7 +91,7 @@ describe("home screen", () => {
     expect(markup).toContain("data-group-card-stat=\"star\"");
     expect(markup).toContain("data-group-card-stat=\"github\"");
     expect(markup).toContain("data-group-card-stat=\"local-file\"");
-    expect(markup).toContain("data-delete-source-id=\"alpha\"");
+    expect(markup).toContain("data-testid=\"group-card-action-menu-alpha\"");
     expect(markup).toContain("data-skill-toggle-id=\"alpha:alpha:browse\"");
     expect(markup).toContain("data-target-toggle-id=\"alpha:codex\"");
     expect(markup).toContain("Alpha Starter");
@@ -127,6 +127,50 @@ describe("home screen", () => {
 
     expect(markup).toContain("data-action-icon=\"project\"");
     expect(markup).not.toContain("Current route");
+  });
+
+  it("applies compact home card density like the mac desktop card mode", () => {
+    const state = createDesktopAppState({
+      settings: {
+        homeCardDensityRawValue: "compact",
+      },
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 1,
+            byline: "by obra",
+            skills: [
+              { id: "browse", title: "Browse", isEnabled: true },
+            ],
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+            ],
+            skillSelection: "partial",
+            targetSelection: "full",
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-card-display-mode=\"homeCompact\"");
+    expect(markup).not.toContain("data-view=\"shared-group-card-stats\"");
+    expect(markup).not.toContain("data-view=\"shared-group-card-header-divider\"");
+    expect(markup).toContain("data-view=\"shared-group-card-agents\"");
+    expect(markup).toContain("data-view=\"shared-group-card-skills\"");
+    expect(markup).toContain("data-skill-toggle-id=\"alpha:browse\"");
   });
 
   it("renders the home tag filter bar and filters visible cards", async () => {
@@ -249,6 +293,12 @@ describe("home screen", () => {
     expect(state.workspace.selectedHomeTagFilterId).toBe("official");
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(0);
 
+    await act(async () => {
+      renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-edit-tags-source-id": "alpha" }).props.onClick();
+    });
     const input = renderer!.root.findByProps({ "data-group-tag-input-source-id": "alpha" });
     await act(async () => {
       input.props.onChange({ currentTarget: { value: "Review" } });
@@ -262,12 +312,79 @@ describe("home screen", () => {
     ]);
 
     await act(async () => {
+      renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-delete-tags-source-id": "alpha" }).props.onClick();
+    });
+    await act(async () => {
       renderer!.root.findByProps({ "data-delete-group-tag-id": "alpha:official" }).props.onClick();
     });
     expect(state.workspace.customTagsBySourceId.alpha).toEqual([
       expect.objectContaining({ id: "custom:review" }),
     ]);
     expect(state.workspace.selectedHomeTagFilterId).toBeUndefined();
+  });
+
+  it("opens card tag editing from the inline hover add control", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-start-edit-group-tags-source-id": "alpha" })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-group-tag-input-source-id": "alpha" })).toHaveLength(0);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-start-edit-group-tags-source-id": "alpha" }).props.onClick();
+    });
+    expect(renderer!.root.findAllByProps({ "data-group-tag-input-source-id": "alpha" })).toHaveLength(1);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-tag-input-source-id": "alpha" }).props.onChange({
+        currentTarget: { value: "Review" },
+      });
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-add-group-tag-source-id": "alpha" }).props.onClick();
+    });
+
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "custom:review", title: "Review" }),
+    ]);
+    expect(renderer!.root.findAllByProps({ "data-group-tag-input-source-id": "alpha" })).toHaveLength(0);
   });
 
   it("renders a loading state while bootstrap is in flight", () => {
@@ -351,7 +468,6 @@ describe("home screen", () => {
       renderer = create(<Harness />);
     });
 
-    const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
     const scopeToggleButton = renderer!.root.findByProps({ "data-testid": "home-scope-toggle" });
 
     await act(async () => {
@@ -360,6 +476,11 @@ describe("home screen", () => {
 
     const projectButton = renderer!.root.findByProps({ "data-project-scope": "global" });
     const recentProjectButton = renderer!.root.findByProps({ "data-project-scope": "project:repo-a" });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
+    });
+    const pinButton = renderer!.root.findByProps({ "data-pin-source-id": "alpha" });
 
     await act(async () => {
       pinButton.props.onClick();
@@ -394,6 +515,9 @@ describe("home screen", () => {
       renderer = create(<Harness />);
     });
 
+    await act(async () => {
+      renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
+    });
     const deleteButton = renderer!.root.findByProps({ "data-delete-source-id": "alpha" });
 
     await act(async () => {
@@ -405,6 +529,70 @@ describe("home screen", () => {
     expect(state.workspace.pinnedSourceIds).toEqual([]);
     expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(0);
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(1);
+  });
+
+  it("shows a busy overlay while a card update is running", async () => {
+    let finishUpdate!: () => void;
+    let updatePromise!: Promise<void>;
+    const updateGroup = vi.fn(() => {
+      updatePromise = new Promise<void>((resolve) => {
+        finishUpdate = resolve;
+      });
+      return updatePromise;
+    });
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          updateGroup,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-update-source-id": "alpha" }).props.onClick();
+      await Promise.resolve();
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "shared-group-card-busy-overlay" })).toHaveLength(1);
+
+    await act(async () => {
+      finishUpdate();
+      await updatePromise;
+    });
+    expect(renderer!.root.findAllByProps({ "data-view": "shared-group-card-busy-overlay" })).toHaveLength(0);
   });
 
   it("wires home card skill and target toggles", async () => {

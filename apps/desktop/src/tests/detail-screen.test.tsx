@@ -75,6 +75,8 @@ describe("detail screen", () => {
     );
 
     expect(markup).toContain("data-view=\"detail-sidebar\"");
+    expect(markup).toContain("data-view=\"desktop-route-title\"");
+    expect(markup).toContain("data-action-icon=\"back\"");
     expect(markup).toContain("data-view=\"detail-document-tabs\"");
     expect(markup).toContain("data-view=\"detail-fact-rail\"");
     expect(markup).toContain("Overview");
@@ -83,6 +85,53 @@ describe("detail screen", () => {
     expect(markup).toContain("README");
     expect(markup).toContain("Claude Code");
     expect(markup).toContain("skill-a");
+  });
+
+  it("routes the detail top bar back button home", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new DetailViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <DetailScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-action-icon": "back" }).props.onClick();
+    });
+
+    expect(state.view.currentRoute).toEqual({ kind: "home" });
   });
 
   it("renders and wires the detail tag rail", async () => {
@@ -142,6 +191,9 @@ describe("detail screen", () => {
     });
 
     expect(renderer!.root.findAllByProps({ "data-view": "detail-tag-rail" })).toHaveLength(1);
+    await act(async () => {
+      renderer!.root.findByProps({ "data-start-edit-group-tags-source-id": "alpha" }).props.onClick();
+    });
     const input = renderer!.root.findByProps({ "data-group-tag-input-source-id": "alpha" });
     await act(async () => {
       input.props.onChange({ currentTarget: { value: "Review" } });

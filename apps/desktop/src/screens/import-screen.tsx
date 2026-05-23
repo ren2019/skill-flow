@@ -1,4 +1,5 @@
 import { startTransition, useEffect, type CSSProperties } from "react";
+import { DesktopTopBar } from "../components/desktop-top-bar";
 import { EmptyState } from "../components/empty-state";
 import { GroupCard } from "../components/group-card";
 import { GroupTags } from "../components/group-tags";
@@ -36,24 +37,43 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
   const hasDisplayedGroups = content.kind === "recommended"
     ? content.sections.some((section) => section.groups.length > 0)
     : content.groups.length > 0;
+  const topBar = (
+    <DesktopTopBar
+      routeKind="importPage"
+      desktopLanguage={viewModel.desktopLanguage}
+      themeMode={viewModel.themeMode}
+      themeAccent={viewModel.themeAccent}
+      title={t("page.import.title")}
+      searchValue=""
+      importSearch={{
+        value: viewModel.importSearchText,
+        placeholder: viewModel.importPlaceholderText,
+        phaseKind: viewModel.searchPhase.kind,
+        resultCount: content.kind === "searchResults" ? content.groups.length : 0,
+        submittedQuery: viewModel.importSubmittedQuery,
+        onChange: (query) => {
+          viewModel.setSearchText(query);
+        },
+        onSubmit: () => {
+          startTransition(() => {
+            void viewModel.submitSearch(viewModel.importSearchText);
+          });
+        },
+      }}
+      onSearchChange={() => undefined}
+      onBack={() => {
+        viewModel.showHome();
+      }}
+      onImport={() => undefined}
+      onUpdate={() => undefined}
+      onSettings={() => undefined}
+    />
+  );
 
   if (content.kind === "searchResults" && !hasDisplayedGroups && viewModel.searchPhase.kind === "failed") {
     return (
       <main data-view="import-page" style={pageStyle}>
-        <ImportSearchHeader
-          query={viewModel.importSearchText}
-          placeholder={viewModel.importPlaceholderText}
-          onQueryChange={(query) => {
-            viewModel.setSearchText(query);
-          }}
-          onSearch={() => {
-            startTransition(() => {
-              void viewModel.submitSearch(viewModel.importSearchText);
-            });
-          }}
-          title={t("page.import.title")}
-          actionTitle={t("action.search")}
-        />
+        {topBar}
         <section data-view="import-centered-state" style={centeredStateStyle}>
           <EmptyState
             title={t("page.import.empty_title")}
@@ -66,24 +86,10 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
 
   return (
     <main data-view="import-page" style={pageStyle}>
-      <ImportSearchHeader
-        query={viewModel.importSearchText}
-        placeholder={viewModel.importPlaceholderText}
-        onQueryChange={(query) => {
-          viewModel.setSearchText(query);
-        }}
-        onSearch={() => {
-          startTransition(() => {
-            void viewModel.submitSearch(viewModel.importSearchText);
-          });
-        }}
-        title={t("page.import.title")}
-        actionTitle={t("action.search")}
-      />
+      {topBar}
       {content.kind === "recommended" ? (
         <section data-view="recommendation-rails" style={contentColumnStyle}>
           <section style={introPanelStyle}>
-            <p style={eyebrowStyle}>{t("route.importPage")}</p>
             <h2 style={sectionTitleStyle}>{t("page.import.recommended")}</h2>
           </section>
           {content.sections.map((section) => (
@@ -104,7 +110,6 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
       ) : (
         <section data-view="import-search-results" style={contentColumnStyle}>
           <section style={introPanelStyle}>
-            <p style={eyebrowStyle}>{t("route.importPage")}</p>
             <h2 style={sectionTitleStyle}>{t("page.import.search_results")}</h2>
             <p style={metaTextStyle}>{viewModel.importSubmittedQuery}</p>
             <p style={metaTextStyle}>{localizePhaseKind(viewModel.searchPhase.kind, viewModel.desktopLanguage)}</p>
@@ -199,74 +204,20 @@ function renderImportGroupCard(
   );
 }
 
-type ImportSearchHeaderProps = {
-  query: string;
-  placeholder: string;
-  onQueryChange: (query: string) => void;
-  onSearch: () => void;
-  title: string;
-  actionTitle: string;
-};
-
-function ImportSearchHeader({
-  query,
-  placeholder,
-  onQueryChange,
-  onSearch,
-  title,
-  actionTitle,
-}: ImportSearchHeaderProps) {
-  return (
-    <section style={headerStyle}>
-      <div style={{ display: "grid", gap: "6px" }}>
-        <p style={eyebrowStyle}>Import</p>
-        <h1 style={headingStyle}>{title}</h1>
-      </div>
-      <form style={searchBarStyle}>
-        <input
-          data-testid="import-search-input"
-          type="text"
-          value={query}
-          placeholder={placeholder}
-          onChange={(event) => {
-            onQueryChange(event.target.value);
-          }}
-          style={searchInputStyle}
-        />
-        <button
-          data-testid="import-search-submit"
-          type="button"
-          onClick={onSearch}
-          style={primaryButtonStyle(false)}
-        >
-          {actionTitle}
-        </button>
-      </form>
-    </section>
-  );
-}
-
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   display: "flex",
   flexDirection: "column",
   gap: "18px",
-  padding: "20px",
-  background: "linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)",
-};
-
-const headerStyle: CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  gap: "16px",
-  alignItems: "flex-end",
-  flexWrap: "wrap",
+  padding: 0,
+  background: "#f2f2f2",
 };
 
 const contentColumnStyle: CSSProperties = {
   display: "flex",
   flexDirection: "column",
   gap: "18px",
+  padding: "0 20px 20px",
 };
 
 const introPanelStyle: CSSProperties = {
@@ -277,22 +228,6 @@ const introPanelStyle: CSSProperties = {
   background: "rgba(255, 255, 255, 0.84)",
   border: "1px solid rgba(148, 163, 184, 0.2)",
   boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-};
-
-const eyebrowStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "11px",
-  fontWeight: 700,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "#475569",
-};
-
-const headingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "28px",
-  fontWeight: 700,
-  color: "#0f172a",
 };
 
 const sectionTitleStyle: CSSProperties = {
@@ -308,29 +243,12 @@ const metaTextStyle: CSSProperties = {
   color: "#475569",
 };
 
-const searchBarStyle: CSSProperties = {
-  display: "flex",
-  gap: "10px",
-  alignItems: "center",
-  minWidth: "320px",
-  flexWrap: "wrap",
-};
-
-const searchInputStyle: CSSProperties = {
-  minWidth: "280px",
-  flex: 1,
-  height: "40px",
-  padding: "0 14px",
-  borderRadius: "12px",
-  border: "1px solid rgba(148, 163, 184, 0.24)",
-  background: "rgba(255, 255, 255, 0.9)",
-};
-
 const centeredStateStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
   minHeight: "420px",
+  padding: "0 20px 20px",
 };
 
 const railTitleStyle: CSSProperties = {

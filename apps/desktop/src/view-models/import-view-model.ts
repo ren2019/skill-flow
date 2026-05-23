@@ -9,6 +9,7 @@ import type {
 } from "../store/import-state";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
+import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 import {
   createPassthroughMutationCoordinator,
   type MutationCoordinator,
@@ -130,6 +131,19 @@ export class ImportViewModel {
 
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
+  }
+
+  get themeMode(): DesktopThemeMode {
+    return this.state.settings.themeModeRawValue as DesktopThemeMode;
+  }
+
+  get themeAccent(): DesktopAccentColor {
+    return this.state.settings.themeAccentRawValue as DesktopAccentColor;
+  }
+
+  showHome(): void {
+    this.state.view.currentRoute = { kind: "home" };
+    this.onChange();
   }
 
   get content(): ImportContent {

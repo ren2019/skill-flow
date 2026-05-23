@@ -3,7 +3,7 @@ import { resolveActionIcon } from "../icons/action-icons";
 import { localize } from "../i18n";
 import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
-import { SharedGroupCard } from "../components/shared-group-card";
+import { SharedGroupCard, type GroupCardDisplayMode } from "../components/shared-group-card";
 
 type MenuQuickConfigScreenProps = {
   viewModel: HomeViewModel;
@@ -15,6 +15,7 @@ export function MenuQuickConfigScreen({ viewModel }: MenuQuickConfigScreenProps)
   const hoverExpandTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const cards = viewModel.menuInventoryCards(searchQuery);
+  const cardDisplayMode = menuGroupCardDisplayMode(viewModel.menuCardDensity);
   const clearHoverExpansion = () => {
     if (hoverExpandTimerRef.current) {
       clearTimeout(hoverExpandTimerRef.current);
@@ -80,7 +81,9 @@ export function MenuQuickConfigScreen({ viewModel }: MenuQuickConfigScreenProps)
                 themeMode={viewModel.themeMode}
                 themeAccent={viewModel.themeAccent}
                 pinned={viewModel.isPinned(card.sourceId)}
+                displayMode={cardDisplayMode}
                 skillsCollapsed={expandedSourceId !== card.sourceId}
+                isUpdating={viewModel.isUpdatingSource(card.sourceId)}
                 onOpen={() => undefined}
                 onUpdate={() => {
                   stateTransition(() => viewModel.updateSource(card.sourceId));
@@ -117,10 +120,16 @@ export function MenuQuickConfigScreen({ viewModel }: MenuQuickConfigScreenProps)
                   pin: t("action.pin"),
                   unpin: t("action.unpin"),
                   pinned: t("state.pinned"),
+                  import: t("action.import"),
+                  updating: t("group_card.loading.updating"),
                   agents: t("common.section.agents"),
                   skills: t("common.section.skills"),
                   tags: t("common.section.tags"),
                   addTag: t("group_tag.action.add"),
+                  editTags: t("group_card.action.edit_tags"),
+                  cancelEditTags: t("group_card.action.cancel_edit_tags"),
+                  deleteTags: t("group_card.action.delete_tags"),
+                  doneDeleteTags: t("group_card.action.done_delete_tags"),
                   tagPlaceholder: t("group_tag.input.placeholder"),
                   activeTargets: (count) => `${count} active targets`,
                   enabledSkills: (enabledCount, totalCount) => `${enabledCount} / ${totalCount} skills`,
@@ -159,6 +168,10 @@ export function MenuQuickConfigScreen({ viewModel }: MenuQuickConfigScreenProps)
       </section>
     </main>
   );
+}
+
+function menuGroupCardDisplayMode(density: string): GroupCardDisplayMode {
+  return density === "comfortable" ? "menuComfortable" : "menuCompact";
 }
 
 function stateTransition(action: () => Promise<unknown> | unknown) {

@@ -141,6 +141,44 @@ describe("home view model", () => {
     expect(viewModel.toastMessage).toBe("Updated 1 group.");
   });
 
+  it("tracks source-level update state while an update is running", async () => {
+    let finishUpdate!: () => void;
+    const updateGroup = vi.fn(() => new Promise<void>((resolve) => {
+      finishUpdate = resolve;
+    }));
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha"] },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroup });
+
+    const updatePromise = viewModel.updateSource("alpha");
+
+    expect(viewModel.isUpdatingSource("alpha")).toBe(true);
+    finishUpdate();
+    await updatePromise;
+    expect(viewModel.isUpdatingSource("alpha")).toBe(false);
+  });
+
+  it("tracks every source while a bulk home update is running", async () => {
+    let finishUpdate!: () => void;
+    const updateGroups = vi.fn(() => new Promise<void>((resolve) => {
+      finishUpdate = resolve;
+    }));
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha", "beta"] },
+    });
+    const viewModel = new HomeViewModel(state, { updateGroups });
+
+    const updatePromise = viewModel.updateAllGroupsFromHome();
+
+    expect(viewModel.isUpdatingSource("alpha")).toBe(true);
+    expect(viewModel.isUpdatingSource("beta")).toBe(true);
+    finishUpdate();
+    await updatePromise;
+    expect(viewModel.isUpdatingSource("alpha")).toBe(false);
+    expect(viewModel.isUpdatingSource("beta")).toBe(false);
+  });
+
   it("uses the persisted pin list returned by the runtime", async () => {
     const togglePinnedSource = vi.fn().mockResolvedValue(["beta", "alpha"]);
     const state = createDesktopAppState({
