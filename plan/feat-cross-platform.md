@@ -6,12 +6,12 @@
 
 `feat-cross-platform` 的目标是把 Skill Flow 的桌面端从 macOS 专用实现扩展为跨平台桌面实现。当前实现以 Tauri 2 + React/Vite 为新的跨平台桌面壳，复用现有 CLI / core engine / integration 能力，并补齐 macOS、Linux、Windows 的测试与发布路径。
 
-当前分支已经完成主要功能迁移和发布链路搭建。最新本地验证显示跨平台桌面 renderer build、TypeScript 检查和桌面测试均已通过。后续重点从“能跑通”转为继续对齐 `main` 分支 mac 桌面端的功能、UI、逻辑细节。
+当前分支已经完成主要功能迁移和发布链路搭建。最新本地验证显示跨平台桌面 renderer build、TypeScript 检查、桌面测试、CLI bridge build / test 和 Tauri Rust 测试均已通过。后续重点从“能跑通”转为继续对齐 `main` 分支 mac 桌面端的功能、UI、逻辑细节。
 
 ## 分支基线
 
 - 当前分支：`feat-cross-platform`
-- 当前提交：`1ef9808`，另有本轮未提交的 Import 共享卡片对齐改动
+- 本轮提交前基线：`7b43a36`
 - 远端分支：`origin/feat-cross-platform`，已与本地当前提交一致
 - 对比基线：`origin/main` at `1b43c33`
 - 分支差异：`94` 个提交，`147` 个新增文件，`12` 个修改文件
@@ -98,6 +98,20 @@
 - 已补齐 Import preview loading 的技能区 loading pill，占位展示复用共享卡片模型的 `skillsLoading` 状态。
 - 已贯通 Import search bridge 返回的 `canonicalRepo`、`repoUrl`、`starCount`、`totalInstalls`、`skillCount` 到 renderer `ImportGroupState`，Import 卡片可展示 mac 端同类下载、星标和 GitHub meta。
 - 已补齐 Import 预览未返回 targets 时的 mac 端 fallback 逻辑：按设置中的 Agent 显示顺序和可见性过滤当前工作区已检测 targets，卡片渲染、全选和导入 draft 共用同一组有效 targets。
+- 已对齐 Settings Agent Display 的 target 范围：App 通过 `MainViewModel.detectedTargetIdsForSettings` 将当前工作区检测到的 targets 传入 Settings，Settings 只展示对应 agent 行，排序沿用 Agent catalog 顺序。
+- 已对齐 Settings 的 Application Update / Maintenance 区块结构：当前版本、检查更新、打开 Releases、清理缓存、重置配置均使用 mac 端同类设置行标题、描述和短操作按钮；更新状态进入检查更新行描述，检查中显示 loading indicator。
+- 已对齐 Detail 顶栏和组 header 的分工：全局顶栏保持 `Source Detail` 页面标题，详情 header 改为 mac 端同类标题 + byline + stats 行，移除 React 早期的 `Current route` 和 meta card 展示。
+- 已补齐 Detail inspect enrichment 中 `downloadCount`、`repoUrl` 到 `DetailRecord` 的投影，详情 header 可展示 skills / downloads / stars / GitHub / local path stats。
+- 已补齐 Detail agents / skills 的三态全选入口和持久化逻辑，选择汇总、enabled count、toast 回滚路径复用现有 `apply` mutation。
+- 已对齐 Detail 主体结构：移除常驻文件树侧栏和 Source / Deployment Facts 卡片，组概览按 mac 端顺序渲染标签、Agent 开关、文档区。
+- 已将 Detail 文件树改为组文档区的首个 `File Tree` 文档卡片，并让 runtime `groupDocuments` 首项生成 `File Tree` 描述符，README 等内容文档位于后续标签。
+- 已将 Detail 技能开关迁入左侧列表：分组行承载技能三态全选，技能行承载单技能 ON/OFF，主体区域只渲染当前视图的文档内容。
+- 已补齐 bridge inspect 的 Detail 文档投影：CLI bridge 会读取 checkout 根目录 markdown、技能 `SKILL.md`、技能 `references/*.md`，解析基础 frontmatter，生成真实文件树、组文档和技能文档内容；React renderer 优先消费 bridge 返回的文档 / 文件树结构。
+- 已将 Detail `MarkdownDocument` 从原文 `<pre>` 展示改为基础 markdown 渲染，支持标题、段落、列表、代码块，文档卡片圆角同步收敛到 mac 端尺度。
+- 已对齐 Detail 文件树交互：普通目录默认展开且点击可折叠 / 展开，点击技能根目录或技能文档会切换到对应技能并展开其路径，删除 source 时同步清理折叠状态。
+- 已补齐 Detail 文档 metadata 展示：`MarkdownDocument` 渲染 mac 端同类 metadata 表格，bridge frontmatter 解析支持多行 `|` / `>` block 和简单数组 / 列表值，避免把多行 description 显示成 `|`。
+- 已补齐 Detail 组 header 的更新按钮：仅组概览显示，复用 HomeViewModel 的当前 source 更新路径、更新中状态和 toast 汇总逻辑，对齐 mac 端在详情页直接更新当前分组的入口。
+- 已补齐 Detail 组 header 的 GitHub / 本地路径入口：stats 图标可点击打开仓库 URL 或本地目录，renderer 通过 Tauri command 分别接入 macOS `open`、Windows `explorer` / `cmd start`、Linux `xdg-open`。
 
 ### 当前未完成 / 风险
 
@@ -119,7 +133,7 @@ npm run desktop:test:cross-platform
 - `npx tsc -p apps/desktop/tsconfig.json --noEmit`：通过。
 - `npm run -w @skill-flow/desktop build:renderer`：通过。
 - `npm run -w @skill-flow/desktop test`：通过。
-- 最新测试汇总：`31` 个测试文件通过；`193` 个测试通过。
+- 最新测试汇总：`31` 个测试文件通过；`203` 个测试通过。
 - Vitest `--localstorage-file was provided without a valid path` warning 已清理。
 - 本轮补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/group-tag-store.test.ts src/tests/localization.test.tsx` 通过，`6` 个测试文件、`74` 个测试通过。
 - 菜单快速配置补充验证：`npm run -w @skill-flow/desktop test -- src/tests/menu-quick-config-screen.test.tsx src/tests/home-screen.test.tsx src/tests/tray.test.ts` 通过，`3` 个测试文件、`18` 个测试通过；此前 `src/tests/menu-quick-config-screen.test.tsx src/tests/tray.test.ts src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx` 通过，`6` 个测试文件、`75` 个测试通过。
@@ -133,6 +147,16 @@ npm run desktop:test:cross-platform
 - SharedGroupCard header stats / Import loading 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-screen.test.tsx src/tests/menu-quick-config-screen.test.tsx src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/localization.test.tsx` 通过，`5` 个测试文件、`49` 个测试通过。
 - Import stats 数据链补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`42` 个测试通过。
 - Import fallback targets 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts` 通过，`2` 个测试文件、`29` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`193` 个测试通过。
+- Settings detected targets 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/main-view-model.test.ts src/tests/app.test.tsx src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts` 通过，`4` 个测试文件、`33` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`195` 个测试通过。
+- Settings update / maintenance 行结构补充验证：`npm run -w @skill-flow/desktop test -- src/tests/main-view-model.test.ts src/tests/app.test.tsx src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`5` 个测试文件、`38` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`195` 个测试通过。
+- Detail header / stats 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`23` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`195` 个测试通过。
+- Detail selection 全选补充验证：`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`38` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`197` 个测试通过。
+- Detail body / sidebar 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/detail-view-model.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`38` 个测试通过；随后 `npx tsc -p apps/desktop/tsconfig.json --noEmit`、`npm run desktop:test:cross-platform`、`git diff --check` 均通过，完整测试仍为 `31` 个测试文件、`197` 个测试通过。
+- Detail 文档投影补充验证：`npm run -w skill-flow build` 通过；`npm run -w skill-flow test -- src/tests/bridge-command.test.ts` 通过，`17` 个测试通过；`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/desktop-integration-runtime.test.ts src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`38` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`197` 个测试通过。
+- Detail markdown 渲染补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`25` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`198` 个测试通过；`npm run -w skill-flow build`、`npm run -w skill-flow test -- src/tests/bridge-command.test.ts`、`git diff --check` 通过。
+- Detail 文件树 / metadata 补充验证：`npm run -w skill-flow build` 通过；`npm run -w skill-flow test -- src/tests/bridge-command.test.ts` 通过，`17` 个测试通过；`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts` 通过，`3` 个测试文件、`35` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`199` 个测试通过；`git diff --check` 通过。
+- Detail header 更新入口补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/app.test.tsx src/tests/detail-view-model.test.ts src/tests/home-view-model.test.ts` 通过，`4` 个测试文件、`74` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`201` 个测试通过；`npm run -w skill-flow build`、`npm run -w skill-flow test -- src/tests/bridge-command.test.ts`、`git diff --check` 通过。
+- Detail header 打开入口补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/app.test.tsx src/tests/desktop-integration-runtime.test.ts` 通过，`4` 个测试文件、`47` 个测试通过；`npm run -w skill-flow test -- src/tests/bridge-command.test.ts` 通过，`17` 个测试通过；`cargo test` 在 `apps/desktop/src-tauri` 通过，`4` 个单元测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`203` 个测试通过；`npm run -w skill-flow build`、`git diff --check` 通过。
 
 ## 下一步
 

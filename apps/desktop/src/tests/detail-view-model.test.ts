@@ -528,6 +528,74 @@ describe("detail view model", () => {
     expect(viewModel.selectedSkillDocument?.id).toBe("skill-md");
   });
 
+  it("collapses ordinary file tree directories and expands the path when selecting a skill", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedSkillIdByGroup: {},
+          showsGroupOverviewByGroup: {},
+          selectedTreeItemIdByGroup: {},
+          collapsedTreeItemIdsByGroup: {},
+          selectedGroupDocumentIdByGroup: {},
+          selectedSkillDocumentIdBySkill: {},
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.hydrateInspect("alpha", {
+      sourceId: "alpha",
+      title: "Alpha",
+      enabledTargetLabels: [],
+      fileTree: [
+        {
+          id: "root/skills",
+          title: "skills",
+          path: "/alpha/skills",
+          isDirectory: true,
+          isSkillRoot: false,
+          isSkillDocument: false,
+          children: [
+            {
+              id: "root/skills/browse",
+              title: "browse",
+              path: "/alpha/skills/browse",
+              isDirectory: true,
+              isSkillRoot: true,
+              isSkillDocument: false,
+              skillId: "browse",
+              children: [],
+            },
+          ],
+        },
+      ],
+      groupDocuments: [],
+      targets: [],
+      skills: [{ id: "browse", title: "Browse", isEnabled: true, documents: [] }],
+      sourceFacts: [],
+      deploymentFacts: [],
+      skillSelection: "full",
+      targetSelection: "empty",
+    });
+
+    expect(viewModel.isTreeItemExpanded("root/skills")).toBe(true);
+
+    viewModel.selectTreeItem("root/skills");
+    expect(viewModel.isTreeItemExpanded("root/skills")).toBe(false);
+    expect(state.detailState.ui.collapsedTreeItemIdsByGroup.alpha).toEqual(["root/skills"]);
+    expect(viewModel.showingGroupOverview).toBe(true);
+
+    viewModel.selectTreeItem("root/skills/browse");
+    expect(viewModel.showingGroupOverview).toBe(false);
+    expect(viewModel.selectedSkillId).toBe("browse");
+    expect(viewModel.isTreeItemExpanded("root/skills")).toBe(true);
+    expect(state.detailState.ui.collapsedTreeItemIdsByGroup.alpha).toEqual([]);
+  });
+
   it("keeps valid sub-selections on rehydrate and realigns only invalid ones", () => {
     const preservedState = createDesktopAppState({
       view: {
@@ -711,6 +779,119 @@ describe("detail view model", () => {
     ]);
     expect(state.detailState.detailsBySourceId.alpha.enabledTargetLabels).toEqual(["Codex"]);
     expect(state.view.toastMessage).toBe("save failed");
+  });
+
+  it("toggles all detail targets and skills with the same selection summary rules as macOS", async () => {
+    const updateSelection = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Codex"],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [
+              { id: "codex", label: "Codex", isEnabled: true },
+              { id: "cursor", label: "Cursor", isEnabled: false },
+            ],
+            skills: [
+              { id: "skill-a", title: "Skill A", isEnabled: true, documents: [] },
+              { id: "skill-b", title: "Skill B", isEnabled: false, documents: [] },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "partial",
+            targetSelection: "partial",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, { updateSelection });
+
+    await viewModel.toggleAllTargets();
+    await viewModel.toggleAllSkills();
+
+    expect(state.detailState.detailsBySourceId.alpha.enabledTargetLabels).toEqual(["Codex", "Cursor"]);
+    expect(state.detailState.detailsBySourceId.alpha.targetSelection).toBe("full");
+    expect(state.detailState.detailsBySourceId.alpha.skillSelection).toBe("full");
+    expect(updateSelection).toHaveBeenLastCalledWith("alpha", {
+      selectedSkillIds: ["skill-a", "skill-b"],
+      enabledTargetIds: ["codex", "cursor"],
+    });
+
+    await viewModel.toggleAllTargets();
+    await viewModel.toggleAllSkills();
+
+    expect(state.detailState.detailsBySourceId.alpha.enabledTargetLabels).toEqual([]);
+    expect(state.detailState.detailsBySourceId.alpha.targetSelection).toBe("empty");
+    expect(state.detailState.detailsBySourceId.alpha.skillSelection).toBe("empty");
+    expect(updateSelection).toHaveBeenLastCalledWith("alpha", {
+      selectedSkillIds: [],
+      enabledTargetIds: [],
+    });
+  });
+
+  it("opens repository URLs and local group paths only when present", async () => {
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const openPath = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            repoUrl: "https://github.com/obra/alpha",
+            groupPath: "/groups/alpha",
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+          beta: {
+            sourceId: "beta",
+            title: "Beta",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, { openExternalUrl, openPath });
+
+    await viewModel.openRepository();
+    await viewModel.openGroupPath();
+
+    expect(openExternalUrl).toHaveBeenCalledWith("https://github.com/obra/alpha");
+    expect(openPath).toHaveBeenCalledWith("/groups/alpha");
+
+    viewModel.showSource("beta");
+    await viewModel.openRepository();
+    await viewModel.openGroupPath();
+
+    expect(openExternalUrl).toHaveBeenCalledTimes(1);
+    expect(openPath).toHaveBeenCalledTimes(1);
   });
 
   it("rolls back skill selection and records a toast when persistence fails", async () => {

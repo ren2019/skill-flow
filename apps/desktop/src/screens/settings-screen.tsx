@@ -3,17 +3,20 @@ import { AgentIcon } from "../components/agent-icon";
 import { DesktopTopBar } from "../components/desktop-top-bar";
 import { SettingsSection } from "../components/settings-section";
 import { resolveActionIcon } from "../icons/action-icons";
-import { localize, localizeUpdateStatus } from "../i18n";
+import { localize } from "../i18n";
 import { detectedAgentRows } from "../runtime/settings-store";
 import { SettingsViewModel, type CustomAgentDraft } from "../view-models/settings-view-model";
 
 type SettingsScreenProps = {
   viewModel: SettingsViewModel;
+  detectedTargetIds?: string[];
 };
 
-export function SettingsScreen({ viewModel }: SettingsScreenProps) {
+export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
-  const rows = detectedAgentRows(viewModel.agentDisplayPreferences, viewModel.customAgents);
+  const rows = detectedTargetIds
+    ? viewModel.detectedAgentRows(detectedTargetIds)
+    : detectedAgentRows(viewModel.agentDisplayPreferences, viewModel.customAgents);
   const [editingCustomAgentId, setEditingCustomAgentId] = useState<string | undefined>(undefined);
   const [customAgentDraft, setCustomAgentDraft] = useState<CustomAgentDraft>(() => viewModel.customAgentDraft());
   const [customAgentErrors, setCustomAgentErrors] = useState<Record<string, string>>({});
@@ -196,8 +199,14 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
               onSave={saveCustomAgent}
             />
           ) : null}
-          <ul style={agentListStyle}>
-            {rows.map((row) => (
+          {rows.length === 0 ? (
+            <p data-view="settings-agent-empty" style={agentEmptyStyle}>
+              {t("settings.agent_display.empty")}
+            </p>
+          ) : (
+            <>
+              <ul style={agentListStyle}>
+                {rows.map((row) => (
               <li
                 key={row.targetId}
                 data-view="settings-agent-row"
@@ -294,37 +303,49 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
                   </div>
                 ) : null}
               </li>
-            ))}
-          </ul>
+                ))}
+              </ul>
+              <p data-view="settings-agent-footer" style={agentFooterStyle}>
+                {t("settings.agent_display.footer")}
+              </p>
+            </>
+          )}
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.application_update")}>
-          <SettingsControlRow title={t("settings.current_version")} value={viewModel.currentVersion} />
-          <div data-view="settings-update-status" style={updateStatusStyle}>
-            <span style={statusLabelStyle}>{t("settings.update_status")}</span>
-            <strong>{localizeUpdateStatus(viewModel.updateStatus, viewModel.desktopLanguage)}</strong>
-            {viewModel.latestVersion ? (
-              <span style={{ color: "#64748b", fontSize: "12px" }}>
-                {t("settings.latest_version")}: {viewModel.latestVersion}
-              </span>
-            ) : null}
-          </div>
-          <div data-view="settings-action-row" style={actionRowStyle}>
-            <button
-              type="button"
-              onClick={() => {
-                startTransition(() => {
-                  void viewModel.checkForUpdates();
-                });
-              }}
-              style={actionButtonStyle()}
-            >
-              {t("settings.action.check_updates")}
-            </button>
-            <button type="button" onClick={() => viewModel.openReleasePage()} style={actionButtonStyle()}>
-              {t("settings.action.open_releases")}
-            </button>
-          </div>
+          <SettingsControlRow
+            title={t("settings.row.current_version.title")}
+            description={t("settings.row.current_version.description")}
+            value={viewModel.currentVersion}
+          />
+          <SettingsControlRow
+            title={t("settings.row.check_updates.title")}
+            description={settingsUpdateDescription(viewModel, t)}
+            value={viewModel.updateStatus === "checking" ? (
+              <SettingsActionLoadingIndicator />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  startTransition(() => {
+                    void viewModel.checkForUpdates();
+                  });
+                }}
+                style={actionButtonStyle()}
+              >
+                {t("settings.action.check_updates")}
+              </button>
+            )}
+          />
+          <SettingsControlRow
+            title={t("settings.row.open_releases.title")}
+            description={t("settings.row.open_releases.description")}
+            value={(
+              <button type="button" onClick={() => viewModel.openReleasePage()} style={actionButtonStyle()}>
+                {t("settings.action.open_releases")}
+              </button>
+            )}
+          />
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.general")}>
@@ -368,20 +389,30 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.maintenance")}>
-          <div data-view="settings-action-row" style={actionRowStyle}>
-            <button
-              type="button"
-              onClick={() => {
-                void viewModel.clearMetadataCache();
-              }}
-              style={actionButtonStyle()}
-            >
-              {t("settings.action.clear_cache")}
-            </button>
-            <button type="button" onClick={() => viewModel.resetConfiguration()} style={actionButtonStyle()}>
-              {t("settings.action.reset_configuration")}
-            </button>
-          </div>
+          <SettingsControlRow
+            title={t("settings.row.clear_cache.title")}
+            description={t("settings.row.clear_cache.description")}
+            value={(
+              <button
+                type="button"
+                onClick={() => {
+                  void viewModel.clearMetadataCache();
+                }}
+                style={actionButtonStyle()}
+              >
+                {t("settings.action.clear_cache")}
+              </button>
+            )}
+          />
+          <SettingsControlRow
+            title={t("settings.row.reset_configuration.title")}
+            description={t("settings.row.reset_configuration.description")}
+            value={(
+              <button type="button" onClick={() => viewModel.resetConfiguration()} style={actionButtonStyle()}>
+                {t("settings.action.reset_configuration")}
+              </button>
+            )}
+          />
         </SettingsSection>
       </div>
     </main>
@@ -390,13 +421,14 @@ export function SettingsScreen({ viewModel }: SettingsScreenProps) {
 
 type SettingsControlRowProps = {
   title: string;
+  description?: string | undefined;
   value: ReactNode;
 };
 
-function SettingsControlRow({ title, value }: SettingsControlRowProps) {
+function SettingsControlRow({ title, description, value }: SettingsControlRowProps) {
   return (
     <div data-view="settings-control-row" style={controlRowStyle}>
-      <span style={{ fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>{title}</span>
+      <SettingsRowCopy title={title} description={description} />
       <span style={{ fontSize: "12px", color: "#475569" }}>{value}</span>
     </div>
   );
@@ -560,6 +592,38 @@ function SettingsRowCopy({ title, description }: { title: string; description?: 
   );
 }
 
+function SettingsActionLoadingIndicator() {
+  return (
+    <span data-view="settings-action-loading" style={actionLoadingStyle}>
+      <span aria-hidden="true" style={actionLoadingDotStyle} />
+    </span>
+  );
+}
+
+function settingsUpdateDescription(
+  viewModel: SettingsViewModel,
+  t: (key: string) => string,
+): string {
+  switch (viewModel.updateStatus) {
+    case "checking":
+      return t("settings.row.check_updates.description.checking");
+    case "upToDate":
+      return t("settings.row.check_updates.description.up_to_date")
+        .replace("%@", viewModel.latestVersion ?? viewModel.currentVersion);
+    case "updateAvailable":
+      return t("settings.row.check_updates.description.available")
+        .replace("%@", viewModel.latestVersion ?? "-");
+    case "runningNewerBuild":
+      return t("settings.row.check_updates.description.up_to_date")
+        .replace("%@", viewModel.currentVersion);
+    case "failed":
+      return t("settings.row.check_updates.description.failed");
+    case "idle":
+    default:
+      return t("settings.row.check_updates.description.idle");
+  }
+}
+
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   display: "grid",
@@ -642,6 +706,18 @@ const agentActionStyle: CSSProperties = {
   gap: "8px",
 };
 
+const agentEmptyStyle: CSSProperties = {
+  margin: 0,
+  color: "#64748b",
+  fontSize: "12px",
+};
+
+const agentFooterStyle: CSSProperties = {
+  margin: 0,
+  color: "#64748b",
+  fontSize: "11px",
+};
+
 const agentTextButtonStyle: CSSProperties = {
   border: "none",
   background: "transparent",
@@ -691,26 +767,25 @@ const customAgentErrorStyle: CSSProperties = {
   fontSize: "11px",
 };
 
-const updateStatusStyle: CSSProperties = {
-  display: "grid",
-  gap: "4px",
-  padding: "14px",
-  borderRadius: "8px",
-  background: "rgba(248, 250, 252, 0.92)",
-};
-
-const statusLabelStyle: CSSProperties = {
-  fontSize: "11px",
-  fontWeight: 700,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "#64748b",
-};
-
 const actionRowStyle: CSSProperties = {
   display: "flex",
   gap: "8px",
   flexWrap: "wrap",
+};
+
+const actionLoadingStyle: CSSProperties = {
+  width: "36px",
+  height: "32px",
+  display: "inline-grid",
+  placeItems: "center",
+};
+
+const actionLoadingDotStyle: CSSProperties = {
+  width: "14px",
+  height: "14px",
+  borderRadius: "999px",
+  border: "2px solid rgba(100, 116, 139, 0.28)",
+  borderTopColor: "#2563eb",
 };
 
 function actionButtonStyle(): CSSProperties {

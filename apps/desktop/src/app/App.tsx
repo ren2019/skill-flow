@@ -15,6 +15,7 @@ import {
   type DesktopIntegration,
 } from "../runtime/desktop-integration";
 import { createDesktopMaintenance } from "../runtime/desktop-maintenance";
+import { createDesktopOpener } from "../runtime/desktop-opener";
 import { DesktopGroupTagStore } from "../runtime/group-tag-store";
 import { createDesktopSettingsStorage, DesktopSettingsStore } from "../runtime/settings-store";
 import { DetailViewModel } from "../view-models/detail-view-model";
@@ -37,6 +38,7 @@ export function App({ state: providedState, integration }: AppProps) {
   const desktopStorageRef = useRef<ReturnType<typeof createDesktopSettingsStorage> | undefined>(undefined);
   const settingsStoreRef = useRef<DesktopSettingsStore | undefined>(undefined);
   const groupTagStoreRef = useRef<DesktopGroupTagStore | undefined>(undefined);
+  const desktopOpenerRef = useRef(createDesktopOpener());
   if (!integration && !defaultIntegrationRef.current) {
     defaultIntegrationRef.current = createDesktopIntegration(stateRef.current);
   }
@@ -108,6 +110,10 @@ export function App({ state: providedState, integration }: AppProps) {
     new DetailViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
       ...(updateSelection ? { updateSelection } : {}),
+      updateGroup: (sourceId) => homeViewModelRef.current.updateSource(sourceId),
+      isUpdatingSource: (sourceId) => homeViewModelRef.current.isUpdatingSource(sourceId),
+      openExternalUrl: (url) => desktopOpenerRef.current.openExternalUrl(url),
+      openPath: (path) => desktopOpenerRef.current.openPath(path),
       groupTagStore: groupTagStoreRef.current,
       onChange: notifyChange,
     }),
@@ -241,7 +247,12 @@ export function App({ state: providedState, integration }: AppProps) {
     case "detail":
       return <DetailScreen viewModel={detailViewModelRef.current} />;
     case "settings":
-      return <SettingsScreen viewModel={settingsViewModelRef.current} />;
+      return (
+        <SettingsScreen
+          viewModel={settingsViewModelRef.current}
+          detectedTargetIds={mainViewModelRef.current.detectedTargetIdsForSettings}
+        />
+      );
   }
 }
 

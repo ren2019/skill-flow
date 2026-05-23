@@ -6,8 +6,19 @@ import {
   type JsonObject,
   type JsonValue,
 } from "@skill-flow/shared-types/protocol";
-import type { DraftBinding, ImportDraft, ProjectScope } from "@skill-flow/domain/types";
+import type {
+  DeploymentRecord,
+  DraftBinding,
+  ImportDraft,
+  LeafRecord,
+  Manifest,
+  ProjectScope,
+  SourceBinding,
+  WorkflowSummary,
+} from "@skill-flow/domain/types";
 import type { SkillFlowApp } from "@skill-flow/query/runtime";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 type BridgeFailure = {
   code: string;
@@ -61,10 +72,11 @@ export async function executeBridgeRequest(
         if (!result.ok) {
           return toFailureResponse(request, result.errors, result.warnings);
         }
+        const data = await attachDesktopDetailContent(result.data);
         return buildResponseWithRequest({
           request,
           ok: true,
-          data: sanitizeForJson(result.data),
+          data: sanitizeForJson(data),
           warnings: result.warnings.map((warning) => ({
             code: warning.code,
             message: warning.message,
@@ -423,6 +435,355 @@ function expectProjectScope(value: JsonValue | undefined): ProjectScope {
 
 function sanitizeForJson<T>(value: T): JsonValue {
   return JSON.parse(JSON.stringify(value)) as JsonValue;
+}
+
+type InspectData = {
+  summary: WorkflowSummary;
+  source: Manifest["sources"][number];
+  binding: SourceBinding;
+  leafs: LeafRecord[];
+  deployments: DeploymentRecord[];
+};
+
+type BridgeDetailDocument = {
+  id: string;
+  title: string;
+  path: string;
+  metadata: Array<{ id: string; key: string; value: string }>;
+  renderCacheKey: string;
+  content: string;
+  isLoaded: boolean;
+};
+
+type BridgeFileTreeItem = {
+  id: string;
+  title: string;
+  path: string;
+  isDirectory: boolean;
+  isSkillRoot: boolean;
+  isSkillDocument: boolean;
+  skillId?: string;
+  children: BridgeFileTreeItem[];
+};
+
+async function attachDesktopDetailContent(data: InspectData): Promise<InspectData & {
+  groupDocuments: BridgeDetailDocument[];
+  fileTree: BridgeFileTreeItem[];
+}> {
+  const checkoutPath = typeof data.summary.lock?.checkoutPath === "string"
+    ? data.summary.lock.checkoutPath
+    : undefined;
+  const groupDocuments = await buildGroupDocuments(checkoutPath);
+  const fileTree = await buildFileTree(checkoutPath, data.leafs);
+  const leafs = await Promise.all(data.leafs.map(async (leaf) => {
+    const skillFilePath = leaf.skillFilePath
+      || (checkoutPath ? path.join(checkoutPath, leaf.relativePath, "SKILL.md") : undefined)
+      || path.join(leaf.absolutePath, "SKILL.md");
+    const documents = await buildSkillDocuments(skillFilePath);
+    const documentContent = documents[0]?.content || leaf.description;
+    return {
+      ...leaf,
+      documents,
+      documentContent,
+    };
+  }));
+
+  return {
+    ...data,
+    leafs,
+    groupDocuments,
+    fileTree: fileTree.length > 0 ? fileTree : fallbackFileTreeFromLeafs(data.leafs),
+  };
+}
+
+async function buildGroupDocuments(checkoutPath: string | undefined): Promise<BridgeDetailDocument[]> {
+  const documents: BridgeDetailDocument[] = [{
+    id: "group:filetree",
+    title: "File Tree",
+    path: checkoutPath ?? ".",
+    metadata: [],
+    renderCacheKey: documentRenderCacheKey(checkoutPath ?? "."),
+    content: "",
+    isLoaded: true,
+  }];
+
+  if (!checkoutPath) {
+    return documents;
+  }
+
+  const entries = await fs.readdir(checkoutPath, { withFileTypes: true }).catch(() => []);
+  const markdownFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".md"))
+    .map((entry) => entry.name)
+    .sort(compareRootDocumentNames);
+
+  for (const entry of markdownFiles) {
+    const fullPath = path.join(checkoutPath, entry);
+    documents.push(await loadDocument({
+      id: `group:${fullPath}`,
+      title: entry,
+      path: fullPath,
+    }));
+  }
+
+  return documents;
+}
+
+async function buildSkillDocuments(skillFilePath: string | undefined): Promise<BridgeDetailDocument[]> {
+  if (!skillFilePath) {
+    return [];
+  }
+
+  const documents: BridgeDetailDocument[] = [
+    await loadDocument({
+      id: skillFilePath,
+      title: "SKILL.md",
+      path: skillFilePath,
+      fallbackContent: "SKILL.md unavailable.",
+    }),
+  ];
+
+  const referencesPath = path.join(path.dirname(skillFilePath), "references");
+  const entries = await fs.readdir(referencesPath, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries
+    .filter((candidate) => candidate.isFile() && candidate.name.toLowerCase().endsWith(".md"))
+    .map((candidate) => candidate.name)
+    .sort()) {
+    const fullPath = path.join(referencesPath, entry);
+    documents.push(await loadDocument({
+      id: fullPath,
+      title: `references/${entry}`,
+      path: fullPath,
+    }));
+  }
+
+  return documents;
+}
+
+async function loadDocument(args: {
+  id: string;
+  title: string;
+  path: string;
+  fallbackContent?: string;
+}): Promise<BridgeDetailDocument> {
+  const raw = await fs.readFile(args.path, "utf8").catch(() =>
+    args.fallbackContent ?? `${args.title || "Document"} unavailable.`,
+  );
+  const parsed = parseDetailDocument(raw);
+  return {
+    id: args.id,
+    title: args.title,
+    path: args.path,
+    metadata: parsed.metadata,
+    renderCacheKey: documentRenderCacheKey(args.path),
+    content: parsed.body,
+    isLoaded: true,
+  };
+}
+
+function parseDetailDocument(content: string): {
+  metadata: Array<{ id: string; key: string; value: string }>;
+  body: string;
+} {
+  const lines = content.split(/\r?\n/);
+  if (lines[0]?.trim() !== "---") {
+    return { metadata: [], body: content.trim() };
+  }
+
+  const closingIndex = lines.slice(1).findIndex((line) => line.trim() === "---");
+  if (closingIndex < 0) {
+    return { metadata: [], body: content.trim() };
+  }
+
+  const absoluteClosingIndex = closingIndex + 1;
+  const frontMatterLines = lines.slice(1, absoluteClosingIndex);
+  const body = lines.slice(absoluteClosingIndex + 1).join("\n").trim();
+  const metadata = parseFrontmatterEntries(frontMatterLines);
+
+  return { metadata, body };
+}
+
+function parseFrontmatterEntries(lines: string[]): Array<{ id: string; key: string; value: string }> {
+  const entries: Array<{ id: string; key: string; value: string }> = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index] ?? "";
+    const pair = /^([A-Za-z0-9_-]+):\s*(.*)$/.exec(line);
+    if (!pair?.[1] || pair[2] === undefined) {
+      index += 1;
+      continue;
+    }
+
+    const key = pair[1];
+    const rest = pair[2].trim();
+    let value = "";
+
+    if (rest === "|" || rest === ">") {
+      const blockLines: string[] = [];
+      index += 1;
+      while (index < lines.length) {
+        const blockLine = lines[index] ?? "";
+        if (blockLine.length === 0) {
+          blockLines.push("");
+          index += 1;
+          continue;
+        }
+        if (!/^\s+/.test(blockLine)) {
+          break;
+        }
+        blockLines.push(blockLine.replace(/^\s{2}/, ""));
+        index += 1;
+      }
+      value = blockLines.join(rest === ">" ? " " : "\n").trim();
+    } else if (rest === "") {
+      const values: string[] = [];
+      index += 1;
+      while (index < lines.length) {
+        const listLine = lines[index] ?? "";
+        const item = /^\s*-\s+(.+)$/.exec(listLine);
+        if (!item?.[1]) {
+          break;
+        }
+        values.push(normalizeFrontmatterScalar(item[1]));
+        index += 1;
+      }
+      value = values.join(", ");
+    } else {
+      value = normalizeFrontmatterScalar(rest);
+      index += 1;
+    }
+
+    if (value) {
+      entries.push({ id: `${key}:${value}`, key, value });
+    }
+  }
+
+  return entries;
+}
+
+function normalizeFrontmatterScalar(value: string): string {
+  const trimmed = value.trim().replace(/^["']|["']$/g, "");
+  const inlineArray = /^\[(.*)\]$/.exec(trimmed);
+  if (!inlineArray?.[1]) {
+    return trimmed;
+  }
+  return inlineArray[1]
+    .split(",")
+    .map((item) => item.trim().replace(/^["']|["']$/g, ""))
+    .filter(Boolean)
+    .join(", ");
+}
+
+async function buildFileTree(
+  checkoutPath: string | undefined,
+  leafs: InspectData["leafs"],
+): Promise<BridgeFileTreeItem[]> {
+  if (!checkoutPath) {
+    return [];
+  }
+  const rootEntries = await fs.readdir(checkoutPath, { withFileTypes: true }).catch(() => []);
+  const skillByFolder = new Map(leafs.map((leaf) => [path.resolve(leaf.absolutePath), leaf.id]));
+  const skillByDocument = new Map(leafs.map((leaf) => [path.resolve(leaf.skillFilePath), leaf.id]));
+  return Promise.all(rootEntries
+    .filter((entry) => shouldIncludeFileTreeEntry(entry.name))
+    .sort(compareDirents)
+    .map((entry) => buildFileTreeItem(path.join(checkoutPath, entry.name), checkoutPath, skillByFolder, skillByDocument)));
+}
+
+async function buildFileTreeItem(
+  itemPath: string,
+  rootPath: string,
+  skillByFolder: Map<string, string>,
+  skillByDocument: Map<string, string>,
+): Promise<BridgeFileTreeItem> {
+  const stat = await fs.lstat(itemPath);
+  const isDirectory = stat.isDirectory();
+  const resolvedPath = path.resolve(itemPath);
+  const relativePath = toPosixPath(path.relative(rootPath, itemPath)) || ".";
+  const children = isDirectory
+    ? await fs.readdir(itemPath, { withFileTypes: true })
+      .then((entries) => Promise.all(entries
+        .filter((entry) => shouldIncludeFileTreeEntry(entry.name))
+        .sort(compareDirents)
+        .map((entry) => buildFileTreeItem(
+          path.join(itemPath, entry.name),
+          rootPath,
+          skillByFolder,
+          skillByDocument,
+        ))))
+      .catch(() => [])
+    : [];
+  const skillId = skillByFolder.get(resolvedPath) ?? skillByDocument.get(resolvedPath);
+
+  return {
+    id: `root/${relativePath}`,
+    title: path.basename(itemPath),
+    path: itemPath,
+    isDirectory,
+    isSkillRoot: isDirectory && Boolean(skillByFolder.get(resolvedPath)),
+    isSkillDocument: !isDirectory && Boolean(skillByDocument.get(resolvedPath)),
+    ...(skillId ? { skillId } : {}),
+    children,
+  };
+}
+
+function fallbackFileTreeFromLeafs(leafs: InspectData["leafs"]): BridgeFileTreeItem[] {
+  return leafs.map((leaf) => ({
+    id: leaf.id,
+    title: leaf.linkName || leaf.name || leaf.id,
+    path: leaf.relativePath,
+    isDirectory: true,
+    isSkillRoot: true,
+    isSkillDocument: false,
+    skillId: leaf.id,
+    children: [],
+  }));
+}
+
+function shouldIncludeFileTreeEntry(name: string): boolean {
+  return !name.startsWith(".git") && name !== "node_modules";
+}
+
+function compareDirents(
+  left: { name: string; isDirectory(): boolean },
+  right: { name: string; isDirectory(): boolean },
+): number {
+  if (left.isDirectory() !== right.isDirectory()) {
+    return left.isDirectory() ? -1 : 1;
+  }
+  return left.name.localeCompare(right.name);
+}
+
+function compareRootDocumentNames(left: string, right: string): number {
+  const leftRank = rootDocumentRank(left);
+  const rightRank = rootDocumentRank(right);
+  if (leftRank !== rightRank) {
+    return leftRank - rightRank;
+  }
+  return left.localeCompare(right);
+}
+
+function rootDocumentRank(name: string): number {
+  const normalized = name.toLowerCase();
+  if (normalized === "readme.md") {
+    return 0;
+  }
+  if (normalized.startsWith("readme.")) {
+    return 1;
+  }
+  if (normalized === "changelog.md") {
+    return 2;
+  }
+  return 3;
+}
+
+function documentRenderCacheKey(documentPath: string): string {
+  return `document:${documentPath}`;
+}
+
+function toPosixPath(value: string): string {
+  return value.split(path.sep).join("/");
 }
 
 export function buildBridgeParseFailure(command: string, failure: BridgeFailure): BridgeResponse {

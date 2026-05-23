@@ -59,4 +59,67 @@ describe("main view model", () => {
     expect(state.view.currentRoute).toEqual(desktopRoute.importPage());
     expect(state.view.selectedSourceId).toBe("alpha");
   });
+
+  it("derives settings agent rows from detected inventory and detail targets in catalog order", () => {
+    const state = createDesktopAppState({
+      settings: {
+        customAgents: [
+          {
+            id: "team-agent",
+            name: "Team Agent",
+            globalPath: "/Users/test/.team-agent/skills",
+            projectPathTemplate: ".team-agent/skills",
+            strategy: "symlink",
+            createdAt: "2026-05-23T00:00:00.000Z",
+            updatedAt: "2026-05-23T00:00:00.000Z",
+          },
+        ],
+      },
+      workspace: {
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha",
+            locator: "local/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 2,
+            targets: [
+              { id: "cursor", label: "Cursor", shortLabel: "CU", isEnabled: true },
+              { id: "team-agent", label: "Team Agent", shortLabel: "TA", isEnabled: true },
+            ],
+          },
+        ],
+      },
+      detailState: {
+        detailsBySourceId: {
+          beta: {
+            sourceId: "beta",
+            title: "Beta",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [
+              { id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true },
+            ],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new MainViewModel(state);
+
+    expect(viewModel.detectedTargetIdsForSettings).toEqual([
+      "claude-code",
+      "cursor",
+      "team-agent",
+    ]);
+  });
 });

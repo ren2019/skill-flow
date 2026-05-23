@@ -514,6 +514,7 @@ export class HomeViewModel {
     delete this.state.detailState.ui.selectedSkillIdByGroup[sourceId];
     delete this.state.detailState.ui.showsGroupOverviewByGroup[sourceId];
     delete this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId];
+    delete this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId];
     delete this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId];
     for (const skill of removedDetail?.skills ?? []) {
       delete this.state.detailState.ui.selectedSkillDocumentIdBySkill[skill.id];

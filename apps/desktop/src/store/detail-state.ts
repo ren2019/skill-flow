@@ -49,7 +49,9 @@ export type DetailRecord = {
   subtitle?: string;
   author?: string;
   originLabel?: string;
+  downloadCount?: number;
   starCount?: number;
+  repoUrl?: string;
   locator?: string;
   groupPath?: string;
   updatedAt?: string;
@@ -76,6 +78,7 @@ export type DetailUiState = {
   selectedSkillIdByGroup: Record<string, string | undefined>;
   showsGroupOverviewByGroup: Record<string, boolean | undefined>;
   selectedTreeItemIdByGroup: Record<string, string | undefined>;
+  collapsedTreeItemIdsByGroup: Record<string, string[] | undefined>;
   selectedGroupDocumentIdByGroup: Record<string, string | undefined>;
   selectedSkillDocumentIdBySkill: Record<string, string | undefined>;
 };
@@ -92,6 +95,7 @@ export function createDetailState(seed: Partial<DetailState> = {}): DetailState 
       selectedSkillIdByGroup: { ...(seed.ui?.selectedSkillIdByGroup ?? {}) },
       showsGroupOverviewByGroup: { ...(seed.ui?.showsGroupOverviewByGroup ?? {}) },
       selectedTreeItemIdByGroup: { ...(seed.ui?.selectedTreeItemIdByGroup ?? {}) },
+      collapsedTreeItemIdsByGroup: { ...(seed.ui?.collapsedTreeItemIdsByGroup ?? {}) },
       selectedGroupDocumentIdByGroup: { ...(seed.ui?.selectedGroupDocumentIdByGroup ?? {}) },
       selectedSkillDocumentIdBySkill: { ...(seed.ui?.selectedSkillDocumentIdBySkill ?? {}) },
     },

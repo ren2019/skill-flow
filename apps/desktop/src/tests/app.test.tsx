@@ -79,8 +79,50 @@ describe("app", () => {
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("Source Detail");
     expect(text).toContain("Alpha");
-    expect(text).toContain("Current route");
-    expect(text).toContain("Detail");
+    expect(text).toContain("data-view");
+    expect(text).toContain("detail-header-stats");
+  });
+
+  it("updates the current detail group through the shared home update path", async () => {
+    const updateSource = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "detail", sourceId: "alpha" },
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} integration={{ refreshInventory: vi.fn(), updateSource }} />);
+    });
+
+    await act(async () => {
+      await renderer!.root.findByProps({ "data-detail-update-current": "true" }).props.onClick();
+    });
+
+    expect(updateSource).toHaveBeenCalledWith("alpha");
+    expect(state.view.toastMessage).toBe("Updated 1 group.");
   });
 
   it("preserves selected source and visible cards when home route round-trips through detail and import", async () => {
@@ -391,5 +433,51 @@ describe("app", () => {
     });
     expect(state.detailState.detailsBySourceId.alpha.targetSelection).toBe("full");
     expect(state.detailState.detailsBySourceId.alpha.enabledTargetCount).toBe(1);
+  });
+
+  it("passes detected workspace targets into settings like the mac desktop shell", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: { kind: "settings" },
+      },
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "codex", isVisible: true, sortOrder: 0 },
+          { targetId: "cursor", isVisible: true, sortOrder: 1 },
+          { targetId: "claude-code", isVisible: true, sortOrder: 2 },
+        ],
+      },
+      workspace: {
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha",
+            locator: "local/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+            ],
+          },
+        ],
+      },
+      asyncResources: {
+        homeBootstrapPhase: { kind: "ready" },
+      },
+    });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<App state={state} />);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain("Codex");
+    expect(text).not.toContain("Cursor");
+    expect(text).not.toContain("Claude Code");
   });
 });

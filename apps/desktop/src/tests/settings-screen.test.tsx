@@ -47,7 +47,7 @@ describe("settings screen", () => {
     expect(markup).toContain("Configure which detected agents appear");
   });
 
-  it("renders update and maintenance actions instead of read-only fields only", () => {
+  it("renders update and maintenance rows like the mac settings view", () => {
     const state = createDesktopAppState({
       settings: {
         autoLaunch: true,
@@ -62,11 +62,13 @@ describe("settings screen", () => {
       <SettingsScreen viewModel={new SettingsViewModel(state)} />,
     );
 
-    expect(markup).toContain("Check for Updates");
-    expect(markup).toContain("Open Releases");
+    expect(markup).toContain("Check for updates");
+    expect(markup).toContain("Check the latest GitHub release for a newer version.");
+    expect(markup).toContain("Open releases");
     expect(markup).toContain("Clear Cache");
+    expect(markup).toContain("Remove cached author, repo, and skill metadata fetched from the network.");
     expect(markup).toContain("Reset Configuration");
-    expect(markup).toContain("data-view=\"settings-action-row\"");
+    expect(markup).not.toContain("data-view=\"settings-action-row\"");
   });
 
   it("routes the settings top bar back button home", async () => {
@@ -302,7 +304,7 @@ describe("settings screen", () => {
     expect(state.settings.agentDisplayPreferences.some((row) => row.targetId === "my-agent")).toBe(false);
   });
 
-  it("renders update checking state and release version details", () => {
+  it("renders update availability in the check updates row description", () => {
     const viewModel = new SettingsViewModel(createDesktopAppState(), {
       updateChecker: {
         fetchLatestRelease: async () => ({
@@ -322,11 +324,10 @@ describe("settings screen", () => {
       <SettingsScreen viewModel={viewModel} />,
     );
 
-    expect(markup).toContain("Update Status");
-    expect(markup).toContain("Update available");
-    expect(markup).toContain("Latest Version");
+    expect(markup).toContain("Check for updates");
+    expect(markup).toContain("Version 1.3.1 is available on GitHub Releases.");
     expect(markup).toContain("1.3.1");
-    expect(markup).toContain("data-view=\"settings-update-status\"");
+    expect(markup).not.toContain("data-view=\"settings-update-status\"");
   });
 
   it("checks for updates on mount and rerenders the fetched status", async () => {
@@ -359,14 +360,13 @@ describe("settings screen", () => {
     });
 
     const text = JSON.stringify(renderer!.toJSON());
-    expect(text).toContain("Update Status");
-    expect(text).toContain("Update available");
-    expect(text).toContain("Latest Version");
+    expect(text).toContain("Check for updates");
+    expect(text).toContain("Version 1.3.1 is available on GitHub Releases.");
     expect(text).toContain("1.3.1");
     expect(fetchCount).toBe(1);
   });
 
-  it("renders localized update status labels", () => {
+  it("renders localized update status descriptions", () => {
     const state = createDesktopAppState({
       settings: {
         desktopLanguageRawValue: "zh-Hans",
@@ -384,6 +384,6 @@ describe("settings screen", () => {
       <SettingsScreen viewModel={viewModel} />,
     );
 
-    expect(markup).toContain("有可用更新");
+    expect(markup).toContain("GitHub Releases 上已有 1.3.1 版本可用。");
   });
 });

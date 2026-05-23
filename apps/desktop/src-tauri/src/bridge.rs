@@ -20,6 +20,20 @@ pub async fn clear_metadata_cache(app: AppHandle) -> Result<(), String> {
         .map_err(|error| format!("failed to join maintenance task: {error}"))?
 }
 
+#[tauri::command]
+pub async fn open_path(path: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || run_open_target(&path, OpenTargetKind::Path))
+        .await
+        .map_err(|error| format!("failed to join open path task: {error}"))?
+}
+
+#[tauri::command]
+pub async fn open_external_url(url: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || run_open_target(&url, OpenTargetKind::Url))
+        .await
+        .map_err(|error| format!("failed to join open URL task: {error}"))?
+}
+
 fn run_invoke_bridge(app: AppHandle, request_json: String) -> Result<String, String> {
     let invocation = resolve_bridge_shell_invocation(&app)?;
     let command = invocation.command.clone();
@@ -92,6 +106,56 @@ fn run_clear_metadata_cache(app: AppHandle) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+enum OpenTargetKind {
+    Path,
+    Url,
+}
+
+fn run_open_target(target: &str, kind: OpenTargetKind) -> Result<(), String> {
+    let trimmed = target.trim();
+    if trimmed.is_empty() {
+        return Ok(());
+    }
+
+    let status = open_command(trimmed, kind)
+        .status()
+        .map_err(|error| format!("failed to start opener for '{}': {error}", trimmed))?;
+    if status.success() {
+        return Ok(());
+    }
+    Err(format!("opener for '{}' exited with status {}", trimmed, status))
+}
+
+#[cfg(target_os = "macos")]
+fn open_command(target: &str, _kind: OpenTargetKind) -> Command {
+    let mut command = Command::new("open");
+    command.arg(target);
+    command
+}
+
+#[cfg(target_os = "windows")]
+fn open_command(target: &str, kind: OpenTargetKind) -> Command {
+    match kind {
+        OpenTargetKind::Path => {
+            let mut command = Command::new("explorer");
+            command.arg(target);
+            command
+        }
+        OpenTargetKind::Url => {
+            let mut command = Command::new("cmd");
+            command.args(["/C", "start", "", target]);
+            command
+        }
+    }
+}
+
+#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+fn open_command(target: &str, _kind: OpenTargetKind) -> Command {
+    let mut command = Command::new("xdg-open");
+    command.arg(target);
+    command
 }
 
 fn resolve_state_root(app: &AppHandle) -> Result<PathBuf, String> {

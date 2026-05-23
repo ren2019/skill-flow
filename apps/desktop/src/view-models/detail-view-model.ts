@@ -22,6 +22,10 @@ export class DetailViewModel {
     sourceId: string,
     draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
   ) => Promise<void>;
+  private readonly updateGroup: (sourceId: string) => Promise<void>;
+  private readonly isUpdatingSource: (sourceId: string) => boolean;
+  private readonly openExternalUrl: (url: string) => Promise<void>;
+  private readonly openPath: (path: string) => Promise<void>;
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly groupTags: GroupTagController;
 
@@ -33,12 +37,20 @@ export class DetailViewModel {
         sourceId: string,
         draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
       ) => Promise<void>;
+      updateGroup?: (sourceId: string) => Promise<void>;
+      isUpdatingSource?: (sourceId: string) => boolean;
+      openExternalUrl?: (url: string) => Promise<void>;
+      openPath?: (path: string) => Promise<void>;
       mutationCoordinator?: MutationCoordinator;
       groupTagStore?: Pick<DesktopGroupTagStore, "loadCustomTags" | "saveCustomTags">;
     } = {},
   ) {
     this.onChange = options.onChange ?? (() => undefined);
     this.updateSelection = options.updateSelection ?? (async () => undefined);
+    this.updateGroup = options.updateGroup ?? (async () => undefined);
+    this.isUpdatingSource = options.isUpdatingSource ?? (() => false);
+    this.openExternalUrl = options.openExternalUrl ?? (async () => undefined);
+    this.openPath = options.openPath ?? (async () => undefined);
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
     this.groupTags = new GroupTagController(this.state, {
@@ -148,6 +160,11 @@ export class DetailViewModel {
     return skill.documents.find((document) => document.id === selectedId) ?? skill.documents[0];
   }
 
+  get isUpdatingCurrentGroup(): boolean {
+    const sourceId = this.sourceId;
+    return sourceId ? this.isUpdatingSource(sourceId) : false;
+  }
+
   showSource(sourceId: string) {
     const normalizedSourceId = sourceId.trim();
     if (!normalizedSourceId) {
@@ -191,6 +208,7 @@ export class DetailViewModel {
     const fallbackTreeItemId = findSkillRootId(this.detail?.fileTree ?? [], skillId);
     if (fallbackTreeItemId) {
       this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = fallbackTreeItemId;
+      this.expandTreePath(sourceId, fallbackTreeItemId);
     }
     this.onChange();
   }
@@ -209,13 +227,33 @@ export class DetailViewModel {
     if (!sourceId) {
       return;
     }
-    this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = itemId;
     const item = findTreeItem(this.detail?.fileTree ?? [], itemId);
-    if (item?.skillId) {
+    if (!item) {
+      return;
+    }
+
+    this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = itemId;
+    if (item.skillId && (item.isSkillRoot || item.isSkillDocument)) {
       this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = false;
       this.state.detailState.ui.selectedSkillIdByGroup[sourceId] = item.skillId;
+      this.expandTreePath(sourceId, itemId);
+      this.onChange();
+      return;
+    }
+
+    if (item.isDirectory) {
+      this.toggleTreeItemCollapsed(sourceId, itemId);
     }
     this.onChange();
+  }
+
+  isTreeItemExpanded(itemId: string): boolean {
+    const sourceId = this.sourceId;
+    const item = findTreeItem(this.detail?.fileTree ?? [], itemId);
+    if (!sourceId || !item?.isDirectory) {
+      return false;
+    }
+    return !(this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] ?? []).includes(itemId);
   }
 
   selectGroupDocument(documentId: string): void {
@@ -256,6 +294,32 @@ export class DetailViewModel {
     this.groupTags.removeCustomTag(sourceId, tagId);
   }
 
+  async updateCurrentGroup(): Promise<void> {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return;
+    }
+    this.state.view.selectedSourceId = sourceId;
+    await this.updateGroup(sourceId);
+    this.onChange();
+  }
+
+  async openRepository(): Promise<void> {
+    const repoUrl = this.detail?.repoUrl;
+    if (!repoUrl) {
+      return;
+    }
+    await this.openExternalUrl(repoUrl);
+  }
+
+  async openGroupPath(): Promise<void> {
+    const groupPath = this.detail?.groupPath;
+    if (!groupPath) {
+      return;
+    }
+    await this.openPath(groupPath);
+  }
+
   async toggleTarget(targetId: string): Promise<void> {
     const detail = this.detail;
     const sourceId = this.sourceId;
@@ -273,6 +337,22 @@ export class DetailViewModel {
     });
   }
 
+  async toggleAllTargets(): Promise<void> {
+    const detail = this.detail;
+    const sourceId = this.sourceId;
+    if (!detail || !sourceId) {
+      return;
+    }
+
+    await this.runSelectionMutation(detail, () => {
+      const shouldEnable = detail.targets.some((target) => !target.isEnabled);
+      detail.targets = detail.targets.map((target) => ({ ...target, isEnabled: shouldEnable }));
+      detail.enabledTargetLabels = detail.targets
+        .filter((target) => target.isEnabled)
+        .map((target) => target.label ?? target.id);
+    });
+  }
+
   async toggleSkill(skillId: string): Promise<void> {
     const detail = this.detail;
     const sourceId = this.sourceId;
@@ -284,6 +364,19 @@ export class DetailViewModel {
       detail.skills = detail.skills.map((skill) =>
         skill.id === skillId ? { ...skill, isEnabled: !skill.isEnabled } : skill,
       );
+    });
+  }
+
+  async toggleAllSkills(): Promise<void> {
+    const detail = this.detail;
+    const sourceId = this.sourceId;
+    if (!detail || !sourceId) {
+      return;
+    }
+
+    await this.runSelectionMutation(detail, () => {
+      const shouldEnable = detail.skills.some((skill) => !skill.isEnabled);
+      detail.skills = detail.skills.map((skill) => ({ ...skill, isEnabled: shouldEnable }));
     });
   }
 
@@ -325,6 +418,32 @@ export class DetailViewModel {
           : localize("error.selection_update_failed", this.desktopLanguage);
     }
     this.onChange();
+  }
+
+  private toggleTreeItemCollapsed(sourceId: string, itemId: string): void {
+    const collapsedIds = new Set(this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] ?? []);
+    if (collapsedIds.has(itemId)) {
+      collapsedIds.delete(itemId);
+    } else {
+      collapsedIds.add(itemId);
+    }
+    this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] = [...collapsedIds];
+  }
+
+  private expandTreePath(sourceId: string, itemId: string): void {
+    const detail = this.detail;
+    if (!detail) {
+      return;
+    }
+    const pathIds = findTreePathIds(detail.fileTree, itemId);
+    if (!pathIds) {
+      return;
+    }
+    const collapsedIds = new Set(this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] ?? []);
+    for (const pathId of pathIds) {
+      collapsedIds.delete(pathId);
+    }
+    this.state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] = [...collapsedIds];
   }
 }
 
@@ -410,6 +529,12 @@ export function seedDetailUiSelectionState(
   if (currentTreeItemId && !findTreeItem(detail.fileTree, currentTreeItemId)) {
     delete state.detailState.ui.selectedTreeItemIdByGroup[sourceId];
   }
+
+  const collapsedIds = state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] ?? [];
+  state.detailState.ui.collapsedTreeItemIdsByGroup[sourceId] = collapsedIds.filter((itemId) => {
+    const item = findTreeItem(detail.fileTree, itemId);
+    return Boolean(item?.isDirectory);
+  });
 }
 
 function findSkillRootId(
@@ -446,5 +571,23 @@ function findTreeItem(
     }
   }
 
+  return undefined;
+}
+
+function findTreePathIds(
+  items: DetailFileTreeItem[],
+  itemId: string,
+  ancestors: string[] = [],
+): string[] | undefined {
+  for (const item of items) {
+    const nextPath = [...ancestors, item.id];
+    if (item.id === itemId) {
+      return nextPath;
+    }
+    const childMatch = findTreePathIds(item.children, itemId, nextPath);
+    if (childMatch) {
+      return childMatch;
+    }
+  }
   return undefined;
 }

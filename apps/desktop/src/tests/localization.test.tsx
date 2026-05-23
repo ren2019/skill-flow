@@ -130,6 +130,6 @@ describe("desktop localization", () => {
     expect(detailMarkup).toContain("概览");
     expect(settingsMarkup).toContain("设置");
     expect(settingsMarkup).toContain("登录时启动");
-    expect(settingsMarkup).toContain("更新状态");
+    expect(settingsMarkup).toContain("检查更新");
   });
 });

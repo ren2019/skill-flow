@@ -237,12 +237,66 @@ describe("desktop integration runtime", () => {
               relativePath: "skills/browse",
               skillFilePath: "skills/browse/SKILL.md",
               description: "Browse code quickly.",
+              documentContent: "# Browse\n\nBridge-loaded skill body.",
+              documents: [
+                {
+                  id: "/groups/alpha/skills/browse/SKILL.md",
+                  title: "SKILL.md",
+                  path: "/groups/alpha/skills/browse/SKILL.md",
+                  metadata: [{ id: "name:browse", key: "name", value: "browse" }],
+                  renderCacheKey: "document:/groups/alpha/skills/browse/SKILL.md",
+                  content: "# Browse\n\nBridge-loaded skill body.",
+                  isLoaded: true,
+                },
+              ],
             },
           ],
           deployments: [
             {
               target: "codex",
               targetPath: "~/.codex/skills/alpha",
+            },
+          ],
+          fileTree: [
+            {
+              id: "root/skills",
+              title: "skills",
+              path: "/groups/alpha/skills",
+              isDirectory: true,
+              isSkillRoot: false,
+              isSkillDocument: false,
+              children: [
+                {
+                  id: "root/skills/browse",
+                  title: "browse",
+                  path: "/groups/alpha/skills/browse",
+                  isDirectory: true,
+                  isSkillRoot: true,
+                  isSkillDocument: false,
+                  skillId: "alpha:browse",
+                  children: [],
+                },
+              ],
+            },
+          ],
+          groupDocuments: [
+            {
+              id: "group:filetree",
+              title: "File Tree",
+              path: "/groups/alpha",
+              metadata: [],
+              renderCacheKey: "document:/groups/alpha",
+              content: "",
+              isLoaded: true,
+            },
+            {
+              id: "group:/groups/alpha/README.md",
+              title: "README.md",
+              path: "/groups/alpha/README.md",
+              metadata: [],
+              renderCacheKey: "document:/groups/alpha/README.md",
+              content: "# Alpha",
+              isLoaded: true,
             },
           ],
         },
@@ -266,6 +320,8 @@ describe("desktop integration runtime", () => {
           sourceSnapshot: {
             repoLabel: "obra/alpha",
             repoStars: 1200,
+            repoUrl: "https://github.com/obra/alpha",
+            totalInstalls: 5045,
             summary: "GitHub mirror",
           },
         },
@@ -289,6 +345,9 @@ describe("desktop integration runtime", () => {
         title: "Alpha Starter",
         revision: "1.2.3",
         locator: "obra/alpha",
+        downloadCount: 5045,
+        starCount: 1200,
+        repoUrl: "https://github.com/obra/alpha",
         groupPath: "/groups/alpha",
         enabledTargetLabels: ["Codex"],
         health: "HEALTHY",
@@ -306,18 +365,35 @@ describe("desktop integration runtime", () => {
           expect.objectContaining({
             id: "alpha:browse",
             isEnabled: true,
+            documents: [
+              expect.objectContaining({
+                title: "SKILL.md",
+                content: "# Browse\n\nBridge-loaded skill body.",
+              }),
+            ],
+          }),
+        ],
+        fileTree: [
+          expect.objectContaining({
+            id: "root/skills",
           }),
         ],
         groupDocuments: [
           expect.objectContaining({
-            id: "alpha:overview",
+            id: "group:filetree",
+            title: "File Tree",
+            isLoaded: true,
+          }),
+          expect.objectContaining({
+            id: "group:/groups/alpha/README.md",
             title: "README.md",
+            content: "# Alpha",
             isLoaded: true,
           }),
         ],
       }),
     );
-    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("alpha:overview");
+    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("group:filetree");
   });
 
   it("sends update requests for a single source through the bridge", async () => {

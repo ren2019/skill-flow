@@ -76,7 +76,7 @@ describe.sequential("bridge command dispatcher", () => {
 
   test("returns pinned source ids in bootstrap payload", async () => {
     const repoPath = await createRepo(sandbox.sandboxRoot, {
-      "skills/review/SKILL.md": skillDoc("review", "Review code."),
+      "skills/review/SKILL.md": skillDoc("review", "Review code.", "Review"),
     });
     const app = new SkillFlowApp();
     const added = await app.addSource(repoPath, { sourceIdOverride: "demo-source" });
@@ -109,7 +109,11 @@ describe.sequential("bridge command dispatcher", () => {
 
   test("accepts valid inspect payload", async () => {
     const repoPath = await createRepo(sandbox.sandboxRoot, {
-      "skills/review/SKILL.md": skillDoc("review", "Review code."),
+      "README.md": "# Alpha\n\nRoot docs.",
+      "README.zh.md": "# Alpha 中文",
+      "CHANGELOG.md": "# Changes",
+      "skills/review/SKILL.md": skillDoc("review", "Review code.", "Review"),
+      "skills/review/references/style.md": "---\ntitle: Style\n---\n# Style Guide",
     });
     const app = new SkillFlowApp();
     const added = await app.addSource(repoPath, { sourceIdOverride: "demo-source" });
@@ -127,6 +131,35 @@ describe.sequential("bridge command dispatcher", () => {
     expect(response.ok).toBe(true);
     expect(response.data).toHaveProperty("summary");
     expect(response.data).not.toHaveProperty("sourceMetadata");
+    expect(response.data).toHaveProperty("groupDocuments");
+    expect(response.data).toHaveProperty("fileTree");
+    const data = response.data as {
+      groupDocuments: Array<{ id: string; title: string; content: string }>;
+      fileTree: Array<{ title: string; children: Array<{ title: string }> }>;
+      leafs: Array<{
+        id: string;
+        documentContent: string;
+        documents: Array<{ title: string; content: string; metadata: Array<{ key: string; value: string }> }>;
+      }>;
+    };
+    expect(data.groupDocuments.map((document) => document.title)).toEqual([
+      "File Tree",
+      "README.md",
+      "README.zh.md",
+      "CHANGELOG.md",
+    ]);
+    expect(data.groupDocuments[1]?.content).toContain("Root docs.");
+    expect(data.fileTree.find((item) => item.title === "skills")?.children[0]?.title).toBe("review");
+    expect(data.leafs[0]?.documentContent).toContain("# Review");
+    expect(data.leafs[0]?.documents.map((document) => document.title)).toEqual([
+      "SKILL.md",
+      "references/style.md",
+    ]);
+    expect(data.leafs[0]?.documents[0]?.metadata).toEqual([
+      { id: "name:review", key: "name", value: "review" },
+      { id: "description:Review code.", key: "description", value: "Review code." },
+    ]);
+    expect(data.leafs[0]?.documents[1]?.metadata).toEqual([{ id: "title:Style", key: "title", value: "Style" }]);
   });
 
   test("accepts valid inspect-enrichment payload", async () => {

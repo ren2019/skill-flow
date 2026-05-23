@@ -99,14 +99,19 @@ type DesktopInspectResult = {
     linkName?: string;
     title?: string;
     relativePath?: string;
+    absolutePath?: string;
     skillFilePath?: string;
     description?: string;
+    documentContent?: string;
+    documents?: DetailDocumentTab[];
   }>;
   deployments?: Array<{
     target?: string;
     targetPath?: string;
     targetRootPath?: string;
   }>;
+  fileTree?: DetailFileTreeItem[];
+  groupDocuments?: DetailDocumentTab[];
 };
 
 type DesktopInspectEnrichmentResult = {
@@ -553,6 +558,12 @@ function toDetailRecord(
     : enrichmentData?.sourceMetadata?.status === "ready"
     ? enrichmentData.sourceMetadata.data?.starCount
     : undefined;
+  const downloadCount = typeof enrichmentData?.sourceSnapshot?.totalInstalls === "number"
+    ? enrichmentData.sourceSnapshot.totalInstalls
+    : undefined;
+  const repoUrl = typeof enrichmentData?.sourceSnapshot?.repoUrl === "string"
+    ? enrichmentData.sourceSnapshot.repoUrl
+    : undefined;
   const locator = source?.locator ?? summary?.source?.locator;
 
   return {
@@ -561,7 +572,9 @@ function toDetailRecord(
     ...(revision ? { revision } : {}),
     ...(typeof source?.kind === "string" ? { subtitle: source.kind } : {}),
     ...(author ? { author } : {}),
+    ...(downloadCount !== undefined ? { downloadCount } : {}),
     ...(starCount !== undefined ? { starCount } : {}),
+    ...(repoUrl ? { repoUrl } : {}),
     ...(locator ? { locator } : {}),
     ...(summary?.lock?.checkoutPath ? { groupPath: summary.lock.checkoutPath } : {}),
     ...(summary?.lock?.updatedAt ? { updatedAt: summary.lock.updatedAt } : {}),
@@ -576,8 +589,10 @@ function toDetailRecord(
     enabledTargetLabels,
     sourceFacts,
     deploymentFacts,
-    fileTree: toDetailFileTree(leafs),
-    groupDocuments: toGroupDocuments(sourceId, source, summary, enrichmentData),
+    fileTree: Array.isArray(inspectData.fileTree) ? inspectData.fileTree : toDetailFileTree(leafs),
+    groupDocuments: Array.isArray(inspectData.groupDocuments)
+      ? inspectData.groupDocuments
+      : toGroupDocuments(sourceId, source, summary, enrichmentData),
     targets,
     skills,
   };
@@ -627,6 +642,10 @@ function toDetailSkills(
 function toSkillDocuments(
   leaf: NonNullable<DesktopInspectResult["leafs"]>[number],
 ): DetailDocumentTab[] {
+  if (Array.isArray(leaf.documents)) {
+    return leaf.documents;
+  }
+
   const documentPath = typeof leaf.skillFilePath === "string" && leaf.skillFilePath.length > 0
     ? leaf.skillFilePath
     : typeof leaf.relativePath === "string" && leaf.relativePath.length > 0
@@ -642,7 +661,9 @@ function toSkillDocuments(
     path: documentPath,
     metadata: [],
     renderCacheKey: `${leaf.id}:${documentPath}`,
-    content: typeof leaf.description === "string" && leaf.description.length > 0
+    content: typeof leaf.documentContent === "string" && leaf.documentContent.length > 0
+      ? leaf.documentContent
+      : typeof leaf.description === "string" && leaf.description.length > 0
       ? leaf.description
       : "No detail content loaded yet.",
     isLoaded: true,
@@ -655,6 +676,16 @@ function toGroupDocuments(
   summary: DesktopInspectResult["summary"],
   enrichment: DesktopInspectEnrichmentResult | undefined,
 ): DetailDocumentTab[] {
+  const groupPath = summary?.lock?.checkoutPath ?? ".";
+  const documents: DetailDocumentTab[] = [{
+    id: "group:filetree",
+    title: "File Tree",
+    path: groupPath,
+    metadata: [],
+    renderCacheKey: `group:filetree:${sourceId}:${groupPath}`,
+    content: "",
+    isLoaded: true,
+  }];
   const contentLines = [
     source?.displayName ?? summary?.source?.displayName ?? sourceId,
     typeof enrichment?.sourceSnapshot?.summary === "string" ? enrichment.sourceSnapshot.summary : undefined,
@@ -665,10 +696,10 @@ function toGroupDocuments(
   ].filter((line): line is string => typeof line === "string" && line.length > 0);
 
   if (contentLines.length === 0) {
-    return [];
+    return documents;
   }
 
-  return [{
+  documents.push({
     id: `${sourceId}:overview`,
     title: "README.md",
     path: "README.md",
@@ -676,7 +707,8 @@ function toGroupDocuments(
     renderCacheKey: `${sourceId}:overview`,
     content: contentLines.join("\n\n"),
     isLoaded: true,
-  }];
+  });
+  return documents;
 }
 
 function toDetailFileTree(
