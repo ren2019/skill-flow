@@ -32,6 +32,8 @@ export type InventorySummaryState = {
   selectedSkillNames?: string[];
   skillSelection?: InventorySelectionState;
   targetSelection?: InventorySelectionState;
+  skillsLoading?: boolean;
+  targetsLoading?: boolean;
   skills?: InventorySkillState[];
   targets?: InventoryTargetState[];
 };

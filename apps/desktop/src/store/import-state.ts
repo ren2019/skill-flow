@@ -7,6 +7,8 @@ export type ImportDraftState = {
 
 export type ImportSkillState = {
   id: string;
+  title?: string;
+  summary?: string;
   selectedByDefault: boolean;
 };
 
@@ -15,14 +17,26 @@ export type ImportTargetState = {
   selectedByDefault: boolean;
 };
 
+export type ImportRecommendationBadgeState = {
+  id: string;
+  title: string;
+  isPrimary: boolean;
+};
+
 export type ImportGroupState = {
   id: string;
   title: string;
   locator: string;
+  canonicalRepo?: string;
   isInstalledLocally?: boolean;
+  skillCount?: number;
+  downloadCount?: number;
+  starCount?: number;
+  repoUrl?: string;
   categoryId?: string;
   categoryTitle?: string;
   recommendationDescription?: string;
+  recommendationBadgeItems?: ImportRecommendationBadgeState[];
   previewPhase: ResourcePhase;
   skills: ImportSkillState[];
   targets: ImportTargetState[];

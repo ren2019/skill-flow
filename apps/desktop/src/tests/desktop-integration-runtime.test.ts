@@ -416,7 +416,12 @@ describe("desktop integration runtime", () => {
               id: "starter",
               title: "Starter",
               locator: "obra/starter",
+              canonicalRepo: "obra/starter",
               installed: true,
+              repoUrl: "https://github.com/obra/starter",
+              starCount: 42,
+              totalInstalls: 1200,
+              skillCount: 3,
               snapshot: {
                 skills: [
                   { skillId: "browse", title: "Browse" },
@@ -460,14 +465,19 @@ describe("desktop integration runtime", () => {
         id: "starter",
         title: "Starter",
         locator: "obra/starter",
+        canonicalRepo: "obra/starter",
         isInstalledLocally: true,
         previewPhase: { kind: "ready" },
-        skills: [{ id: "browse", selectedByDefault: true }],
+        skillCount: 3,
+        downloadCount: 1200,
+        starCount: 42,
+        repoUrl: "https://github.com/obra/starter",
+        skills: [{ id: "browse", title: "Browse", selectedByDefault: true }],
         targets: [],
       }),
     ]);
     await expect(integration.previewImportSource?.(" obra/starter ")).resolves.toEqual({
-      skills: [{ id: "browse", selectedByDefault: true }],
+      skills: [{ id: "browse", title: "Browse", selectedByDefault: true }],
       targets: [
         { id: "codex", selectedByDefault: true },
         { id: "cursor", selectedByDefault: false },

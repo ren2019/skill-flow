@@ -135,7 +135,16 @@ type DesktopImportSearchResult = {
     locator?: string;
     canonicalRepo?: string;
     installed?: boolean;
+    repoUrl?: string;
+    starCount?: number;
+    totalInstalls?: number;
+    skillCount?: number;
     snapshot?: {
+      canonicalRepo?: string;
+      repoUrl?: string;
+      repoStars?: number;
+      totalInstalls?: number;
+      skillCount?: number;
       skills?: Array<{
         skillId?: string;
         title?: string;
@@ -158,6 +167,7 @@ type DesktopImportPreviewResult = {
   skills?: Array<{
     id?: string;
     title?: string;
+    summary?: string;
   }>;
   targets?: Array<{
     id?: string;
@@ -739,13 +749,23 @@ function toImportGroups(data: DesktopImportSearchResult): ImportGroupState[] {
     if (!id || !title || !locator) {
       return [];
     }
+    const canonicalRepo = stringValue(group.canonicalRepo) ?? stringValue(group.snapshot?.canonicalRepo);
+    const repoUrl = stringValue(group.snapshot?.repoUrl) ?? stringValue(group.repoUrl);
+    const starCount = numberValue(group.snapshot?.repoStars) ?? numberValue(group.starCount);
+    const downloadCount = numberValue(group.snapshot?.totalInstalls) ?? numberValue(group.totalInstalls);
+    const skillCount = numberValue(group.snapshot?.skillCount) ?? numberValue(group.skillCount);
 
     const skills = (group.snapshot?.skills ?? []).flatMap((skill) => {
       const skillId = stringValue(skill.skillId);
       if (!skillId) {
         return [];
       }
-      return [{ id: skillId, selectedByDefault: true }];
+      const title = stringValue(skill.title);
+      return [{
+        id: skillId,
+        ...(title ? { title } : {}),
+        selectedByDefault: true,
+      }];
     });
     const previewPhase = skills.length > 0
       ? { kind: "ready" as const }
@@ -755,9 +775,14 @@ function toImportGroups(data: DesktopImportSearchResult): ImportGroupState[] {
       id,
       title,
       locator,
+      ...(canonicalRepo ? { canonicalRepo } : {}),
       previewPhase,
       skills,
       targets: [],
+      ...(skillCount !== undefined ? { skillCount } : {}),
+      ...(downloadCount !== undefined ? { downloadCount } : {}),
+      ...(starCount !== undefined ? { starCount } : {}),
+      ...(repoUrl ? { repoUrl } : {}),
       ...(group.installed === true ? { isInstalledLocally: true } : {}),
     }];
   });
@@ -777,7 +802,14 @@ function toImportPreview(data: DesktopImportPreviewResult): { skills: ImportSkil
       if (!id) {
         return [];
       }
-      return [{ id, selectedByDefault: selectedSkillIds.has(id) }];
+      const title = stringValue(skill.title);
+      const summary = stringValue(skill.summary);
+      return [{
+        id,
+        ...(title ? { title } : {}),
+        ...(summary ? { summary } : {}),
+        selectedByDefault: selectedSkillIds.has(id),
+      }];
     }),
     targets: (data.targets ?? []).flatMap((target) => {
       const id = stringValue(target.id);
@@ -841,6 +873,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function numberValue(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
 function isProjectScopeSelection(value: unknown): value is ProjectScopeSelection {

@@ -5,6 +5,12 @@ import { resolveGroupCardIcon, type GroupCardIconId } from "../icons/group-card-
 import { desktopTheme, type DesktopAccentColor, type DesktopThemeMode } from "../theme/app-theme";
 import type { InventorySummaryState, WorkspaceTagPreference } from "../store/workspace-state";
 
+export type RecommendationBadgeItem = {
+  id: string;
+  title: string;
+  isPrimary: boolean;
+};
+
 export type GroupCardDisplayMode =
   | "homeComfortable"
   | "homeCompact"
@@ -36,6 +42,7 @@ type GroupCardDisplayProfile = {
   showsSummaryDivider: boolean;
   reservesMinimumHeight: boolean;
   usesPlainPrimaryActionIcon: boolean;
+  showsLoadingStatPlaceholders: boolean;
 };
 
 type SharedGroupCardProps = {
@@ -50,7 +57,7 @@ type SharedGroupCardProps = {
   actionButtonIcon?: ActionIconId;
   isActionButtonDisabled?: boolean;
   onActionButton?: (() => void) | undefined;
-  onOpen(): void;
+  onOpen?: (() => void) | undefined;
   onUpdate(): void;
   onTogglePinned(): void;
   onDelete(): void;
@@ -65,6 +72,8 @@ type SharedGroupCardProps = {
   onCreateGroupTag(title: string, accent?: DesktopAccentColor): void;
   onDeleteGroupTag(tagId: string): void;
   onSelectGroupTag(tagId: string): void;
+  recommendationBadgeItems?: RecommendationBadgeItem[];
+  recommendationDescription?: string | undefined;
   labels: {
     update: string;
     delete: string;
@@ -115,6 +124,8 @@ export function SharedGroupCard({
   onCreateGroupTag,
   onDeleteGroupTag,
   onSelectGroupTag,
+  recommendationBadgeItems = [],
+  recommendationDescription,
   labels,
 }: SharedGroupCardProps) {
   const profile = groupCardDisplayProfile(displayMode);
@@ -123,6 +134,10 @@ export function SharedGroupCard({
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isDeletingTags, setIsDeletingTags] = useState(false);
   const shouldRenderTags = groupTagItems.length > 0 || canCreateGroupTag || isEditingTags;
+  const shouldRenderRecommendationSummary = recommendationBadgeItems.length > 0 || Boolean(recommendationDescription);
+  const shouldRenderSummary = shouldRenderTags || shouldRenderRecommendationSummary;
+  const showsLoadingStatPlaceholders = profile.showsLoadingStatPlaceholders
+    && (card.skillsLoading === true || card.targetsLoading === true);
   const isBusy = isUpdating;
   const showsPrimaryAction = onActionButton !== undefined;
 
@@ -131,9 +146,15 @@ export function SharedGroupCard({
       <div style={cardContentStyle(isBusy)}>
       <header data-view="shared-group-card-header" style={headerStyle}>
         <div style={headerCopyStyle}>
-          <button type="button" data-source-id={card.sourceId} disabled={isBusy} onClick={onOpen} style={titleButtonStyle(themeAccent, themeMode, profile)}>
-            {card.title}
-          </button>
+          {onOpen ? (
+            <button type="button" data-source-id={card.sourceId} disabled={isBusy} onClick={onOpen} style={titleButtonStyle(themeAccent, themeMode, profile)}>
+              {card.title}
+            </button>
+          ) : (
+            <span data-source-id={card.sourceId} style={titleTextStyle(themeAccent, themeMode, profile)}>
+              {card.title}
+            </span>
+          )}
           {profile.showsSubtitle ? (
             <p style={subtitleStyle(themeMode, profile)}>{card.byline ?? card.locator}</p>
           ) : null}
@@ -228,26 +249,18 @@ export function SharedGroupCard({
 
       {profile.showsMetaLine ? (
         <div data-view="shared-group-card-stats" style={statsRowStyle(themeMode, profile)}>
-          <MetadataIcon icon="skills" label={`${card.skillCount} skills`} statId="skills" />
           {card.downloadCount !== undefined ? (
             <MetadataIcon icon="download" label={formatCount(card.downloadCount)} statId="download" />
-          ) : null}
+          ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={42} statId="download" themeMode={themeMode} /> : null}
           {card.starCount !== undefined ? (
             <MetadataIcon icon="star" label={formatCount(card.starCount)} statId="star" />
-          ) : null}
+          ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={38} statId="star" themeMode={themeMode} /> : null}
           {card.repoUrl ? (
             <MetadataLink icon="github" href={card.repoUrl} statId="github" />
-          ) : null}
+          ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={16} statId="github" themeMode={themeMode} /> : null}
           {card.groupPath ? (
             <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" />
-          ) : null}
-          <MetadataPill label={labels.activeTargets(card.activeTargetCount)} themeMode={themeMode} />
-          {card.warningCount > 0 ? (
-            <MetadataPill label={`${card.warningCount} warnings`} themeMode={themeMode} tone="warning" />
-          ) : null}
-          {card.errorCount > 0 ? (
-            <MetadataPill label={`${card.errorCount} errors`} themeMode={themeMode} tone="error" />
-          ) : null}
+          ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={16} statId="local-file" themeMode={themeMode} /> : null}
         </div>
       ) : null}
 
@@ -256,7 +269,21 @@ export function SharedGroupCard({
       <section data-view="shared-group-card-agents" style={sectionStyle}>
         <SectionLabel label={labels.agents} themeMode={themeMode} profile={profile} />
         <div style={chipRowStyle}>
-          {(card.targets ?? []).length > 0 ? (
+          {card.targetsLoading ? (
+            <>
+              <ToggleChip
+                label={labels.all}
+                selected={card.targetSelection === "full"}
+                partial={card.targetSelection === "partial"}
+                themeMode={themeMode}
+                accent={themeAccent}
+                profile={profile}
+                onClick={onToggleAllTargets}
+                dataProps={{ "data-target-toggle-all-source-id": card.sourceId }}
+              />
+              <LoadingPills count={3} profile={profile} themeMode={themeMode} />
+            </>
+          ) : (card.targets ?? []).length > 0 ? (
             <>
               <ToggleChip
                 label={labels.all}
@@ -296,7 +323,21 @@ export function SharedGroupCard({
         <section data-view="shared-group-card-skills" style={sectionStyle}>
           <SectionLabel label={labels.skills} themeMode={themeMode} profile={profile} />
           <div style={chipRowStyle}>
-            {(card.skills ?? []).length > 0 ? (
+            {card.skillsLoading ? (
+              <>
+                <ToggleChip
+                  label={labels.all}
+                  selected={card.skillSelection === "full"}
+                  partial={card.skillSelection === "partial"}
+                  themeMode={themeMode}
+                  accent={themeAccent}
+                  profile={profile}
+                  onClick={onToggleAllSkills}
+                  dataProps={{ "data-skill-toggle-all-source-id": card.sourceId }}
+                />
+                <LoadingPills count={3} profile={profile} themeMode={themeMode} />
+              </>
+            ) : (card.skills ?? []).length > 0 ? (
             <>
               <ToggleChip
                 label={labels.all}
@@ -342,34 +383,44 @@ export function SharedGroupCard({
         </section>
       ) : null}
 
-      {shouldRenderTags ? (
+      {shouldRenderSummary ? (
         <>
           {profile.showsSummaryDivider ? <div data-view="shared-group-card-summary-divider" style={dividerStyle(themeMode)} /> : null}
-          <section data-view="shared-group-card-tags" style={sectionStyle}>
-            <SectionLabel label={labels.tags} themeMode={themeMode} profile={profile} />
-            <GroupTagSection
-              sourceId={card.sourceId}
-              items={groupTagItems}
-              suggestions={groupTagSuggestions}
-              canCreate={canCreateGroupTag && isEditingTags}
-              canStartEditing={canCreateGroupTag && !isEditingTags && !isDeletingTags}
-              canDelete={canDeleteGroupTags && isDeletingTags}
-              themeMode={themeMode}
-              themeAccent={themeAccent}
-              addLabel={labels.addTag}
-              placeholder={labels.tagPlaceholder}
-              onStartEditing={() => {
-                setIsDeletingTags(false);
-                setIsEditingTags(true);
-              }}
-              onCreate={(title, accent) => {
-                onCreateGroupTag(title, accent);
-                setIsEditingTags(false);
-              }}
-              onDelete={onDeleteGroupTag}
-              onSelect={onSelectGroupTag}
-            />
-          </section>
+          {shouldRenderRecommendationSummary ? (
+            <section data-view="shared-group-card-recommendation-summary" style={sectionStyle}>
+              <RecommendationSummary
+                badgeItems={recommendationBadgeItems}
+                description={recommendationDescription}
+                themeMode={themeMode}
+              />
+            </section>
+          ) : (
+            <section data-view="shared-group-card-tags" style={sectionStyle}>
+              <SectionLabel label={labels.tags} themeMode={themeMode} profile={profile} />
+              <GroupTagSection
+                sourceId={card.sourceId}
+                items={groupTagItems}
+                suggestions={groupTagSuggestions}
+                canCreate={canCreateGroupTag && isEditingTags}
+                canStartEditing={canCreateGroupTag && !isEditingTags && !isDeletingTags}
+                canDelete={canDeleteGroupTags && isDeletingTags}
+                themeMode={themeMode}
+                themeAccent={themeAccent}
+                addLabel={labels.addTag}
+                placeholder={labels.tagPlaceholder}
+                onStartEditing={() => {
+                  setIsDeletingTags(false);
+                  setIsEditingTags(true);
+                }}
+                onCreate={(title, accent) => {
+                  onCreateGroupTag(title, accent);
+                  setIsEditingTags(false);
+                }}
+                onDelete={onDeleteGroupTag}
+                onSelect={onSelectGroupTag}
+              />
+            </section>
+          )}
         </>
       ) : null}
 
@@ -468,6 +519,75 @@ function MetadataPill(
   { label, themeMode, tone = "default" }: { label: string; themeMode: DesktopThemeMode; tone?: "default" | "warning" | "error" },
 ) {
   return <span style={metadataPillStyle(themeMode, tone)}>{label}</span>;
+}
+
+function MetadataPlaceholder({
+  width,
+  statId,
+  themeMode,
+}: {
+  width: number;
+  statId: string;
+  themeMode: DesktopThemeMode;
+}) {
+  return (
+    <span
+      data-group-card-stat-placeholder={statId}
+      aria-hidden="true"
+      style={metadataPlaceholderStyle(width, themeMode)}
+    />
+  );
+}
+
+function LoadingPills({
+  count,
+  profile,
+  themeMode,
+}: {
+  count: number;
+  profile: GroupCardDisplayProfile;
+  themeMode: DesktopThemeMode;
+}) {
+  return Array.from({ length: count }, (_, index) => (
+    <span
+      key={index}
+      data-view="shared-group-card-loading-pill"
+      aria-hidden="true"
+      style={loadingPillStyle(themeMode, profile)}
+    />
+  ));
+}
+
+function RecommendationSummary({
+  badgeItems,
+  description,
+  themeMode,
+}: {
+  badgeItems: RecommendationBadgeItem[];
+  description?: string | undefined;
+  themeMode: DesktopThemeMode;
+}) {
+  return (
+    <div style={recommendationSummaryStyle}>
+      {badgeItems.length > 0 ? (
+        <div data-view="shared-group-card-recommendation-badges" style={chipRowStyle}>
+          {badgeItems.map((badge) => (
+            <span
+              key={`${badge.id}:${badge.title}`}
+              style={recommendationBadgeStyle(themeMode, recommendationBadgeAccent(badge.id))}
+            >
+              #{badge.title}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      {description ? (
+        <p data-view="shared-group-card-recommendation-description" style={recommendationDescriptionStyle(themeMode)}>
+          {description}
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 function SectionLabel(
@@ -713,6 +833,7 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: false,
         reservesMinimumHeight: false,
         usesPlainPrimaryActionIcon: false,
+        showsLoadingStatPlaceholders: false,
       };
     case "menuComfortable":
       return {
@@ -725,6 +846,7 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: false,
         reservesMinimumHeight: false,
         usesPlainPrimaryActionIcon: false,
+        showsLoadingStatPlaceholders: false,
       };
     case "menuCompact":
       return {
@@ -737,6 +859,7 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: false,
         reservesMinimumHeight: false,
         usesPlainPrimaryActionIcon: false,
+        showsLoadingStatPlaceholders: false,
       };
     case "importSearch":
       return {
@@ -749,6 +872,7 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: false,
         reservesMinimumHeight: true,
         usesPlainPrimaryActionIcon: true,
+        showsLoadingStatPlaceholders: true,
       };
     case "importRecommendation":
       return {
@@ -761,6 +885,7 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: true,
         reservesMinimumHeight: true,
         usesPlainPrimaryActionIcon: true,
+        showsLoadingStatPlaceholders: true,
       };
     case "homeComfortable":
     default:
@@ -774,7 +899,28 @@ function groupCardDisplayProfile(displayMode: GroupCardDisplayMode): GroupCardDi
         showsSummaryDivider: true,
         reservesMinimumHeight: true,
         usesPlainPrimaryActionIcon: false,
+        showsLoadingStatPlaceholders: false,
       };
+  }
+}
+
+function recommendationBadgeAccent(tagId: string): DesktopAccentColor {
+  switch (tagId) {
+    case "development":
+      return "green";
+    case "design":
+      return "pink";
+    case "creation":
+    case "automation":
+      return "orange";
+    case "marketing":
+      return "purple";
+    case "research":
+      return "yellow";
+    case "general":
+    case "teamwork":
+    default:
+      return "blue";
   }
 }
 
@@ -940,6 +1086,15 @@ const titleButtonStyle = (
   color: desktopTheme.brand(themeAccent, themeMode),
 });
 
+const titleTextStyle = (
+  themeAccent: DesktopAccentColor,
+  themeMode: DesktopThemeMode,
+  profile: GroupCardDisplayProfile,
+): CSSProperties => ({
+  ...titleButtonStyle(themeAccent, themeMode, profile),
+  display: "block",
+});
+
 const subtitleStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
   margin: 0,
   fontSize: `${profile.scale.metaSize}px`,
@@ -995,6 +1150,52 @@ const metadataPillStyle = (themeMode: DesktopThemeMode, tone: "default" | "warni
   color: tone === "warning" ? "#b45309" : tone === "error" ? "#b91c1c" : desktopTheme.textMuted(themeMode),
   fontSize: "11px",
   fontWeight: 500,
+});
+
+const metadataPlaceholderStyle = (width: number, themeMode: DesktopThemeMode): CSSProperties => ({
+  display: "inline-flex",
+  width: `${width}px`,
+  height: "10px",
+  borderRadius: "5px",
+  background: themeMode === "light" ? "rgba(212, 212, 216, 0.7)" : "rgba(255, 255, 255, 0.14)",
+});
+
+const loadingPillStyle = (themeMode: DesktopThemeMode, profile: GroupCardDisplayProfile): CSSProperties => ({
+  display: "inline-flex",
+  width: "72px",
+  height: `${profile.scale.chipHeight}px`,
+  borderRadius: `${Math.max(6, profile.scale.cornerRadius - 2)}px`,
+  background: themeMode === "light" ? "rgba(226, 232, 240, 0.82)" : "rgba(255, 255, 255, 0.10)",
+});
+
+const recommendationSummaryStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+  minWidth: 0,
+};
+
+const recommendationBadgeStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentColor): CSSProperties => ({
+  display: "inline-flex",
+  alignItems: "center",
+  height: "16px",
+  padding: "1px 0",
+  color: desktopTheme.brand(accent, themeMode),
+  fontSize: "12px",
+  fontWeight: 400,
+  lineHeight: 1,
+  whiteSpace: "nowrap",
+});
+
+const recommendationDescriptionStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  margin: 0,
+  color: desktopTheme.textPrimary(themeMode),
+  fontSize: "12px",
+  lineHeight: 1.35,
+  display: "-webkit-box",
+  WebkitLineClamp: 3,
+  WebkitBoxOrient: "vertical",
+  overflow: "hidden",
 });
 
 const dividerStyle = (themeMode: DesktopThemeMode): CSSProperties => ({

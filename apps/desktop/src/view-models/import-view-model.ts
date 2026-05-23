@@ -11,6 +11,11 @@ import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
 import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 import {
+  agentDisplayShortLabel,
+  agentDisplayTitle,
+  normalizeAgentDisplayPreferences,
+} from "../runtime/settings-store";
+import {
   createPassthroughMutationCoordinator,
   type MutationCoordinator,
 } from "../runtime/mutation-coordinator";
@@ -19,16 +24,24 @@ type ImportRecommendationSeed = {
   id: string;
   title: string;
   locator: string;
+  canonicalRepo?: string;
   isInstalledLocally?: boolean;
+  skillCount?: number;
+  downloadCount?: number;
+  starCount?: number;
+  repoUrl?: string;
   categoryId?: string;
   categoryTitle?: string;
   recommendationDescription?: string;
+  recommendationBadgeItems?: Array<{ id: string; title: string; isPrimary: boolean }>;
 };
 
 type BundledRecommendationEntry = {
   canonicalRepo: string;
   locator: string;
   categoryId: string;
+  primaryTagId: string;
+  secondaryTagIds: string[];
   descriptionKey: string;
   sortOrder: number;
 };
@@ -78,6 +91,7 @@ export class ImportViewModel {
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly onImportCompleted: () => Promise<void> | void;
   private readonly onChange: () => void;
+  private importingGroupId: string | undefined;
 
   constructor(
     private readonly state: DesktopAppState,
@@ -121,6 +135,10 @@ export class ImportViewModel {
 
   get searchPhase(): ResourcePhase {
     return this.state.importState.importSearchPhase;
+  }
+
+  isImportingGroup(groupId: string): boolean {
+    return this.importingGroupId === groupId;
   }
 
   get failedSearchMessage(): string | undefined {
@@ -190,6 +208,21 @@ export class ImportViewModel {
         if (entry.categoryId) {
           group.categoryId = entry.categoryId;
         }
+        if (entry.canonicalRepo) {
+          group.canonicalRepo = entry.canonicalRepo;
+        }
+        if (entry.skillCount !== undefined) {
+          group.skillCount = entry.skillCount;
+        }
+        if (entry.downloadCount !== undefined) {
+          group.downloadCount = entry.downloadCount;
+        }
+        if (entry.starCount !== undefined) {
+          group.starCount = entry.starCount;
+        }
+        if (entry.repoUrl) {
+          group.repoUrl = entry.repoUrl;
+        }
         if (entry.categoryTitle) {
           group.categoryTitle = entry.categoryTitle;
         }
@@ -198,6 +231,9 @@ export class ImportViewModel {
         }
         if (entry.recommendationDescription) {
           group.recommendationDescription = entry.recommendationDescription;
+        }
+        if (entry.recommendationBadgeItems) {
+          group.recommendationBadgeItems = entry.recommendationBadgeItems;
         }
         return group;
       });
@@ -260,6 +296,98 @@ export class ImportViewModel {
     this.onChange();
   }
 
+  draftForGroup(groupId: string): ImportDraftState | undefined {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return undefined;
+    }
+    return this.draftsByItemId[groupId] ?? defaultDraftForGroup(group);
+  }
+
+  targetsForGroup(groupId: string): ImportTargetState[] {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return [];
+    }
+    return effectiveTargetsForGroup(this.state, group);
+  }
+
+  targetLabel(targetId: string): string {
+    return agentDisplayTitle(targetId, this.state.settings.customAgents);
+  }
+
+  targetShortLabel(targetId: string): string {
+    return agentDisplayShortLabel(targetId, this.state.settings.customAgents);
+  }
+
+  setSkillEnabled(groupId: string, skillId: string, enabled: boolean): void {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return;
+    }
+    const current = this.draftForGroup(groupId) ?? defaultDraftForGroup(group);
+    const selectedSkillIds = new Set(current.selectedSkillIds);
+    if (enabled) {
+      selectedSkillIds.add(skillId);
+    } else {
+      selectedSkillIds.delete(skillId);
+    }
+    this.state.importState.draftsByItemId[groupId] = {
+      selectedSkillIds: group.skills.map((skill) => skill.id).filter((id) => selectedSkillIds.has(id)),
+      enabledTargetIds: current.enabledTargetIds,
+    };
+    this.onChange();
+  }
+
+  toggleAllSkills(groupId: string): void {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return;
+    }
+    const current = this.draftForGroup(groupId) ?? defaultDraftForGroup(group);
+    this.state.importState.draftsByItemId[groupId] = {
+      selectedSkillIds: current.selectedSkillIds.length === group.skills.length ? [] : group.skills.map((skill) => skill.id),
+      enabledTargetIds: current.enabledTargetIds,
+    };
+    this.onChange();
+  }
+
+  setTargetEnabled(groupId: string, targetId: string, enabled: boolean): void {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return;
+    }
+    const current = this.draftForGroup(groupId) ?? defaultDraftForGroup(group);
+    const targets = effectiveTargetsForGroup(this.state, group);
+    const enabledTargetIds = new Set(current.enabledTargetIds);
+    if (enabled) {
+      enabledTargetIds.add(targetId);
+    } else {
+      enabledTargetIds.delete(targetId);
+    }
+    this.state.importState.draftsByItemId[groupId] = {
+      selectedSkillIds: current.selectedSkillIds,
+      enabledTargetIds: targets.map((target) => target.id).filter((id) => enabledTargetIds.has(id)),
+    };
+    this.onChange();
+  }
+
+  toggleAllTargets(groupId: string): void {
+    const group = findImportGroup(this.state, groupId);
+    if (!group) {
+      return;
+    }
+    const current = this.draftForGroup(groupId) ?? defaultDraftForGroup(group);
+    const targets = effectiveTargetsForGroup(this.state, group);
+    const targetIds = targets.map((target) => target.id);
+    const enabledTargetIds = current.enabledTargetIds.filter((targetId) => targetIds.includes(targetId));
+    this.state.importState.draftsByItemId[groupId] = {
+      selectedSkillIds: current.selectedSkillIds,
+      enabledTargetIds: enabledTargetIds.length === targetIds.length ? [] : targetIds,
+    };
+    this.onChange();
+  }
+
   async importGroup(groupId: string): Promise<void> {
     const group = findImportGroup(this.state, groupId);
     if (!group) {
@@ -271,10 +399,9 @@ export class ImportViewModel {
       return;
     }
 
-    const draft = this.draftsByItemId[groupId] ?? {
-      selectedSkillIds: group.skills.map((skill) => skill.id),
-      enabledTargetIds: [],
-    };
+    const draft = this.draftForGroup(groupId) ?? defaultDraftForGroup(group);
+    this.importingGroupId = groupId;
+    this.onChange();
     try {
       const result = await this.mutationCoordinator.run(() =>
         this.importer(groupId, {
@@ -296,9 +423,11 @@ export class ImportViewModel {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.state.view.toastMessage = localize("toast.import.failed", this.desktopLanguage).replace("%@", message);
+      this.importingGroupId = undefined;
       this.onChange();
       return;
     }
+    this.importingGroupId = undefined;
     this.onChange();
   }
 }
@@ -321,11 +450,52 @@ function markImportGroupInstalled(state: DesktopAppState, targetGroup: ImportGro
   }
 }
 
+function defaultDraftForGroup(group: ImportGroupState): ImportDraftState {
+  return {
+    selectedSkillIds: group.skills.map((skill) => skill.id),
+    enabledTargetIds: [],
+  };
+}
+
+function effectiveTargetsForGroup(state: DesktopAppState, group: ImportGroupState): ImportTargetState[] {
+  if (group.targets.length > 0) {
+    return group.targets;
+  }
+
+  const detectedTargetIds = detectedTargetIdsForImport(state);
+  if (detectedTargetIds.size === 0) {
+    return [];
+  }
+
+  return normalizeAgentDisplayPreferences(
+    state.settings.agentDisplayPreferences,
+    state.settings.customAgents,
+  )
+    .filter((preference) => preference.isVisible && detectedTargetIds.has(preference.targetId))
+    .slice(0, 10)
+    .map((preference) => ({
+      id: preference.targetId,
+      selectedByDefault: false,
+    }));
+}
+
+function detectedTargetIdsForImport(state: DesktopAppState): Set<string> {
+  const targetIds: string[] = [];
+  for (const summary of state.workspace.inventorySummaries) {
+    targetIds.push(...(summary.targets ?? []).map((target) => target.id));
+  }
+  for (const detail of Object.values(state.detailState.detailsBySourceId)) {
+    targetIds.push(...detail.targets.map((target) => target.id));
+  }
+  return new Set(targetIds.filter((targetId) => targetId.length > 0));
+}
+
 function stripRecommendationFields(group: ImportGroupState): ImportGroupState {
   const stripped: ImportGroupState = {
     ...group,
   };
   delete stripped.recommendationDescription;
+  delete stripped.recommendationBadgeItems;
   return stripped;
 }
 
@@ -347,12 +517,27 @@ function defaultRecommendationSeeds(state: DesktopAppState, language: string): I
         id: normalizedRepo.replaceAll("/", "-"),
         title: titleFromRepo(entry.canonicalRepo),
         locator: entry.locator,
+        canonicalRepo: entry.canonicalRepo,
         isInstalledLocally: installedLocators.has(normalizedRepo),
         categoryId: entry.categoryId,
         categoryTitle: localize(`import.recommendation.category.${entry.categoryId}`, language),
         recommendationDescription: localize(entry.descriptionKey, language),
+        recommendationBadgeItems: recommendationBadgeItems(entry, language),
       };
     });
+}
+
+function recommendationBadgeItems(
+  entry: BundledRecommendationEntry,
+  language: string,
+): Array<{ id: string; title: string; isPrimary: boolean }> {
+  return [entry.primaryTagId, ...entry.secondaryTagIds.slice(0, 2)]
+    .filter((tagId): tagId is string => typeof tagId === "string" && tagId.length > 0)
+    .map((tagId, index) => ({
+      id: tagId,
+      title: localize(`import.recommendation.tag.${tagId}`, language),
+      isPrimary: index === 0,
+    }));
 }
 
 function normalizedRecommendationKey(value: string | undefined): string {

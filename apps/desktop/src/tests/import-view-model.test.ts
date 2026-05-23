@@ -47,6 +47,104 @@ describe("import view model", () => {
     expect("mutationLane" in viewModel).toBe(false);
   });
 
+  it("mutates import drafts with the same selection rules as the mac container", () => {
+    const state = createDesktopAppState({
+      importState: {
+        searchGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [
+              { id: "skill-a", selectedByDefault: true },
+              { id: "skill-b", selectedByDefault: true },
+            ],
+            targets: [
+              { id: "codex", selectedByDefault: false },
+              { id: "cursor", selectedByDefault: false },
+            ],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state);
+
+    expect(viewModel.draftForGroup("starter")).toEqual({
+      selectedSkillIds: ["skill-a", "skill-b"],
+      enabledTargetIds: [],
+    });
+
+    viewModel.setSkillEnabled("starter", "skill-a", false);
+    viewModel.setTargetEnabled("starter", "cursor", true);
+
+    expect(state.importState.draftsByItemId.starter).toEqual({
+      selectedSkillIds: ["skill-b"],
+      enabledTargetIds: ["cursor"],
+    });
+
+    viewModel.toggleAllSkills("starter");
+    viewModel.toggleAllTargets("starter");
+
+    expect(state.importState.draftsByItemId.starter).toEqual({
+      selectedSkillIds: ["skill-a", "skill-b"],
+      enabledTargetIds: ["codex", "cursor"],
+    });
+  });
+
+  it("falls back to visible detected workspace targets when previews do not provide targets", () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "cursor", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+          { targetId: "claude-code", isVisible: false, sortOrder: 2 },
+        ],
+      },
+      workspace: {
+        inventorySummaries: [
+          {
+            sourceId: "installed",
+            title: "Installed",
+            locator: "local/installed",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 2,
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+              { id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true },
+            ],
+          },
+        ],
+      },
+      importState: {
+        searchGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "obra/starter",
+            previewPhase: { kind: "ready" },
+            skills: [{ id: "skill-a", selectedByDefault: true }],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const viewModel = new ImportViewModel(state);
+
+    expect(viewModel.targetsForGroup("starter").map((target) => target.id)).toEqual(["codex"]);
+
+    viewModel.toggleAllTargets("starter");
+
+    expect(state.importState.draftsByItemId.starter).toEqual({
+      selectedSkillIds: ["skill-a"],
+      enabledTargetIds: ["codex"],
+    });
+  });
+
   it("splits recommended and search content by submitted query", () => {
     const state = createDesktopAppState({
       importState: {

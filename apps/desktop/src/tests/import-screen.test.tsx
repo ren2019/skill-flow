@@ -93,9 +93,15 @@ describe("import screen", () => {
             id: "starter",
             title: "Starter",
             locator: "obra/starter",
+            downloadCount: 1200,
+            starCount: 42,
+            repoUrl: "https://github.com/obra/starter",
             categoryId: "featured",
             categoryTitle: "Featured",
             recommendationDescription: "Development starter",
+            recommendationBadgeItems: [
+              { id: "development", title: "Development", isPrimary: true },
+            ],
             previewPhase: { kind: "ready" },
             skills: [
               { id: "skill-a", selectedByDefault: true },
@@ -124,8 +130,16 @@ describe("import screen", () => {
     expect(markup).toContain("data-view=\"import-page\"");
     expect(markup).toContain("data-view=\"recommendation-rails\"");
     expect(markup).toContain("data-view=\"import-rail\"");
+    expect(markup).toContain("data-card-display-mode=\"importRecommendation\"");
+    expect(markup).toContain("data-view=\"shared-group-card-recommendation-summary\"");
+    expect(markup).toContain("data-group-card-stat=\"download\"");
+    expect(markup).toContain("data-group-card-stat=\"star\"");
+    expect(markup).toContain("data-group-card-stat=\"github\"");
+    expect(markup).toContain("1.2k");
     expect(markup).toContain("Featured");
     expect(markup).toContain("starter");
+    expect(markup).toContain("Development starter");
+    expect(markup).toContain("#Development");
     expect(markup).toContain("skill-a");
     expect(markup).toContain("codex");
   });
@@ -147,7 +161,7 @@ describe("import screen", () => {
     );
 
     expect(markup).toContain("Network unavailable");
-    expect(markup).toContain("No groups found");
+    expect(markup).toContain("Import search failed");
     expect(markup).toContain("data-view=\"import-centered-state\"");
   });
 
@@ -196,9 +210,8 @@ describe("import screen", () => {
 
     expect(state.importState.recommendedGroups.map((group) => group.id)).toEqual(["starter"]);
 
-    const previewButton = renderer!.root.findByProps({ "data-preview-group-id": "starter" });
     await act(async () => {
-      await previewButton.props.onClick();
+      await Promise.resolve();
     });
     expect(previewLoader).toHaveBeenCalledWith("starter");
     expect(state.importState.recommendedGroups[0].skills.map((skill) => skill.id)).toEqual(["skill-a"]);
@@ -215,7 +228,6 @@ describe("import screen", () => {
     expect(searchLoader).toHaveBeenCalledWith("openai");
     expect(state.importState.importSubmittedQuery).toBe("openai");
     const text = JSON.stringify(renderer!.toJSON());
-    expect(text).toContain("Search Results");
     expect(text).toContain("search-result");
     expect(text).toContain("skill-b");
     expect(text).toContain("import-search-grid");
@@ -301,6 +313,9 @@ describe("import screen", () => {
               id: "search",
               title: "Search",
               locator: "openai/skills",
+              downloadCount: 5045,
+              starCount: 88,
+              repoUrl: "https://github.com/openai/skills",
               previewPhase: { kind: "ready" as const },
               skills: [{ id: "ship", selectedByDefault: true }],
               targets: [{ id: "cursor", selectedByDefault: true }],
@@ -335,6 +350,59 @@ describe("import screen", () => {
       enabledTargets: [],
     });
     expect(state.importState.searchGroups[0].isInstalledLocally).toBe(true);
+  });
+
+  it("updates import card drafts through shared card toggles before importing", async () => {
+    const importer = vi.fn().mockResolvedValue({ sourceId: "search" });
+    const state = createDesktopAppState({
+      importState: {
+        recommendedGroups: [
+          {
+            id: "search",
+            title: "Search",
+            locator: "openai/skills",
+            previewPhase: { kind: "ready" as const },
+            skills: [
+              { id: "ship", title: "Ship", selectedByDefault: true },
+              { id: "review", title: "Review", selectedByDefault: true },
+            ],
+            targets: [
+              { id: "codex", selectedByDefault: false },
+              { id: "cursor", selectedByDefault: false },
+            ],
+          },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new ImportViewModel(state, {
+          importer,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <ImportScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-skill-toggle-id": "search:ship" }).props.onClick();
+      renderer!.root.findByProps({ "data-target-toggle-id": "search:codex" }).props.onClick();
+    });
+    await act(async () => {
+      await renderer!.root.findByProps({ "data-import-group-id": "search" }).props.onClick();
+    });
+
+    expect(importer).toHaveBeenCalledWith("search", {
+      selectedSkillIds: ["review"],
+      enabledTargets: ["codex"],
+    });
   });
 
   it("syncs the search input back to the shared query after the page resets", async () => {
@@ -397,9 +465,6 @@ describe("import screen", () => {
       <ImportScreen viewModel={new ImportViewModel(state)} />,
     );
 
-    expect(markup).toContain("Search Results");
-    expect(markup).toContain("openai");
-    expect(markup).toContain("Loading");
     expect(markup).toContain("data-view=\"import-search-loading\"");
     expect(markup).toContain("search");
     expect(markup).not.toContain("recommended");
@@ -433,6 +498,33 @@ describe("import screen", () => {
 
   it("falls back to visible targets when no preview target draft is available", () => {
     const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "cursor", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+          { targetId: "claude-code", isVisible: false, sortOrder: 2 },
+        ],
+      },
+      workspace: {
+        inventorySummaries: [
+          {
+            sourceId: "installed",
+            title: "Installed",
+            locator: "local/installed",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 3,
+            targets: [
+              { id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true },
+              { id: "cursor", label: "Cursor", shortLabel: "CU", isEnabled: true },
+              { id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true },
+            ],
+          },
+        ],
+      },
       importState: {
         importSubmittedQuery: "",
         recommendedGroups: [
@@ -442,10 +534,7 @@ describe("import screen", () => {
             locator: "obra/starter",
             previewPhase: { kind: "loading" },
             skills: [],
-            targets: [
-              { id: "claude-code", selectedByDefault: true },
-              { id: "cursor", selectedByDefault: true },
-            ],
+            targets: [],
           },
         ],
         draftsByItemId: {
@@ -461,7 +550,10 @@ describe("import screen", () => {
       <ImportScreen viewModel={new ImportViewModel(state)} />,
     );
 
-    expect(markup).toContain("claude-code");
-    expect(markup).toContain("cursor");
+    expect(markup).toContain("Codex");
+    expect(markup).toContain("Cursor");
+    expect(markup).not.toContain("Claude Code");
+    expect(markup).toContain("data-view=\"shared-group-card-loading-pill\"");
+    expect(markup).toContain("data-group-card-stat-placeholder=\"download\"");
   });
 });

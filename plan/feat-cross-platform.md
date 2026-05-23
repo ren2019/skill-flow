@@ -11,7 +11,7 @@
 ## 分支基线
 
 - 当前分支：`feat-cross-platform`
-- 当前提交：`0fbbc46`，另有本轮未提交的 SharedGroupCard display mode 对齐改动
+- 当前提交：`1ef9808`，另有本轮未提交的 Import 共享卡片对齐改动
 - 远端分支：`origin/feat-cross-platform`，已与本地当前提交一致
 - 对比基线：`origin/main` at `1b43c33`
 - 分支差异：`94` 个提交，`147` 个新增文件，`12` 个修改文件
@@ -90,6 +90,14 @@
 - 已进一步对齐 mac 端 `EditableGroupTagSection`：标签区支持空标签 / hover 标签时显示 inline plus 进入编辑，编辑态显示输入框和建议，创建后退出编辑；Detail 页标签编辑也复用同一交互。
 - 已开始对齐 mac 端全局顶栏结构：Import 页搜索迁入共享 `DesktopTopBar`，非 Home 顶栏显示返回按钮和页面标题，Import 页面内部 header 去除并收敛背景。
 - 已将 Detail / Settings 也接入共享 `DesktopTopBar`，非 Home 页面统一显示返回按钮和页面标题，返回操作回到 Home。
+- 已将 Import 推荐 / 搜索结果卡片从旧 `GroupCard` 迁移到 `SharedGroupCard`，按 mac 端区分 `importRecommendation` / `importSearch` display mode。
+- 已补齐 Import 卡片主操作按钮、导入中 busy overlay、已安装禁用态，以及导入 draft 的技能 / 目标切换和全选逻辑。
+- 已补齐 Import 推荐说明和推荐标签在共享卡片 summary 区的展示，并从 bundled recommendation metadata 生成本地化 badge。
+- 已移除 Import 内容区旧标题面板，搜索结果和推荐列表更接近 mac 端由顶栏和分区 badge 承载上下文的布局。
+- 已对齐 `SharedGroupCard` header stats 规则：meta 行只展示 downloads / stars / GitHub / 本地路径，移除 skill count / active targets / warning / error 的 header pill；Import loading 时保留 mac 端同类占位。
+- 已补齐 Import preview loading 的技能区 loading pill，占位展示复用共享卡片模型的 `skillsLoading` 状态。
+- 已贯通 Import search bridge 返回的 `canonicalRepo`、`repoUrl`、`starCount`、`totalInstalls`、`skillCount` 到 renderer `ImportGroupState`，Import 卡片可展示 mac 端同类下载、星标和 GitHub meta。
+- 已补齐 Import 预览未返回 targets 时的 mac 端 fallback 逻辑：按设置中的 Agent 显示顺序和可见性过滤当前工作区已检测 targets，卡片渲染、全选和导入 draft 共用同一组有效 targets。
 
 ### 当前未完成 / 风险
 
@@ -111,7 +119,7 @@ npm run desktop:test:cross-platform
 - `npx tsc -p apps/desktop/tsconfig.json --noEmit`：通过。
 - `npm run -w @skill-flow/desktop build:renderer`：通过。
 - `npm run -w @skill-flow/desktop test`：通过。
-- 最新测试汇总：`31` 个测试文件通过；`190` 个测试通过。
+- 最新测试汇总：`31` 个测试文件通过；`193` 个测试通过。
 - Vitest `--localstorage-file was provided without a valid path` warning 已清理。
 - 本轮补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/group-tag-store.test.ts src/tests/localization.test.tsx` 通过，`6` 个测试文件、`74` 个测试通过。
 - 菜单快速配置补充验证：`npm run -w @skill-flow/desktop test -- src/tests/menu-quick-config-screen.test.tsx src/tests/home-screen.test.tsx src/tests/tray.test.ts` 通过，`3` 个测试文件、`18` 个测试通过；此前 `src/tests/menu-quick-config-screen.test.tsx src/tests/tray.test.ts src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx` 通过，`6` 个测试文件、`75` 个测试通过。
@@ -121,6 +129,10 @@ npm run desktop:test:cross-platform
 - Detail / Settings 顶栏补充验证：`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`5` 个测试文件、`48` 个测试通过。
 - Settings 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`25` 个测试通过。
 - Tauri Rust 验证：`cargo test` 在 `apps/desktop/src-tauri` 通过，`4` 个单元测试通过。
+- Import 共享卡片补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`42` 个测试通过。
+- SharedGroupCard header stats / Import loading 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-screen.test.tsx src/tests/menu-quick-config-screen.test.tsx src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/localization.test.tsx` 通过，`5` 个测试文件、`49` 个测试通过。
+- Import stats 数据链补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`42` 个测试通过。
+- Import fallback targets 补充验证：`npm run -w @skill-flow/desktop test -- src/tests/import-screen.test.tsx src/tests/import-view-model.test.ts` 通过，`2` 个测试文件、`29` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`193` 个测试通过。
 
 ## 下一步
 

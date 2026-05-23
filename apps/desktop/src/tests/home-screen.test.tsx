@@ -97,8 +97,9 @@ describe("home screen", () => {
     expect(markup).toContain("Alpha Starter");
     expect(markup).toContain("Beta Tools");
     expect(markup).toContain("by obra");
-    expect(markup).toContain("3 skills");
-    expect(markup).toContain("2 active targets");
+    expect(markup).not.toContain("data-group-card-stat=\"skills\"");
+    expect(markup).not.toContain("3 skills");
+    expect(markup).not.toContain("2 active targets");
     expect(markup).toContain("Pinned");
     expect(markup).toContain("Codex");
     expect(markup).toContain("browse");

@@ -1,10 +1,10 @@
 import { startTransition, useEffect, type CSSProperties } from "react";
 import { DesktopTopBar } from "../components/desktop-top-bar";
 import { EmptyState } from "../components/empty-state";
-import { GroupCard } from "../components/group-card";
-import { GroupTags } from "../components/group-tags";
-import { localize, localizePhaseKind } from "../i18n";
-import type { ImportGroupState } from "../store/import-state";
+import { SharedGroupCard, type GroupCardDisplayMode } from "../components/shared-group-card";
+import { localize } from "../i18n";
+import type { ImportGroupState, ImportTargetState } from "../store/import-state";
+import type { InventorySelectionState, InventorySummaryState } from "../store/workspace-state";
 import { ImportViewModel } from "../view-models/import-view-model";
 
 type ImportScreenProps = {
@@ -76,9 +76,30 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
         {topBar}
         <section data-view="import-centered-state" style={centeredStateStyle}>
           <EmptyState
-            title={t("page.import.empty_title")}
+            title={t("import.failed.title")}
             subtitle={viewModel.failedSearchMessage ?? t("page.import.empty_search")}
           />
+        </section>
+      </main>
+    );
+  }
+
+  if (!hasDisplayedGroups) {
+    return (
+      <main data-view="import-page" style={pageStyle}>
+        {topBar}
+        <section data-view="import-centered-state" style={centeredStateStyle}>
+          {viewModel.searchPhase.kind === "loading" ? (
+            <div data-view="import-loading-indicator" style={loadingIndicatorStyle}>
+              <span aria-hidden="true" style={loadingSpinnerStyle(viewModel.themeAccent)} />
+              <span>{t("common.loading.groups")}</span>
+            </div>
+          ) : (
+            <EmptyState
+              title={t("home.empty.title")}
+              subtitle={viewModel.importSubmittedQuery ? t("import.empty.search") : t("import.empty.recommended")}
+            />
+          )}
         </section>
       </main>
     );
@@ -89,9 +110,6 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
       {topBar}
       {content.kind === "recommended" ? (
         <section data-view="recommendation-rails" style={contentColumnStyle}>
-          <section style={introPanelStyle}>
-            <h2 style={sectionTitleStyle}>{t("page.import.recommended")}</h2>
-          </section>
           {content.sections.map((section) => (
             <section key={section.categoryId} style={{ display: "grid", gap: "10px" }}>
               <h3 style={railTitleStyle}># {section.title}</h3>
@@ -99,7 +117,7 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
                 {section.groups.map((group) => {
                   return (
                     <div key={group.id} style={railCardStyle}>
-                      {renderImportGroupCard(group, viewModel, t)}
+                      {renderImportGroupCard(group, viewModel, t, "importRecommendation")}
                     </div>
                   );
                 })}
@@ -109,15 +127,10 @@ export function ImportScreen({ viewModel }: ImportScreenProps) {
         </section>
       ) : (
         <section data-view="import-search-results" style={contentColumnStyle}>
-          <section style={introPanelStyle}>
-            <h2 style={sectionTitleStyle}>{t("page.import.search_results")}</h2>
-            <p style={metaTextStyle}>{viewModel.importSubmittedQuery}</p>
-            <p style={metaTextStyle}>{localizePhaseKind(viewModel.searchPhase.kind, viewModel.desktopLanguage)}</p>
-          </section>
           <div data-view="import-search-grid" style={searchGridStyle}>
             {content.groups.map((group) => (
               <div key={group.id}>
-                {renderImportGroupCard(group, viewModel, t)}
+                {renderImportGroupCard(group, viewModel, t, "importSearch")}
               </div>
             ))}
           </div>
@@ -151,57 +164,143 @@ function renderImportGroupCard(
   group: ImportGroupState,
   viewModel: ImportViewModel,
   t: (key: string) => string,
+  displayMode: GroupCardDisplayMode,
 ) {
-  const draft = viewModel.draftsByItemId[group.id];
-  const selectedSkillIds = draft?.selectedSkillIds ?? group.skills.map((skill) => skill.id);
-  const enabledTargetIds = draft?.enabledTargetIds ?? [];
-  const visibleTargetIds = enabledTargetIds.length > 0
-    ? enabledTargetIds
-    : group.targets.map((target) => target.id);
+  const draft = viewModel.draftForGroup(group.id) ?? {
+    selectedSkillIds: group.skills.map((skill) => skill.id),
+    enabledTargetIds: [],
+  };
+  const targets = viewModel.targetsForGroup(group.id);
+  const selectedSkillIds = new Set(draft.selectedSkillIds);
+  const enabledTargetIds = new Set(draft.enabledTargetIds);
+  const card = importGroupCardModel(group, draft, targets, viewModel);
 
   return (
-    <GroupCard
-      title={group.id}
-      subtitle={group.recommendationDescription ?? group.locator}
-      meta={localizePhaseKind(group.previewPhase.kind, viewModel.desktopLanguage)}
-    >
-      <div style={buttonRowStyle}>
-        <button
-          type="button"
-          data-preview-group-id={group.id}
-          onClick={() => {
-            startTransition(() => {
-              void viewModel.previewImportGroupIfNeeded(group.id);
-            });
-          }}
-          style={primaryButtonStyle(false)}
-        >
-          {t("action.preview")}
-        </button>
-        <button
-          type="button"
-          data-import-group-id={group.id}
-          disabled={Boolean(group.isInstalledLocally)}
-          onClick={() => {
-            startTransition(() => {
-              void viewModel.importGroup(group.id);
-            });
-          }}
-          style={primaryButtonStyle(Boolean(group.isInstalledLocally))}
-        >
-          {group.isInstalledLocally ? t("state.installed") : t("action.import")}
-        </button>
-      </div>
-      <div style={detailStackStyle}>
-        <p style={labelStyle}>{t("page.import.skills")}</p>
-        <GroupTags tags={selectedSkillIds} />
-      </div>
-      <div style={detailStackStyle}>
-        <p style={labelStyle}>{t("page.import.targets")}</p>
-        <GroupTags tags={visibleTargetIds} />
-      </div>
-    </GroupCard>
+    <SharedGroupCard
+      card={card}
+      themeMode={viewModel.themeMode}
+      themeAccent={viewModel.themeAccent}
+      pinned={false}
+      displayMode={displayMode}
+      skillsCollapsed={false}
+      isUpdating={viewModel.isImportingGroup(group.id)}
+      actionButtonTitle={group.isInstalledLocally ? t("group_card.action.installed") : undefined}
+      actionButtonIcon="import"
+      isActionButtonDisabled={Boolean(group.isInstalledLocally)}
+      onActionButton={() => {
+        startTransition(() => {
+          void viewModel.importGroup(group.id);
+        });
+      }}
+      onUpdate={() => undefined}
+      onTogglePinned={() => undefined}
+      onDelete={() => undefined}
+      onToggleSkill={(skillId) => {
+        viewModel.setSkillEnabled(group.id, skillId, !selectedSkillIds.has(skillId));
+      }}
+      onToggleAllSkills={() => {
+        viewModel.toggleAllSkills(group.id);
+      }}
+      onToggleTarget={(targetId) => {
+        viewModel.setTargetEnabled(group.id, targetId, !enabledTargetIds.has(targetId));
+      }}
+      onToggleAllTargets={() => {
+        viewModel.toggleAllTargets(group.id);
+      }}
+      groupTagItems={[]}
+      groupTagSuggestions={[]}
+      canCreateGroupTag={false}
+      canDeleteGroupTags={false}
+      onCreateGroupTag={() => undefined}
+      onDeleteGroupTag={() => undefined}
+      onSelectGroupTag={() => undefined}
+      recommendationBadgeItems={group.recommendationBadgeItems ?? []}
+      recommendationDescription={displayMode === "importRecommendation" ? group.recommendationDescription : undefined}
+      labels={{
+        update: t("action.update"),
+        delete: t("action.delete"),
+        all: t("action.all"),
+        pin: t("action.pin"),
+        unpin: t("action.unpin"),
+        pinned: t("state.pinned"),
+        import: t("action.import"),
+        updating: t("group_card.loading.downloading"),
+        agents: t("common.section.agents"),
+        skills: t("common.section.skills"),
+        tags: t("common.section.tags"),
+        addTag: t("group_tag.action.add"),
+        editTags: t("group_card.action.edit_tags"),
+        cancelEditTags: t("group_card.action.cancel_edit_tags"),
+        deleteTags: t("group_card.action.delete_tags"),
+        doneDeleteTags: t("group_card.action.done_delete_tags"),
+        tagPlaceholder: t("group_tag.input.placeholder"),
+        activeTargets: (count) => `${count} active targets`,
+        enabledSkills: (enabledCount, totalCount) => `${enabledCount} / ${totalCount} skills`,
+      }}
+    />
   );
+}
+
+function importGroupCardModel(
+  group: ImportGroupState,
+  draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
+  targets: ImportTargetState[],
+  viewModel: ImportViewModel,
+): InventorySummaryState {
+  const selectedSkillIds = new Set(draft.selectedSkillIds);
+  const enabledTargetIds = new Set(draft.enabledTargetIds);
+  const selectedSkillCount = group.skills.filter((skill) => selectedSkillIds.has(skill.id)).length;
+  const enabledTargetCount = targets.filter((target) => enabledTargetIds.has(target.id)).length;
+
+  const card: InventorySummaryState = {
+    sourceId: group.id,
+    title: group.title || group.id,
+    locator: group.locator,
+    byline: group.locator,
+    health: "DISCOVER",
+    warningCount: 0,
+    errorCount: 0,
+    skillCount: group.skillCount ?? group.skills.length,
+    enabledSkillCount: selectedSkillCount,
+    activeTargetCount: enabledTargetCount,
+    skillsLoading: group.previewPhase.kind === "loading",
+    targetsLoading: false,
+    skillSelection: selectionState(group.skills.map((skill) => skill.id), draft.selectedSkillIds),
+    targetSelection: selectionState(targets.map((target) => target.id), draft.enabledTargetIds),
+    skills: group.skills.map((skill) => ({
+      id: skill.id,
+      title: skill.title ?? skill.id,
+      isEnabled: selectedSkillIds.has(skill.id),
+    })),
+    targets: targets.map((target) => ({
+      id: target.id,
+      label: viewModel.targetLabel(target.id),
+      shortLabel: viewModel.targetShortLabel(target.id),
+      isEnabled: enabledTargetIds.has(target.id),
+    })),
+  };
+  if (group.downloadCount !== undefined) {
+    card.downloadCount = group.downloadCount;
+  }
+  if (group.starCount !== undefined) {
+    card.starCount = group.starCount;
+  }
+  if (group.repoUrl) {
+    card.repoUrl = group.repoUrl;
+  }
+  return card;
+}
+
+function selectionState(allIds: string[], selectedIds: string[]): InventorySelectionState {
+  if (allIds.length === 0) {
+    return "empty";
+  }
+  const selected = new Set(selectedIds);
+  const selectedCount = allIds.filter((id) => selected.has(id)).length;
+  if (selectedCount === 0) {
+    return "empty";
+  }
+  return selectedCount === allIds.length ? "full" : "partial";
 }
 
 const pageStyle: CSSProperties = {
@@ -220,29 +319,6 @@ const contentColumnStyle: CSSProperties = {
   padding: "0 20px 20px",
 };
 
-const introPanelStyle: CSSProperties = {
-  display: "grid",
-  gap: "6px",
-  padding: "18px",
-  borderRadius: "20px",
-  background: "rgba(255, 255, 255, 0.84)",
-  border: "1px solid rgba(148, 163, 184, 0.2)",
-  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.08)",
-};
-
-const sectionTitleStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "20px",
-  fontWeight: 700,
-  color: "#0f172a",
-};
-
-const metaTextStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "12px",
-  color: "#475569",
-};
-
 const centeredStateStyle: CSSProperties = {
   display: "flex",
   alignItems: "center",
@@ -250,6 +326,24 @@ const centeredStateStyle: CSSProperties = {
   minHeight: "420px",
   padding: "0 20px 20px",
 };
+
+const loadingIndicatorStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "10px",
+  minHeight: "220px",
+  color: "#525252",
+  fontSize: "12px",
+  fontWeight: 500,
+};
+
+const loadingSpinnerStyle = (accent: string): CSSProperties => ({
+  width: "16px",
+  height: "16px",
+  borderRadius: "999px",
+  border: "2px solid rgba(115, 115, 115, 0.28)",
+  borderTopColor: accent === "green" ? "#22c55e" : accent === "orange" ? "#f97316" : "#3b82f6",
+});
 
 const railTitleStyle: CSSProperties = {
   margin: 0,
@@ -285,37 +379,3 @@ const searchGridStyle: CSSProperties = {
   gap: "14px",
   alignItems: "start",
 };
-
-const detailStackStyle: CSSProperties = {
-  display: "grid",
-  gap: "8px",
-};
-
-const labelStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "11px",
-  fontWeight: 700,
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "#64748b",
-};
-
-const buttonRowStyle: CSSProperties = {
-  display: "flex",
-  gap: "8px",
-  flexWrap: "wrap",
-  marginBottom: "12px",
-};
-
-function primaryButtonStyle(disabled: boolean): CSSProperties {
-  return {
-    height: "34px",
-    padding: "0 12px",
-    borderRadius: "10px",
-    border: disabled ? "1px solid rgba(148, 163, 184, 0.22)" : "1px solid rgba(14, 116, 144, 0.22)",
-    background: disabled ? "rgba(226, 232, 240, 0.82)" : "rgba(224, 242, 254, 0.86)",
-    color: "#0f172a",
-    fontSize: "12px",
-    fontWeight: 600,
-  };
-}
