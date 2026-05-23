@@ -85,6 +85,83 @@ describe("detail screen", () => {
     expect(markup).toContain("skill-a");
   });
 
+  it("renders and wires the detail tag rail", async () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      workspace: {
+        sourceIds: ["alpha"],
+        customTagsBySourceId: {
+          alpha: [{ id: "custom:official", title: "Official" }],
+        },
+      },
+      detailState: {
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: ["Codex"],
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new DetailViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <DetailScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "detail-tag-rail" })).toHaveLength(1);
+    const input = renderer!.root.findByProps({ "data-group-tag-input-source-id": "alpha" });
+    await act(async () => {
+      input.props.onChange({ currentTarget: { value: "Review" } });
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-add-group-tag-source-id": "alpha" }).props.onClick();
+    });
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "custom:official" }),
+      expect.objectContaining({ id: "custom:review", title: "Review" }),
+    ]);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-delete-group-tag-id": "alpha:custom:official" }).props.onClick();
+    });
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "custom:review" }),
+    ]);
+  });
+
   it("renders the group header metadata instead of a flat title block", () => {
     const state = createDesktopAppState({
       view: {

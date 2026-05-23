@@ -1,6 +1,6 @@
 import ReactDOMServer from "react-dom/server";
 import { act, create } from "react-test-renderer";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { SettingsScreen } from "../screens/settings-screen";
@@ -17,7 +17,7 @@ describe("settings screen", () => {
         experimentalExternalHelper: true,
         desktopLanguageRawValue: "en",
         themeModeRawValue: "dark",
-        themeAccentRawValue: "amber",
+        themeAccentRawValue: "purple",
         homeCardDensityRawValue: "comfortable",
         menuCardDensityRawValue: "compact",
         agentDisplayPreferences: [
@@ -36,9 +36,13 @@ describe("settings screen", () => {
     expect(markup).toContain("data-view=\"settings-control-row\"");
     expect(markup).toContain("data-view=\"settings-agent-row\"");
     expect(markup).toContain("Appearance");
+    expect(markup).toContain("Menu Bar");
     expect(markup).toContain("Application Update");
     expect(markup).toContain("Advanced");
     expect(markup).toContain("Maintenance");
+    expect(markup).toContain("Standard");
+    expect(markup).toContain("Compact");
+    expect(markup).toContain("Configure which detected agents appear");
   });
 
   it("renders update and maintenance actions instead of read-only fields only", () => {
@@ -61,6 +65,210 @@ describe("settings screen", () => {
     expect(markup).toContain("Clear Cache");
     expect(markup).toContain("Reset Configuration");
     expect(markup).toContain("data-view=\"settings-action-row\"");
+  });
+
+  it("wires agent visibility controls through the settings view model", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "codex", isVisible: true, sortOrder: 0 },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-visibility-target-id": "codex" }).props.onClick();
+    });
+
+    expect(state.settings.agentDisplayPreferences.find((row) => row.targetId === "codex")).toEqual({
+      targetId: "codex",
+      isVisible: false,
+      sortOrder: 0,
+    });
+  });
+
+  it("wires agent ordering controls through the settings view model", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "claude-code", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-move-agent-down-target-id": "claude-code" }).props.onClick();
+    });
+
+    expect(state.settings.agentDisplayPreferences.slice(0, 2)).toEqual([
+      { targetId: "codex", isVisible: true, sortOrder: 0 },
+      { targetId: "claude-code", isVisible: true, sortOrder: 1 },
+    ]);
+  });
+
+  it("reorders agents by dragging the handle onto another agent row", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "claude-code", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    const transferData: Record<string, string> = {};
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      setData: vi.fn((key: string, value: string) => {
+        transferData[key] = value;
+      }),
+      getData: vi.fn((key: string) => transferData[key] ?? ""),
+    };
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-drag-handle-target-id": "codex" }).props.onDragStart({
+        dataTransfer,
+      });
+    });
+    const preventDefault = vi.fn();
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-drop-target-id": "claude-code" }).props.onDragOver({
+        preventDefault,
+        dataTransfer,
+      });
+      renderer!.root.findByProps({ "data-agent-drop-target-id": "claude-code" }).props.onDrop({
+        preventDefault,
+        dataTransfer,
+      });
+    });
+
+    expect(dataTransfer.setData).toHaveBeenCalledWith("text/plain", "codex");
+    expect(preventDefault).toHaveBeenCalled();
+    expect(state.settings.agentDisplayPreferences.slice(0, 2)).toEqual([
+      { targetId: "codex", isVisible: true, sortOrder: 0 },
+      { targetId: "claude-code", isVisible: true, sortOrder: 1 },
+    ]);
+  });
+
+  it("adds, edits, validates, and deletes custom agents through the settings screen", async () => {
+    const state = createDesktopAppState();
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-add-custom-agent": "true" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-save-custom-agent": "true" }).props.onClick();
+    });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Name is required.");
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-custom-agent-field": "name" }).props.onChange({
+        currentTarget: { value: "My Agent" },
+      });
+      renderer!.root.findByProps({ "data-custom-agent-field": "globalPath" }).props.onChange({
+        currentTarget: { value: "/Users/test/.my-agent/skills" },
+      });
+      renderer!.root.findByProps({ "data-custom-agent-field": "projectPathTemplate" }).props.onChange({
+        currentTarget: { value: ".my-agent/skills" },
+      });
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-save-custom-agent": "true" }).props.onClick();
+    });
+    expect(state.settings.customAgents).toEqual([
+      expect.objectContaining({
+        id: "my-agent",
+        name: "My Agent",
+        globalPath: "/Users/test/.my-agent/skills",
+        projectPathTemplate: ".my-agent/skills",
+      }),
+    ]);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-edit-custom-agent-id": "my-agent" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-custom-agent-field": "name" }).props.onChange({
+        currentTarget: { value: "Team Agent" },
+      });
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-save-custom-agent": "true" }).props.onClick();
+    });
+    expect(state.settings.customAgents[0]).toEqual(
+      expect.objectContaining({
+        id: "my-agent",
+        name: "Team Agent",
+      }),
+    );
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-delete-custom-agent-id": "my-agent" }).props.onClick();
+    });
+    expect(state.settings.customAgents).toEqual([]);
+    expect(state.settings.agentDisplayPreferences.some((row) => row.targetId === "my-agent")).toBe(false);
   });
 
   it("renders update checking state and release version details", () => {

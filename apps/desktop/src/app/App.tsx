@@ -4,6 +4,7 @@ import { registerTrayRouteListener } from "../menu/tray";
 import { DetailScreen } from "../screens/detail-screen";
 import { HomeScreen } from "../screens/home-screen";
 import { ImportScreen } from "../screens/import-screen";
+import { MenuQuickConfigScreen } from "../screens/menu-quick-config-screen";
 import { SettingsScreen } from "../screens/settings-screen";
 import {
   createDesktopAppState,
@@ -14,6 +15,7 @@ import {
   type DesktopIntegration,
 } from "../runtime/desktop-integration";
 import { createDesktopMaintenance } from "../runtime/desktop-maintenance";
+import { DesktopGroupTagStore } from "../runtime/group-tag-store";
 import { createDesktopSettingsStorage, DesktopSettingsStore } from "../runtime/settings-store";
 import { DetailViewModel } from "../view-models/detail-view-model";
 import { HomeViewModel } from "../view-models/home-view-model";
@@ -32,12 +34,20 @@ export function App({ state: providedState, integration }: AppProps) {
   const activeDetailEntryRef = useRef<string | undefined>(undefined);
   const mutationCoordinatorRef = useRef(createMutationCoordinator());
   const defaultIntegrationRef = useRef<DesktopIntegration | undefined>(undefined);
+  const desktopStorageRef = useRef<ReturnType<typeof createDesktopSettingsStorage> | undefined>(undefined);
   const settingsStoreRef = useRef<DesktopSettingsStore | undefined>(undefined);
+  const groupTagStoreRef = useRef<DesktopGroupTagStore | undefined>(undefined);
   if (!integration && !defaultIntegrationRef.current) {
     defaultIntegrationRef.current = createDesktopIntegration(stateRef.current);
   }
+  if (!desktopStorageRef.current) {
+    desktopStorageRef.current = createDesktopSettingsStorage();
+  }
   if (!settingsStoreRef.current) {
-    settingsStoreRef.current = new DesktopSettingsStore(createDesktopSettingsStorage());
+    settingsStoreRef.current = new DesktopSettingsStore(desktopStorageRef.current);
+  }
+  if (!groupTagStoreRef.current) {
+    groupTagStoreRef.current = new DesktopGroupTagStore(desktopStorageRef.current);
   }
   const activeIntegration = integration ?? defaultIntegrationRef.current;
   if (stateRef.current.view.currentRoute.kind !== "detail") {
@@ -66,6 +76,7 @@ export function App({ state: providedState, integration }: AppProps) {
       ...(togglePinnedSource ? { togglePinnedSource } : {}),
       ...(deleteSource ? { deleteSource } : {}),
       persistSettings: () => settingsStoreRef.current?.save(stateRef.current.settings),
+      groupTagStore: groupTagStoreRef.current,
       onChange: notifyChange,
     }),
   );
@@ -97,6 +108,7 @@ export function App({ state: providedState, integration }: AppProps) {
     new DetailViewModel(stateRef.current, {
       mutationCoordinator: mutationCoordinatorRef.current,
       ...(updateSelection ? { updateSelection } : {}),
+      groupTagStore: groupTagStoreRef.current,
       onChange: notifyChange,
     }),
   );
@@ -119,6 +131,9 @@ export function App({ state: providedState, integration }: AppProps) {
           break;
         case "importPage":
           mainViewModelRef.current.showImportPage();
+          break;
+        case "menuQuickConfig":
+          mainViewModelRef.current.showMenuQuickConfig();
           break;
         case "settings":
           mainViewModelRef.current.showSettings();
@@ -221,6 +236,8 @@ export function App({ state: providedState, integration }: AppProps) {
       return <HomeScreen viewModel={homeViewModelRef.current} />;
     case "importPage":
       return <ImportScreen viewModel={importViewModelRef.current} />;
+    case "menuQuickConfig":
+      return <MenuQuickConfigScreen viewModel={homeViewModelRef.current} />;
     case "detail":
       return <DetailScreen viewModel={detailViewModelRef.current} />;
     case "settings":

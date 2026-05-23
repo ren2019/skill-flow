@@ -1,6 +1,5 @@
 import type { DesktopAppState } from "../store/desktop-app-state";
 import { localize } from "../i18n";
-import recommendations from "../assets/ImportRecommendations/recommendations.json";
 import type { DesktopGroupTagStore } from "../runtime/group-tag-store";
 import type { DesktopRoute } from "../navigation/desktop-route";
 import type { ResourcePhase } from "../store/async-resource-state";
@@ -11,6 +10,7 @@ import {
   createPassthroughMutationCoordinator,
   type MutationCoordinator,
 } from "../runtime/mutation-coordinator";
+import { GroupTagController } from "./group-tag-controller";
 
 type HomeViewModelOptions = {
   refreshList?: () => Promise<void>;
@@ -28,16 +28,6 @@ type HomeViewModelOptions = {
   onChange?: () => void;
 };
 
-type RecommendationEntry = {
-  canonicalRepo: string;
-  locator: string;
-  primaryTagId: string;
-  secondaryTagIds: string[];
-};
-
-const bundledRecommendations = recommendations as RecommendationEntry[];
-const maximumTagCount = 3;
-
 export class HomeViewModel {
   private internalSearchQuery = "";
   private internalShowsProjectScopeBar = false;
@@ -51,9 +41,9 @@ export class HomeViewModel {
   private readonly togglePinnedSource: (sourceId: string) => Promise<string[] | undefined>;
   private readonly deleteSourceCommand: (sourceId: string) => Promise<void>;
   private readonly persistSettings: () => void;
-  private readonly groupTagStore: Pick<DesktopGroupTagStore, "saveCustomTags"> | undefined;
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly onChange: () => void;
+  private readonly groupTags: GroupTagController;
 
   constructor(
     private readonly state: DesktopAppState,
@@ -66,16 +56,14 @@ export class HomeViewModel {
     this.togglePinnedSource = options.togglePinnedSource ?? (async () => undefined);
     this.deleteSourceCommand = options.deleteSource ?? (async () => undefined);
     this.persistSettings = options.persistSettings ?? (() => undefined);
-    this.groupTagStore = options.groupTagStore;
-    if (options.groupTagStore) {
-      this.state.workspace.customTagsBySourceId = {
-        ...options.groupTagStore.loadCustomTags(),
-        ...this.state.workspace.customTagsBySourceId,
-      };
-    }
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
     this.onChange = options.onChange ?? (() => undefined);
+    this.groupTags = new GroupTagController(this.state, {
+      ...(options.groupTagStore ? { groupTagStore: options.groupTagStore } : {}),
+      language: () => this.desktopLanguage,
+      onChange: this.onChange,
+    });
   }
 
   get sourceIds(): string[] {
@@ -83,23 +71,39 @@ export class HomeViewModel {
   }
 
   get inventoryCards(): InventorySummaryState[] {
+    return this.cardsMatching({
+      query: this.internalSearchQuery,
+      appliesSelectedTag: true,
+    });
+  }
+
+  menuInventoryCards(searchQuery: string): InventorySummaryState[] {
+    return this.cardsMatching({
+      query: searchQuery,
+      appliesSelectedTag: false,
+    });
+  }
+
+  private cardsMatching({ query, appliesSelectedTag }: { query: string; appliesSelectedTag: boolean }): InventorySummaryState[] {
     if (this.state.workspace.inventorySummaries.length > 0) {
       return this.state.workspace.inventorySummaries
-        .filter((card) => this.matchesSelectedTag(card.sourceId))
-        .filter((card) => this.matchesSearch(card));
+        .filter((card) => !appliesSelectedTag || this.matchesSelectedTag(card.sourceId))
+        .filter((card) => this.matchesCardSearch(card, query));
     }
 
-    return this.filteredSourceIds.map((sourceId) => ({
-      sourceId,
-      title: sourceId,
-      locator: sourceId,
-      health: "HEALTHY",
-      warningCount: 0,
-      errorCount: 0,
-      skillCount: 0,
-      enabledSkillCount: 0,
-      activeTargetCount: 0,
-    }));
+    return this.sourceIds
+      .filter((sourceId) => sourceId.toLowerCase().includes(query.trim().toLowerCase()))
+      .map((sourceId) => ({
+        sourceId,
+        title: sourceId,
+        locator: sourceId,
+        health: "HEALTHY",
+        warningCount: 0,
+        errorCount: 0,
+        skillCount: 0,
+        enabledSkillCount: 0,
+        activeTargetCount: 0,
+      }));
   }
 
   get currentRoute(): DesktopRoute {
@@ -153,30 +157,15 @@ export class HomeViewModel {
   }
 
   get homeTagFilters(): WorkspaceTagPreference[] {
-    const values = this.sourceIds.flatMap((sourceId) => this.inventoryTags(sourceId));
-    const seen = new Set<string>();
-    const uniqueTags = values.filter((tag) => {
-      if (seen.has(tag.id)) {
-        return false;
-      }
-      seen.add(tag.id);
-      return true;
-    });
-    return uniqueTags.sort((left, right) => left.title.localeCompare(right.title, undefined, { sensitivity: "base" }));
+    return this.groupTags.homeTagFilters(this.sourceIds);
   }
 
   get homeTagCountById(): Record<string, number> {
-    const counts: Record<string, number> = {};
-    for (const sourceId of this.sourceIds) {
-      for (const tag of this.inventoryTags(sourceId)) {
-        counts[tag.id] = (counts[tag.id] ?? 0) + 1;
-      }
-    }
-    return counts;
+    return this.groupTags.homeTagCountById(this.sourceIds);
   }
 
   get selectedHomeTagFilterId(): string | undefined {
-    return this.state.workspace.selectedHomeTagFilterId;
+    return this.groupTags.selectedHomeTagFilterId;
   }
 
   get themeMode(): DesktopThemeMode {
@@ -189,6 +178,11 @@ export class HomeViewModel {
 
   showImportPage(): void {
     this.state.view.currentRoute = { kind: "importPage" };
+    this.onChange();
+  }
+
+  showHome(): void {
+    this.state.view.currentRoute = { kind: "home" };
     this.onChange();
   }
 
@@ -337,61 +331,15 @@ export class HomeViewModel {
   }
 
   selectHomeTagFilter(tagId?: string): void {
-    this.state.workspace.selectedHomeTagFilterId = tagId;
-    this.onChange();
+    this.groupTags.setSelectedHomeTagFilter(tagId);
   }
 
   addCustomTag(sourceId: string, rawTitle: string, accent: DesktopAccentColor = this.themeAccent): void {
-    const normalizedSourceId = sourceId.trim();
-    const title = normalizedTagTitle(rawTitle, this.desktopLanguage);
-    if (!normalizedSourceId || !title) {
-      this.state.view.toastMessage = localize("group_tag.toast.empty", this.desktopLanguage);
-      this.onChange();
-      return;
-    }
-
-    const currentTags = this.inventoryTags(normalizedSourceId);
-    if (currentTags.length >= maximumTagCount) {
-      this.state.view.toastMessage = localize("group_tag.toast.limit", this.desktopLanguage);
-      this.onChange();
-      return;
-    }
-
-    const tagId = customTagId(title);
-    const identities = new Set(currentTags.flatMap(tagIdentities));
-    const candidateIdentities = tagIdentities({ id: tagId, title });
-    if (!isDisjoint(identities, candidateIdentities)) {
-      this.state.view.toastMessage = localize("group_tag.toast.duplicate", this.desktopLanguage);
-      this.onChange();
-      return;
-    }
-
-    this.state.workspace.customTagsBySourceId[normalizedSourceId] = [
-      ...currentTags,
-      { id: tagId, title, accent },
-    ].slice(0, maximumTagCount);
-    this.persistCustomTags();
-    this.state.view.toastMessage = undefined;
-    this.onChange();
+    this.groupTags.addCustomTag(sourceId, rawTitle, accent);
   }
 
   removeCustomTag(sourceId: string, tagId: string): void {
-    const normalizedSourceId = sourceId.trim();
-    const currentTags = this.inventoryTags(normalizedSourceId);
-    const nextTags = currentTags.filter((tag) => tag.id !== tagId);
-    if (nextTags.length === currentTags.length) {
-      this.state.view.toastMessage = localize("group_tag.toast.not_found", this.desktopLanguage);
-      this.onChange();
-      return;
-    }
-
-    this.state.workspace.customTagsBySourceId[normalizedSourceId] = nextTags;
-    if (this.state.workspace.selectedHomeTagFilterId === tagId) {
-      this.state.workspace.selectedHomeTagFilterId = undefined;
-    }
-    this.persistCustomTags();
-    this.state.view.toastMessage = undefined;
-    this.onChange();
+    this.groupTags.removeCustomTag(sourceId, tagId);
   }
 
   async deleteSource(sourceId: string): Promise<void> {
@@ -451,22 +399,19 @@ export class HomeViewModel {
   }
 
   inventoryTags(sourceId: string): WorkspaceTagPreference[] {
-    if (Object.hasOwn(this.state.workspace.customTagsBySourceId, sourceId)) {
-      return this.state.workspace.customTagsBySourceId[sourceId]?.slice(0, maximumTagCount) ?? [];
-    }
+    return this.groupTags.inventoryTags(sourceId);
+  }
 
-    const summary = this.state.workspace.inventorySummaries.find((card) => card.sourceId === sourceId);
-    const recommendation = matchingRecommendation(summary, sourceId);
-    if (!recommendation) {
-      return [];
-    }
+  tagSuggestions(sourceId: string): WorkspaceTagPreference[] {
+    return this.groupTags.tagSuggestions(sourceId, this.sourceIds);
+  }
 
-    const tagIds = [recommendation.primaryTagId, ...recommendation.secondaryTagIds.slice(0, 2)];
-    return tagIds.slice(0, maximumTagCount).map((tagId) => ({
-      id: `preset:${tagId}`,
-      title: localize(`import.recommendation.tag.${tagId}`, this.desktopLanguage),
-      accent: recommendationAccent(tagId),
-    }));
+  canCreateGroupTag(sourceId: string): boolean {
+    return this.groupTags.canCreateGroupTag(sourceId);
+  }
+
+  canDeleteGroupTags(sourceId: string): boolean {
+    return this.groupTags.canDeleteGroupTags(sourceId);
   }
 
   private async runWithToast(action: () => Promise<void>): Promise<void> {
@@ -555,10 +500,6 @@ export class HomeViewModel {
     }
   }
 
-  private persistCustomTags(): void {
-    this.groupTagStore?.saveCustomTags(this.state.workspace.customTagsBySourceId);
-  }
-
   private async updateCardSelection(
     sourceId: string,
     applyLocalChange: (card: InventorySummaryState) => void,
@@ -623,8 +564,8 @@ export class HomeViewModel {
     detail.targetSelection = selectionState(detail.enabledTargetCount, detail.targets.length);
   }
 
-  private matchesSearch(card: InventorySummaryState): boolean {
-    const query = this.internalSearchQuery.trim().toLowerCase();
+  private matchesCardSearch(card: InventorySummaryState, rawQuery: string): boolean {
+    const query = rawQuery.trim().toLowerCase();
     if (!query) {
       return true;
     }
@@ -708,58 +649,6 @@ function isSameProjectScope(left: ProjectScopeSelection, right: ProjectScopeSele
   return left.kind === "global" || left.projectId === (right as { kind: "project"; projectId: string }).projectId;
 }
 
-function matchingRecommendation(
-  summary: InventorySummaryState | undefined,
-  sourceId: string,
-): RecommendationEntry | undefined {
-  const candidates = new Set<string>();
-  for (const value of [summary?.repoUrl, summary?.locator, sourceId]) {
-    const normalized = normalizedRecommendationKey(value);
-    if (normalized) {
-      candidates.add(normalized);
-    }
-  }
-
-  return bundledRecommendations.find((entry) => {
-    const entryRepo = normalizedRecommendationKey(entry.canonicalRepo);
-    const entryLocator = normalizedRecommendationKey(entry.locator);
-    return candidates.has(entryRepo) || candidates.has(entryLocator);
-  });
-}
-
-function normalizedRecommendationKey(value: string | undefined): string {
-  const trimmed = value?.trim().toLowerCase();
-  if (!trimmed) {
-    return "";
-  }
-
-  const githubMatch = trimmed.match(/github\.com[/:]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#].*)?$/);
-  if (githubMatch?.[1] && githubMatch[2]) {
-    return `${githubMatch[1]}/${githubMatch[2].replace(/\.git$/, "")}`;
-  }
-
-  const shorthand = trimmed.match(/^([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#].*)?$/);
-  if (shorthand?.[1] && shorthand[2]) {
-    return `${shorthand[1]}/${shorthand[2].replace(/\.git$/, "")}`;
-  }
-
-  return trimmed.replace(/\/+$/, "");
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function recommendationAccent(tagId: string): DesktopAccentColor {
-  const accents: Record<string, DesktopAccentColor> = {
-    general: "blue",
-    development: "green",
-    design: "purple",
-    creation: "pink",
-    marketing: "orange",
-    research: "yellow",
-    teamwork: "blue",
-    automation: "green",
-  };
-  return accents[tagId] ?? "blue";
 }

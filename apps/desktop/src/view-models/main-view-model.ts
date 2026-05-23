@@ -33,6 +33,10 @@ export class MainViewModel {
     this.navigator.showImportPage();
   }
 
+  showMenuQuickConfig() {
+    this.state.view.currentRoute = { kind: "menuQuickConfig" };
+  }
+
   showSettings() {
     this.navigator.showSettings();
   }

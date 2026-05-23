@@ -2,6 +2,7 @@ export type DesktopRoute =
   | { kind: "home" }
   | { kind: "detail"; sourceId: string }
   | { kind: "importPage" }
+  | { kind: "menuQuickConfig" }
   | { kind: "settings" };
 
 export const desktopRoute = {
@@ -15,6 +16,10 @@ export const desktopRoute = {
 
   importPage(): DesktopRoute {
     return { kind: "importPage" };
+  },
+
+  menuQuickConfig(): DesktopRoute {
+    return { kind: "menuQuickConfig" };
   },
 
   settings(): DesktopRoute {

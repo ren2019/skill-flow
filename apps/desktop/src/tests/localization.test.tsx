@@ -129,7 +129,7 @@ describe("desktop localization", () => {
     expect(detailMarkup).toContain("来源详情");
     expect(detailMarkup).toContain("概览");
     expect(settingsMarkup).toContain("设置");
-    expect(settingsMarkup).toContain("自动启动");
+    expect(settingsMarkup).toContain("登录时启动");
     expect(settingsMarkup).toContain("更新状态");
   });
 });

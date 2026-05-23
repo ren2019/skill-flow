@@ -1,5 +1,6 @@
 import { desktopRoute, type DesktopRoute } from "../navigation/desktop-route";
 import { localize } from "../i18n";
+import type { DesktopGroupTagStore } from "../runtime/group-tag-store";
 import {
   createPassthroughMutationCoordinator,
   type MutationCoordinator,
@@ -11,6 +12,9 @@ import type {
   DetailRecord,
   DetailSelectionState,
 } from "../store/detail-state";
+import type { WorkspaceTagPreference } from "../store/workspace-state";
+import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
+import { GroupTagController } from "./group-tag-controller";
 
 export class DetailViewModel {
   private readonly onChange: () => void;
@@ -19,6 +23,7 @@ export class DetailViewModel {
     draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
   ) => Promise<void>;
   private readonly mutationCoordinator: MutationCoordinator;
+  private readonly groupTags: GroupTagController;
 
   constructor(
     private readonly state: DesktopAppState,
@@ -29,12 +34,18 @@ export class DetailViewModel {
         draft: { selectedSkillIds: string[]; enabledTargetIds: string[] },
       ) => Promise<void>;
       mutationCoordinator?: MutationCoordinator;
+      groupTagStore?: Pick<DesktopGroupTagStore, "loadCustomTags" | "saveCustomTags">;
     } = {},
   ) {
     this.onChange = options.onChange ?? (() => undefined);
     this.updateSelection = options.updateSelection ?? (async () => undefined);
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
+    this.groupTags = new GroupTagController(this.state, {
+      ...(options.groupTagStore ? { groupTagStore: options.groupTagStore } : {}),
+      language: () => this.desktopLanguage,
+      onChange: this.onChange,
+    });
   }
 
   get currentRoute(): DesktopRoute {
@@ -70,6 +81,14 @@ export class DetailViewModel {
 
   get desktopLanguage(): string {
     return this.state.settings.desktopLanguageRawValue;
+  }
+
+  get themeAccent(): DesktopAccentColor {
+    return this.state.settings.themeAccentRawValue as DesktopAccentColor;
+  }
+
+  get themeMode(): DesktopThemeMode {
+    return this.state.settings.themeModeRawValue as DesktopThemeMode;
   }
 
   get selectedSkillId(): string | undefined {
@@ -206,6 +225,30 @@ export class DetailViewModel {
   selectSkillDocument(skillId: string, documentId: string): void {
     this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId] = documentId;
     this.onChange();
+  }
+
+  groupTagItems(sourceId: string): WorkspaceTagPreference[] {
+    return this.groupTags.inventoryTags(sourceId);
+  }
+
+  groupTagSuggestions(sourceId: string): WorkspaceTagPreference[] {
+    return this.groupTags.tagSuggestions(sourceId);
+  }
+
+  canCreateGroupTag(sourceId: string): boolean {
+    return this.groupTags.canCreateGroupTag(sourceId);
+  }
+
+  canDeleteGroupTags(sourceId: string): boolean {
+    return this.groupTags.canDeleteGroupTags(sourceId);
+  }
+
+  addCustomTag(sourceId: string, title: string, accent: DesktopAccentColor = this.themeAccent): void {
+    this.groupTags.addCustomTag(sourceId, title, accent);
+  }
+
+  removeCustomTag(sourceId: string, tagId: string): void {
+    this.groupTags.removeCustomTag(sourceId, tagId);
   }
 
   async toggleTarget(targetId: string): Promise<void> {

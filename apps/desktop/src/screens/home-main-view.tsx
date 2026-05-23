@@ -109,7 +109,7 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                 }}
                 style={tagFilterPillStyle(!viewModel.selectedHomeTagFilterId, viewModel.themeAccent, true)}
               >
-                #All
+                #{t("group_tag.filter.all")}
               </button>
               <div data-view="home-filter-divider" style={filterDividerStyle(viewModel.themeMode)} />
               <div style={horizontalScrollerStyle}>
@@ -182,6 +182,19 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                   onToggleAllTargets={() => {
                     stateTransition(() => viewModel.toggleAllCardTargets(card.sourceId));
                   }}
+                  groupTagItems={viewModel.inventoryTags(card.sourceId)}
+                  groupTagSuggestions={viewModel.tagSuggestions(card.sourceId)}
+                  canCreateGroupTag={viewModel.canCreateGroupTag(card.sourceId)}
+                  canDeleteGroupTags={viewModel.canDeleteGroupTags(card.sourceId)}
+                  onCreateGroupTag={(title, accent) => {
+                    viewModel.addCustomTag(card.sourceId, title, accent);
+                  }}
+                  onDeleteGroupTag={(tagId) => {
+                    viewModel.removeCustomTag(card.sourceId, tagId);
+                  }}
+                  onSelectGroupTag={(tagId) => {
+                    viewModel.selectHomeTagFilter(tagId);
+                  }}
                   labels={{
                     update: t("action.update"),
                     delete: t("action.delete"),
@@ -191,6 +204,9 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                     pinned: t("state.pinned"),
                     agents: t("common.section.agents"),
                     skills: t("common.section.skills"),
+                    tags: t("common.section.tags"),
+                    addTag: t("group_tag.action.add"),
+                    tagPlaceholder: t("group_tag.input.placeholder"),
                     activeTargets: (count) => `${count} active targets`,
                     enabledSkills: (enabledCount, totalCount) => `${enabledCount} / ${totalCount} skills`,
                   }}

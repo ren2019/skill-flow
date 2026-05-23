@@ -8,6 +8,7 @@ use sys_locale::get_locale;
 
 pub const MAIN_MENU_TITLE: &str = "Skill Flow Desktop";
 pub const OPEN_HOME_MENU_ID: &str = "open-home";
+pub const OPEN_QUICK_CONFIG_MENU_ID: &str = "open-quick-config";
 pub const OPEN_IMPORT_MENU_ID: &str = "open-import";
 pub const OPEN_SETTINGS_MENU_ID: &str = "open-settings";
 pub const TRAY_ROUTE_EVENT: &str = "desktop://tray-route";
@@ -34,7 +35,7 @@ pub fn setup<R: Runtime>(app: &App<R>) -> tauri::Result<()> {
                 ..
             } = event
             {
-                let _ = show_main_window(&tray.app_handle());
+                let _ = emit_quick_action(&tray.app_handle(), OPEN_QUICK_CONFIG_MENU_ID);
             }
         })
         .build(app)?;
@@ -50,6 +51,7 @@ pub fn handle_menu_event<R: Runtime>(app: &AppHandle<R>, event: MenuEvent) {
 
 fn quick_action_id(raw_id: &str) -> Option<&'static str> {
     match raw_id {
+        OPEN_QUICK_CONFIG_MENU_ID => Some(OPEN_QUICK_CONFIG_MENU_ID),
         OPEN_HOME_MENU_ID => Some(OPEN_HOME_MENU_ID),
         OPEN_IMPORT_MENU_ID => Some(OPEN_IMPORT_MENU_ID),
         OPEN_SETTINGS_MENU_ID => Some(OPEN_SETTINGS_MENU_ID),
@@ -66,9 +68,11 @@ fn tray_label(action_id: &str, locale: &str) -> &'static str {
         || normalized_locale.starts_with("zh-sg");
 
     match (action_id, is_zh_hans) {
+        (OPEN_QUICK_CONFIG_MENU_ID, true) => "快速配置",
         (OPEN_HOME_MENU_ID, true) => "打开主页",
         (OPEN_IMPORT_MENU_ID, true) => "打开导入",
         (OPEN_SETTINGS_MENU_ID, true) => "打开设置",
+        (OPEN_QUICK_CONFIG_MENU_ID, false) => "Quick Config",
         (OPEN_HOME_MENU_ID, false) => "Open Home",
         (OPEN_IMPORT_MENU_ID, false) => "Open Import",
         (OPEN_SETTINGS_MENU_ID, false) => "Open Settings",
@@ -122,11 +126,12 @@ fn show_main_window<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_locale_tag, quick_action_id, tray_label, OPEN_HOME_MENU_ID, OPEN_IMPORT_MENU_ID, OPEN_SETTINGS_MENU_ID,
+        normalize_locale_tag, quick_action_id, tray_label, OPEN_HOME_MENU_ID, OPEN_IMPORT_MENU_ID, OPEN_QUICK_CONFIG_MENU_ID, OPEN_SETTINGS_MENU_ID,
     };
 
     #[test]
     fn quick_action_ids_match_supported_menu_entries() {
+        assert_eq!(quick_action_id(OPEN_QUICK_CONFIG_MENU_ID), Some(OPEN_QUICK_CONFIG_MENU_ID));
         assert_eq!(quick_action_id(OPEN_HOME_MENU_ID), Some(OPEN_HOME_MENU_ID));
         assert_eq!(quick_action_id(OPEN_IMPORT_MENU_ID), Some(OPEN_IMPORT_MENU_ID));
         assert_eq!(quick_action_id(OPEN_SETTINGS_MENU_ID), Some(OPEN_SETTINGS_MENU_ID));
@@ -135,6 +140,7 @@ mod tests {
 
     #[test]
     fn tray_labels_follow_supported_locale_tags() {
+        assert_eq!(tray_label(OPEN_QUICK_CONFIG_MENU_ID, "en-US"), "Quick Config");
         assert_eq!(tray_label(OPEN_HOME_MENU_ID, "en-US"), "Open Home");
         assert_eq!(tray_label(OPEN_IMPORT_MENU_ID, "zh-CN"), "打开导入");
         assert_eq!(tray_label(OPEN_SETTINGS_MENU_ID, "zh-Hans-SG"), "打开设置");

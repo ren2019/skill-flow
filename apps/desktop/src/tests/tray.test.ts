@@ -9,6 +9,7 @@ import {
 describe("tray menu model", () => {
   it("maps quick actions to desktop routes", () => {
     expect(buildTrayMenuModel()).toEqual([
+      { id: "open-quick-config", route: { kind: "menuQuickConfig" } },
       { id: "open-home", route: { kind: "home" } },
       { id: "open-import", route: { kind: "importPage" } },
       { id: "open-settings", route: { kind: "settings" } },
@@ -16,6 +17,7 @@ describe("tray menu model", () => {
   });
 
   it("resolves tray menu ids back into desktop routes", () => {
+    expect(resolveTrayRoute("open-quick-config")).toEqual({ kind: "menuQuickConfig" });
     expect(resolveTrayRoute("open-home")).toEqual({ kind: "home" });
     expect(resolveTrayRoute("open-import")).toEqual({ kind: "importPage" });
     expect(resolveTrayRoute("open-settings")).toEqual({ kind: "settings" });
@@ -39,19 +41,22 @@ describe("tray menu model", () => {
 
     handler?.({ payload: "open-import" });
     handler?.({ payload: "unknown" });
+    handler?.({ payload: "open-quick-config" });
     handler?.({ payload: "open-settings" });
     await unlisten();
 
-    expect(routes).toEqual([{ kind: "importPage" }, { kind: "settings" }]);
+    expect(routes).toEqual([{ kind: "importPage" }, { kind: "menuQuickConfig" }, { kind: "settings" }]);
   });
 
   it("maps tray quick actions to the same route inventory as the macOS app", () => {
     expect(buildTrayMenuModel().map((item) => item.id)).toEqual([
+      "open-quick-config",
       "open-home",
       "open-import",
       "open-settings",
     ]);
     expect(buildTrayMenuModel().map((item) => item.route.kind)).toEqual([
+      "menuQuickConfig",
       "home",
       "importPage",
       "settings",
@@ -59,6 +64,7 @@ describe("tray menu model", () => {
   });
 
   it("keeps quick-config entry behavior aligned with the intended current cutover scope", () => {
+    expect(resolveTrayRoute("open-quick-config")).toEqual({ kind: "menuQuickConfig" });
     expect(resolveTrayRoute("open-home")).toEqual({ kind: "home" });
     expect(resolveTrayRoute("open-import")).toEqual({ kind: "importPage" });
     expect(resolveTrayRoute("open-settings")).toEqual({ kind: "settings" });

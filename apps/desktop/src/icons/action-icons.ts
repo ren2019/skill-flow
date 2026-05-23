@@ -1,4 +1,6 @@
 import backIcon from "../assets/ActionIcons/back.svg";
+import closeIcon from "../assets/ActionIcons/close.svg";
+import dragHandleIcon from "../assets/ActionIcons/drag-handle.svg";
 import importIcon from "../assets/ActionIcons/import.svg";
 import moreIcon from "../assets/ActionIcons/more.svg";
 import pinIcon from "../assets/ActionIcons/pin.svg";
@@ -11,6 +13,8 @@ import menuIcon from "../assets/MenuBar/menu_icon.svg";
 
 export type ActionIconId =
   | "back"
+  | "close"
+  | "drag-handle"
   | "import"
   | "more"
   | "pin"
@@ -22,6 +26,8 @@ export type ActionIconId =
 
 const actionIconMap: Record<ActionIconId, string> = {
   back: backIcon,
+  close: closeIcon,
+  "drag-handle": dragHandleIcon,
   import: importIcon,
   more: moreIcon,
   pin: pinIcon,

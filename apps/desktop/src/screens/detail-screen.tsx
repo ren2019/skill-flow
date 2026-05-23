@@ -1,6 +1,7 @@
 import { startTransition, type CSSProperties } from "react";
 import { DetailHeader } from "../components/detail-header";
 import { DetailSidebar } from "../components/detail-sidebar";
+import { GroupTagSection } from "../components/shared-group-card";
 import { localize } from "../i18n";
 import { MarkdownDocument } from "../components/markdown-document";
 import type { DetailFileTreeItem } from "../store/detail-state";
@@ -78,6 +79,27 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
               </section>
 
               <section style={selectionRailStyle}>
+                <section data-view="detail-tag-rail" style={detailTagRailStyle}>
+                  <h3 style={sectionLabelStyle}>{t("common.section.tags")}</h3>
+                  <GroupTagSection
+                    sourceId={sourceId}
+                    items={viewModel.groupTagItems(sourceId)}
+                    suggestions={viewModel.groupTagSuggestions(sourceId)}
+                    canCreate={viewModel.canCreateGroupTag(sourceId)}
+                    canDelete={viewModel.canDeleteGroupTags(sourceId)}
+                    themeMode={viewModel.themeMode}
+                    themeAccent={viewModel.themeAccent}
+                    addLabel={t("group_tag.action.add")}
+                    placeholder={t("group_tag.input.placeholder")}
+                    onCreate={(title, accent) => {
+                      viewModel.addCustomTag(sourceId, title, accent);
+                    }}
+                    onDelete={(tagId) => {
+                      viewModel.removeCustomTag(sourceId, tagId);
+                    }}
+                    onSelect={() => undefined}
+                  />
+                </section>
                 <nav style={toggleRailStyle}>
                   {detail.targets.map((target) => (
                     <button
@@ -263,6 +285,11 @@ const factListStyle: CSSProperties = {
 const selectionRailStyle: CSSProperties = {
   display: "grid",
   gap: "10px",
+};
+
+const detailTagRailStyle: CSSProperties = {
+  display: "grid",
+  gap: "8px",
 };
 
 const toggleRailStyle: CSSProperties = {

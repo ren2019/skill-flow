@@ -1,14 +1,15 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
 import { IconButton } from "./icon-button";
 import { resolveGroupCardIcon, type GroupCardIconId } from "../icons/group-card-icons";
 import { desktopTheme, type DesktopAccentColor, type DesktopThemeMode } from "../theme/app-theme";
-import type { InventorySummaryState } from "../store/workspace-state";
+import type { InventorySummaryState, WorkspaceTagPreference } from "../store/workspace-state";
 
 type SharedGroupCardProps = {
   card: InventorySummaryState;
   themeMode: DesktopThemeMode;
   themeAccent: DesktopAccentColor;
   pinned: boolean;
+  skillsCollapsed?: boolean;
   onOpen(): void;
   onUpdate(): void;
   onTogglePinned(): void;
@@ -17,6 +18,13 @@ type SharedGroupCardProps = {
   onToggleAllSkills(): void;
   onToggleTarget(targetId: string): void;
   onToggleAllTargets(): void;
+  groupTagItems: WorkspaceTagPreference[];
+  groupTagSuggestions: WorkspaceTagPreference[];
+  canCreateGroupTag: boolean;
+  canDeleteGroupTags: boolean;
+  onCreateGroupTag(title: string, accent?: DesktopAccentColor): void;
+  onDeleteGroupTag(tagId: string): void;
+  onSelectGroupTag(tagId: string): void;
   labels: {
     update: string;
     delete: string;
@@ -26,6 +34,9 @@ type SharedGroupCardProps = {
     pinned: string;
     agents: string;
     skills: string;
+    tags: string;
+    addTag: string;
+    tagPlaceholder: string;
     activeTargets(count: number): string;
     enabledSkills(count: number, totalCount: number): string;
   };
@@ -36,6 +47,7 @@ export function SharedGroupCard({
   themeMode,
   themeAccent,
   pinned,
+  skillsCollapsed = false,
   onOpen,
   onUpdate,
   onTogglePinned,
@@ -44,6 +56,13 @@ export function SharedGroupCard({
   onToggleAllSkills,
   onToggleTarget,
   onToggleAllTargets,
+  groupTagItems,
+  groupTagSuggestions,
+  canCreateGroupTag,
+  canDeleteGroupTags,
+  onCreateGroupTag,
+  onDeleteGroupTag,
+  onSelectGroupTag,
   labels,
 }: SharedGroupCardProps) {
   return (
@@ -90,6 +109,24 @@ export function SharedGroupCard({
 
       <div style={dividerStyle(themeMode)} />
 
+      <section data-view="shared-group-card-tags" style={sectionStyle}>
+        <SectionLabel label={labels.tags} themeMode={themeMode} />
+        <GroupTagSection
+          sourceId={card.sourceId}
+          items={groupTagItems}
+          suggestions={groupTagSuggestions}
+          canCreate={canCreateGroupTag}
+          canDelete={canDeleteGroupTags}
+          themeMode={themeMode}
+          themeAccent={themeAccent}
+          addLabel={labels.addTag}
+          placeholder={labels.tagPlaceholder}
+          onCreate={onCreateGroupTag}
+          onDelete={onDeleteGroupTag}
+          onSelect={onSelectGroupTag}
+        />
+      </section>
+
       <section data-view="shared-group-card-agents" style={sectionStyle}>
         <SectionLabel label={labels.agents} themeMode={themeMode} />
         <div style={chipRowStyle}>
@@ -130,7 +167,7 @@ export function SharedGroupCard({
       <section data-view="shared-group-card-skills" style={sectionStyle}>
         <SectionLabel label={labels.skills} themeMode={themeMode} />
         <div style={chipRowStyle}>
-          {(card.skills ?? []).length > 0 ? (
+          {(card.skills ?? []).length > 0 && !skillsCollapsed ? (
             <>
               <ToggleChip
                 label={labels.all}
@@ -156,6 +193,11 @@ export function SharedGroupCard({
                 />
               ))}
             </>
+          ) : skillsCollapsed ? (
+            <InfoChip
+              label={labels.enabledSkills(card.enabledSkillCount, card.skillCount)}
+              themeMode={themeMode}
+            />
           ) : (card.selectedSkillNames ?? []).length > 0
             ? (card.selectedSkillNames ?? []).slice(0, 4).map((label) => (
               <InfoChip key={label} label={label} themeMode={themeMode} />
@@ -270,6 +312,116 @@ function ToggleChip({
     >
       {label}
     </button>
+  );
+}
+
+export function GroupTagSection({
+  sourceId,
+  items,
+  suggestions,
+  canCreate,
+  canDelete,
+  themeMode,
+  themeAccent,
+  addLabel,
+  placeholder,
+  onCreate,
+  onDelete,
+  onSelect,
+}: {
+  sourceId: string;
+  items: WorkspaceTagPreference[];
+  suggestions: WorkspaceTagPreference[];
+  canCreate: boolean;
+  canDelete: boolean;
+  themeMode: DesktopThemeMode;
+  themeAccent: DesktopAccentColor;
+  addLabel: string;
+  placeholder: string;
+  onCreate(title: string, accent?: DesktopAccentColor): void;
+  onDelete(tagId: string): void;
+  onSelect(tagId: string): void;
+}) {
+  const [draft, setDraft] = useState("");
+  const submitDraft = (title: string, accent?: DesktopAccentColor) => {
+    onCreate(title, accent);
+    setDraft("");
+  };
+
+  return (
+    <div style={tagSectionStyle}>
+      <div style={chipRowStyle}>
+        {items.map((item) => (
+          <span key={item.id} style={tagPillWrapStyle}>
+            <button
+              type="button"
+              data-group-tag-id={`${sourceId}:${item.id}`}
+              onClick={() => {
+                onSelect(item.id);
+              }}
+              style={tagPillStyle(themeMode, (item.accent as DesktopAccentColor | undefined) ?? themeAccent)}
+            >
+              #{item.title}
+            </button>
+            {canDelete ? (
+              <button
+                type="button"
+                aria-label={`Remove ${item.title}`}
+                data-delete-group-tag-id={`${sourceId}:${item.id}`}
+                onClick={() => {
+                  onDelete(item.id);
+                }}
+                style={tagDeleteButtonStyle(themeMode, (item.accent as DesktopAccentColor | undefined) ?? themeAccent)}
+              >
+                x
+              </button>
+            ) : null}
+          </span>
+        ))}
+      </div>
+
+      {canCreate ? (
+        <div style={tagInputRowStyle}>
+          <input
+            data-group-tag-input-source-id={sourceId}
+            value={draft}
+            placeholder={placeholder}
+            onChange={(event) => {
+              setDraft(event.currentTarget.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                submitDraft(draft);
+              }
+            }}
+            style={tagInputStyle(themeMode)}
+          />
+          <button
+            type="button"
+            data-add-group-tag-source-id={sourceId}
+            onClick={() => {
+              submitDraft(draft);
+            }}
+            style={tagAddButtonStyle(themeMode, themeAccent)}
+          >
+            {addLabel}
+          </button>
+          {suggestions.slice(0, 4).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              data-group-tag-suggestion-id={`${sourceId}:${item.id}`}
+              onClick={() => {
+                submitDraft(item.title, item.accent as DesktopAccentColor | undefined);
+              }}
+              style={tagPillStyle(themeMode, (item.accent as DesktopAccentColor | undefined) ?? themeAccent)}
+            >
+              #{item.title}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -395,6 +547,70 @@ const chipRowStyle: CSSProperties = {
   flexWrap: "wrap",
   gap: "6px",
 };
+
+const tagSectionStyle: CSSProperties = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "6px",
+};
+
+const tagPillWrapStyle: CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: "24px",
+};
+
+const tagPillStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentColor): CSSProperties => ({
+  border: "none",
+  background: "transparent",
+  padding: "3px 8px",
+  color: desktopTheme.brand(accent, themeMode),
+  fontSize: "12px",
+  fontWeight: 500,
+  cursor: "pointer",
+});
+
+const tagDeleteButtonStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentColor): CSSProperties => ({
+  border: "none",
+  background: "transparent",
+  width: "20px",
+  height: "20px",
+  padding: 0,
+  color: desktopTheme.brand(accent, themeMode),
+  fontSize: "12px",
+  fontWeight: 700,
+  cursor: "pointer",
+});
+
+const tagInputRowStyle: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  flexWrap: "wrap",
+  gap: "6px",
+};
+
+const tagInputStyle = (themeMode: DesktopThemeMode): CSSProperties => ({
+  width: "98px",
+  height: "24px",
+  padding: "0 8px",
+  borderRadius: "6px",
+  border: `1px solid ${desktopTheme.cardBorder(themeMode)}`,
+  background: themeMode === "light" ? "rgba(255, 255, 255, 0.92)" : "rgba(255, 255, 255, 0.08)",
+  color: desktopTheme.textPrimary(themeMode),
+  fontSize: "12px",
+});
+
+const tagAddButtonStyle = (themeMode: DesktopThemeMode, accent: DesktopAccentColor): CSSProperties => ({
+  height: "24px",
+  padding: "0 8px",
+  borderRadius: "6px",
+  border: "none",
+  background: `${desktopTheme.brand(accent, themeMode)}20`,
+  color: desktopTheme.brand(accent, themeMode),
+  fontSize: "12px",
+  fontWeight: 600,
+  cursor: "pointer",
+});
 
 const infoChipStyle = (themeMode: DesktopThemeMode, accent?: DesktopAccentColor): CSSProperties => ({
   display: "inline-flex",

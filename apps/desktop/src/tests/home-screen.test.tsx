@@ -86,6 +86,7 @@ describe("home screen", () => {
     expect(markup).toContain("data-view=\"shared-group-card-stats\"");
     expect(markup).toContain("data-view=\"shared-group-card-agents\"");
     expect(markup).toContain("data-view=\"shared-group-card-skills\"");
+    expect(markup).toContain("data-view=\"shared-group-card-tags\"");
     expect(markup).toContain("data-group-card-stat=\"download\"");
     expect(markup).toContain("data-group-card-stat=\"star\"");
     expect(markup).toContain("data-group-card-stat=\"github\"");
@@ -190,6 +191,83 @@ describe("home screen", () => {
 
     expect(renderer!.root.findAllByProps({ "data-source-id": "alpha" })).toHaveLength(1);
     expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(0);
+  });
+
+  it("wires card tag selection, creation, and deletion through the home view model", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        customTagsBySourceId: {
+          alpha: [{ id: "official", title: "Official" }],
+          beta: [{ id: "community", title: "Community" }],
+        },
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+          },
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new HomeViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <HomeScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-tag-id": "alpha:official" }).props.onClick();
+    });
+    expect(state.workspace.selectedHomeTagFilterId).toBe("official");
+    expect(renderer!.root.findAllByProps({ "data-source-id": "beta" })).toHaveLength(0);
+
+    const input = renderer!.root.findByProps({ "data-group-tag-input-source-id": "alpha" });
+    await act(async () => {
+      input.props.onChange({ currentTarget: { value: "Review" } });
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-add-group-tag-source-id": "alpha" }).props.onClick();
+    });
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "official" }),
+      expect.objectContaining({ id: "custom:review", title: "Review" }),
+    ]);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-delete-group-tag-id": "alpha:official" }).props.onClick();
+    });
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "custom:review" }),
+    ]);
+    expect(state.workspace.selectedHomeTagFilterId).toBeUndefined();
   });
 
   it("renders a loading state while bootstrap is in flight", () => {

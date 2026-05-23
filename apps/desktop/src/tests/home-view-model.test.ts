@@ -781,4 +781,130 @@ describe("home view model", () => {
     ]);
     expect(viewModel.inventoryTags("plain-local")).toEqual([]);
   });
+
+  it("adds localized custom tags through the same persisted home tag state", () => {
+    const saved: Record<string, unknown>[] = [];
+    const state = createDesktopAppState({
+      workspace: { sourceIds: ["alpha"] },
+      settings: { desktopLanguageRawValue: "zh-Hans" },
+    });
+    const viewModel = new HomeViewModel(state, {
+      groupTagStore: {
+        loadCustomTags: () => ({}),
+        saveCustomTags: (value) => {
+          saved.push(value);
+        },
+      },
+    });
+
+    viewModel.addCustomTag("alpha", "前端");
+
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "preset:frontend", title: "前端" }),
+    ]);
+    expect(saved).toHaveLength(1);
+    expect(viewModel.inventoryTags("alpha")).toEqual([
+      expect.objectContaining({ id: "preset:frontend", title: "前端" }),
+    ]);
+  });
+
+  it("limits English custom tag input to two words and twenty characters", () => {
+    const state = createDesktopAppState({ workspace: { sourceIds: ["alpha"] } });
+    const viewModel = new HomeViewModel(state);
+
+    viewModel.addCustomTag("alpha", "frontend platform automation workflows");
+
+    expect(state.workspace.customTagsBySourceId.alpha).toEqual([
+      expect.objectContaining({ id: "custom:frontend platform", title: "frontend platform" }),
+    ]);
+  });
+
+  it("rejects duplicate, limit, empty, and missing group tag mutations with localized toasts", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        customTagsBySourceId: {
+          alpha: [
+            { id: "preset:development", title: "Development" },
+            { id: "custom:research", title: "Research" },
+            { id: "custom:growth", title: "Growth" },
+          ],
+        },
+      },
+    });
+    const viewModel = new HomeViewModel(state);
+
+    viewModel.addCustomTag("alpha", "Development");
+    expect(viewModel.toastMessage).toBe("Tag limit reached.");
+
+    state.workspace.customTagsBySourceId.alpha = [{ id: "preset:development", title: "Development" }];
+    viewModel.addCustomTag("alpha", "开发");
+    expect(viewModel.toastMessage).toBe("This tag is already selected.");
+
+    viewModel.addCustomTag("alpha", "   ");
+    expect(viewModel.toastMessage).toBe("Enter a tag first.");
+
+    viewModel.removeCustomTag("alpha", "custom:missing");
+    expect(viewModel.toastMessage).toBe("Tag no longer exists.");
+  });
+
+  it("removes recommendation tags by persisting an empty override", () => {
+    const saved: Record<string, unknown>[] = [];
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["garrytan-gstack"],
+        inventorySummaries: [
+          {
+            sourceId: "garrytan-gstack",
+            title: "gstack",
+            locator: "https://github.com/garrytan/gstack/",
+            repoUrl: "https://github.com/garrytan/gstack",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 3,
+            enabledSkillCount: 2,
+            activeTargetCount: 2,
+          },
+        ],
+        selectedHomeTagFilterId: "preset:development",
+      },
+    });
+    const viewModel = new HomeViewModel(state, {
+      groupTagStore: {
+        loadCustomTags: () => ({}),
+        saveCustomTags: (value) => {
+          saved.push(value);
+        },
+      },
+    });
+
+    viewModel.removeCustomTag("garrytan-gstack", "preset:development");
+
+    expect(state.workspace.customTagsBySourceId["garrytan-gstack"]).toEqual([
+      expect.objectContaining({ id: "preset:teamwork" }),
+    ]);
+    expect(state.workspace.selectedHomeTagFilterId).toBeUndefined();
+    expect(saved.at(-1)).toEqual({
+      "garrytan-gstack": [expect.objectContaining({ id: "preset:teamwork" })],
+    });
+  });
+
+  it("suggests available home tags that are not already attached to the card", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta", "gamma"],
+        customTagsBySourceId: {
+          alpha: [{ id: "custom:growth", title: "Growth" }],
+          beta: [{ id: "custom:growth", title: "Growth" }],
+          gamma: [{ id: "custom:research", title: "Research" }],
+        },
+      },
+    });
+    const viewModel = new HomeViewModel(state);
+
+    expect(viewModel.tagSuggestions("alpha")).toEqual([
+      expect.objectContaining({ id: "custom:research", title: "Research" }),
+    ]);
+  });
 });

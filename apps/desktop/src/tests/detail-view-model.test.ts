@@ -40,6 +40,42 @@ describe("detail view model", () => {
     expect(state.view.selectedSourceId).toBe("alpha");
   });
 
+  it("uses the shared group tag controller for detail tag mutations", () => {
+    const saved: Record<string, unknown>[] = [];
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      workspace: {
+        sourceIds: ["alpha"],
+      },
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+      },
+    });
+    const viewModel = new DetailViewModel(state, {
+      groupTagStore: {
+        loadCustomTags: () => ({}),
+        saveCustomTags: (value) => {
+          saved.push(value);
+        },
+      },
+    });
+
+    viewModel.addCustomTag("alpha", "知识管理");
+
+    expect(viewModel.groupTagItems("alpha")).toEqual([
+      expect.objectContaining({ id: "preset:knowledge", title: "知识管理" }),
+    ]);
+    expect(saved).toHaveLength(1);
+
+    viewModel.removeCustomTag("alpha", "preset:knowledge");
+
+    expect(viewModel.groupTagItems("alpha")).toEqual([]);
+    expect(saved.at(-1)).toEqual({ alpha: [] });
+  });
+
   it("keeps detail content route-scoped and merges enrichment into inspect data", () => {
     const state = createDesktopAppState({
       view: {
