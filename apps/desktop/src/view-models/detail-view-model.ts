@@ -320,6 +320,22 @@ export class DetailViewModel {
     await this.openPath(groupPath);
   }
 
+  async openDocumentUrl(url: string): Promise<void> {
+    const normalizedUrl = url.trim();
+    if (!normalizedUrl || normalizedUrl === "#") {
+      return;
+    }
+    await this.openExternalUrl(normalizedUrl);
+  }
+
+  async openDocumentPath(path: string): Promise<void> {
+    const normalizedPath = path.trim();
+    if (!normalizedPath) {
+      return;
+    }
+    await this.openPath(normalizedPath);
+  }
+
   async toggleTarget(targetId: string): Promise<void> {
     const detail = this.detail;
     const sourceId = this.sourceId;

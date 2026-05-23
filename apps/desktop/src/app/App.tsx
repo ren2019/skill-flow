@@ -77,6 +77,8 @@ export function App({ state: providedState, integration }: AppProps) {
       ...(updateSelection ? { updateSelection } : {}),
       ...(togglePinnedSource ? { togglePinnedSource } : {}),
       ...(deleteSource ? { deleteSource } : {}),
+      openExternalUrl: (url) => desktopOpenerRef.current.openExternalUrl(url),
+      openPath: (path) => desktopOpenerRef.current.openPath(path),
       persistSettings: () => settingsStoreRef.current?.save(stateRef.current.settings),
       groupTagStore: groupTagStoreRef.current,
       onChange: notifyChange,
@@ -102,6 +104,7 @@ export function App({ state: providedState, integration }: AppProps) {
           },
         }
         : {}),
+      openExternalUrl: (url) => desktopOpenerRef.current.openExternalUrl(url),
       onImportCompleted: () => homeViewModelRef.current.refresh(),
       onChange: notifyChange,
     }),

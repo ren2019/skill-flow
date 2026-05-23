@@ -728,4 +728,14 @@ describe("import view model", () => {
 
     expect(failedImportState.view.toastMessage).toBe("导入失败：boom");
   });
+
+  it("opens repository URLs through the injected desktop opener", async () => {
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const viewModel = new ImportViewModel(createDesktopAppState(), { openExternalUrl });
+
+    await viewModel.openRepositoryUrl("  https://github.com/openai/import-group  ");
+    await viewModel.openRepositoryUrl("  ");
+
+    expect(openExternalUrl.mock.calls).toEqual([["https://github.com/openai/import-group"]]);
+  });
 });

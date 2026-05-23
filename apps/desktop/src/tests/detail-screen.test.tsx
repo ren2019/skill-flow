@@ -3,7 +3,7 @@ import { act, create } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
 import { formatDetailVersionText } from "../components/detail-header";
-import { parseMarkdownBlocks } from "../components/markdown-document";
+import { MarkdownDocument, parseMarkdownBlocks } from "../components/markdown-document";
 import { desktopRoute } from "../navigation/desktop-route";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { DetailScreen } from "../screens/detail-screen";
@@ -25,6 +25,173 @@ describe("detail screen", () => {
       { kind: "list", items: ["One", "Two"] },
       { kind: "code", text: "const x = 1;" },
     ]);
+  });
+
+  it("parses richer GitHub-style markdown blocks for detail documents", () => {
+    expect(parseMarkdownBlocks("#### Deep\n\n1. First\n2. Second\n\n> Quote\n> line\n\n---\n\n![Logo](assets/logo.png)")).toEqual([
+      { kind: "heading", level: 4, text: "Deep" },
+      { kind: "ordered-list", items: ["First", "Second"] },
+      { kind: "blockquote", text: "Quote line" },
+      { kind: "divider" },
+      { kind: "image", alt: "Logo", url: "assets/logo.png" },
+    ]);
+  });
+
+  it("parses markdown tables for detail documents", () => {
+    expect(parseMarkdownBlocks("| Name | Value |\n| --- | ---: |\n| Agent | **Codex** |")).toEqual([
+      {
+        kind: "table",
+        headers: ["Name", "Value"],
+        rows: [["Agent", "**Codex**"]],
+      },
+    ]);
+  });
+
+  it("renders inline markdown links, emphasis, and code without raw markdown markers", () => {
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <MarkdownDocument
+        source={"Read **bold**, *italic*, `code`, and [docs](https://example.com).\n\n> Important\n\n1. Step\n\n| Name | Value |\n| --- | --- |\n| Agent | **Codex** |\n\n![Logo](assets/logo.png)"}
+      />,
+    );
+
+    expect(markup).toContain("<strong>bold</strong>");
+    expect(markup).toContain("<em>italic</em>");
+    expect(markup).toContain("<code");
+    expect(markup).toContain("href=\"https://example.com\"");
+    expect(markup).toContain("<blockquote");
+    expect(markup).toContain("<ol");
+    expect(markup).toContain("data-view=\"markdown-table\"");
+    expect(markup).toContain("<strong>Codex</strong>");
+    expect(markup).toContain("<img");
+    expect(markup).toContain("src=\"assets/logo.png\"");
+    expect(markup).not.toContain("**bold**");
+  });
+
+  it("renders GitHub-style task lists and strikethrough text", () => {
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <MarkdownDocument source={"- [x] Ship ~~old~~ new UI\n- [ ] Verify"} />,
+    );
+
+    expect(markup).toContain("data-view=\"markdown-task-item\"");
+    expect(markup).toContain("checked=\"\"");
+    expect(markup).toContain("<del>old</del>");
+    expect(markup).toContain("Verify");
+  });
+
+  it("opens markdown document links through the desktop opener callback", async () => {
+    const onOpenUrl = vi.fn().mockResolvedValue(undefined);
+    const preventDefault = vi.fn();
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        <MarkdownDocument
+          source={"Read [docs](https://example.com)."}
+          onOpenUrl={onOpenUrl}
+        />,
+      );
+    });
+
+    await act(async () => {
+      renderer!.root.findByType("a").props.onClick({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(onOpenUrl).toHaveBeenCalledWith("https://example.com");
+  });
+
+  it("resolves relative markdown images and links from the document path", async () => {
+    const onOpenPath = vi.fn().mockResolvedValue(undefined);
+    const preventDefault = vi.fn();
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(
+        <MarkdownDocument
+          path="/groups/alpha/docs/README.md"
+          source={"![Logo](../assets/logo.png)\n\nRead [local doc](../guide.md)."}
+          onOpenPath={onOpenPath}
+        />,
+      );
+    });
+
+    const image = renderer!.root.findByType("img");
+    expect(image.props.src).toBe("file:///groups/alpha/assets/logo.png");
+
+    await act(async () => {
+      renderer!.root.findByType("a").props.onClick({ preventDefault });
+    });
+
+    expect(preventDefault).toHaveBeenCalledTimes(1);
+    expect(onOpenPath).toHaveBeenCalledWith("/groups/alpha/guide.md");
+  });
+
+  it("renders non-markdown detail documents as plain text and opens document external URLs", async () => {
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedGroupDocumentIdByGroup: { alpha: "group:config" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "group:filetree",
+                title: "File Tree",
+                path: ".",
+                metadata: [],
+                renderCacheKey: "group:filetree",
+                content: "",
+                isLoaded: true,
+              },
+              {
+                id: "group:config",
+                title: "config.json",
+                path: "/groups/alpha/config.json",
+                metadata: [],
+                renderCacheKey: "group:config",
+                externalUrl: "https://example.com/config",
+                content: "{\n  \"pattern\": \"**raw**\"\n}",
+                isLoaded: true,
+              },
+            ],
+            skillSelection: "empty",
+            targetSelection: "empty",
+            targets: [],
+            skills: [],
+            selectedSkillCount: 0,
+            targetCount: 0,
+            selectedTargetCount: 0,
+            enabledTargetLabels: [],
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state, { openExternalUrl });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<DetailScreen viewModel={viewModel} />);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain("plain-document");
+    expect(text).toContain("**raw**");
+    expect(text).not.toContain("markdown-rendered-content");
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-document-external-url": "https://example.com/config" }).props.onClick();
+    });
+
+    expect(openExternalUrl.mock.calls).toEqual([["https://example.com/config"]]);
   });
 
   it("renders the detail sidebar with group row and skill rows", () => {

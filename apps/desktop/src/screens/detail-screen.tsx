@@ -5,7 +5,8 @@ import { DetailSidebar } from "../components/detail-sidebar";
 import { GroupTagSection } from "../components/shared-group-card";
 import { localize } from "../i18n";
 import { MarkdownDocument } from "../components/markdown-document";
-import type { DetailFileTreeItem } from "../store/detail-state";
+import { resolveActionIcon } from "../icons/action-icons";
+import type { DetailDocumentTab, DetailFileTreeItem } from "../store/detail-state";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
 type DetailScreenProps = {
@@ -132,15 +133,12 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
                   emptyTitle={t("detail.document.file_tree")}
                   sectionTitle={t("detail.section.documents")}
                   onSelectDocument={(documentId) => viewModel.selectGroupDocument(documentId)}
+                  onOpenExternalDocument={(url) => viewModel.openDocumentUrl(url)}
                   renderContent={() => (
                     shouldShowFileTree ? (
                       <FileTreeCard items={detail.fileTree} viewModel={viewModel} title={t("detail.document.file_tree")} />
                     ) : (
-                      <MarkdownDocument
-                        title={document?.title ?? "README"}
-                        source={documentSource}
-                        metadata={document?.metadata ?? []}
-                      />
+                      <DetailDocumentContent document={document} source={documentSource} viewModel={viewModel} />
                     )
                   )}
                 />
@@ -156,12 +154,9 @@ export function DetailScreen({ viewModel }: DetailScreenProps) {
                     viewModel.selectSkillDocument(viewModel.selectedSkillId, documentId);
                   }
                 }}
+                onOpenExternalDocument={(url) => viewModel.openDocumentUrl(url)}
                 renderContent={() => (
-                  <MarkdownDocument
-                    title={document?.title ?? "README"}
-                    source={documentSource}
-                    metadata={document?.metadata ?? []}
-                  />
+                  <DetailDocumentContent document={document} source={documentSource} viewModel={viewModel} />
                 )}
                 skillMode
               />
@@ -179,14 +174,16 @@ function DetailDocumentsSection({
   emptyTitle,
   sectionTitle,
   onSelectDocument,
+  onOpenExternalDocument,
   renderContent,
   skillMode = false,
 }: {
-  activeDocuments: Array<{ id: string; title: string }>;
+  activeDocuments: Array<Pick<DetailDocumentTab, "id" | "title" | "externalUrl">>;
   selectedDocumentId: string | undefined;
   emptyTitle: string;
   sectionTitle: string;
   onSelectDocument: (documentId: string) => void;
+  onOpenExternalDocument: (url: string) => void | Promise<void>;
   renderContent: () => ReactNode;
   skillMode?: boolean;
 }) {
@@ -196,18 +193,35 @@ function DetailDocumentsSection({
       <nav data-view="detail-document-tabs" style={documentTabsStyle}>
         {activeDocuments.length > 0 ? (
           activeDocuments.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              data-group-document-id={skillMode ? undefined : item.id}
-              data-skill-document-id={skillMode ? item.id : undefined}
-              onClick={() => {
-                onSelectDocument(item.id);
-              }}
-              style={documentTabStyle(selectedDocumentId === item.id)}
-            >
-              {item.title}
-            </button>
+            <span key={item.id} style={documentTabShellStyle}>
+              <button
+                type="button"
+                data-group-document-id={skillMode ? undefined : item.id}
+                data-skill-document-id={skillMode ? item.id : undefined}
+                onClick={() => {
+                  onSelectDocument(item.id);
+                }}
+                style={documentTabStyle(selectedDocumentId === item.id, Boolean(item.externalUrl))}
+              >
+                {item.title}
+              </button>
+              {item.externalUrl ? (
+                <button
+                  type="button"
+                  data-document-external-url={item.externalUrl}
+                  aria-label={item.externalUrl}
+                  title={item.externalUrl}
+                  onClick={() => {
+                    startTransition(() => {
+                      void onOpenExternalDocument(item.externalUrl ?? "");
+                    });
+                  }}
+                  style={documentTabExternalButtonStyle}
+                >
+                  <img src={resolveActionIcon("external-link")} alt="" aria-hidden="true" style={documentTabExternalIconStyle} />
+                </button>
+              ) : null}
+            </span>
           ))
         ) : (
           <span style={emptyDocumentTabStyle}>{emptyTitle}</span>
@@ -216,6 +230,42 @@ function DetailDocumentsSection({
       {renderContent()}
     </section>
   );
+}
+
+function DetailDocumentContent({
+  document,
+  source,
+  viewModel,
+}: {
+  document: DetailDocumentTab | undefined;
+  source: string;
+  viewModel: DetailViewModel;
+}) {
+  if (document && !isMarkdownDocument(document)) {
+    return <PlainDocument source={source} />;
+  }
+
+  return (
+    <MarkdownDocument
+      path={document?.path}
+      source={source}
+      metadata={document?.metadata ?? []}
+      onOpenUrl={(url) => viewModel.openDocumentUrl(url)}
+      onOpenPath={(path) => viewModel.openDocumentPath(path)}
+    />
+  );
+}
+
+function PlainDocument({ source }: { source: string }) {
+  return (
+    <article data-view="plain-document" data-testid="plain-document" style={plainDocumentStyle}>
+      <pre style={plainDocumentTextStyle}>{source}</pre>
+    </article>
+  );
+}
+
+function isMarkdownDocument(document: { path: string }): boolean {
+  return document.path.toLowerCase().endsWith(".md");
 }
 
 function isFileTreeDocument(document: { id: string; title: string; path: string }, t: (key: string) => string): boolean {
@@ -383,6 +433,11 @@ const documentTabsStyle: CSSProperties = {
   flexWrap: "wrap",
 };
 
+const documentTabShellStyle: CSSProperties = {
+  position: "relative",
+  display: "inline-flex",
+};
+
 const sectionLabelStyle: CSSProperties = {
   margin: 0,
   fontSize: "11px",
@@ -457,10 +512,10 @@ function selectionChipStyle(selection: "empty" | "partial" | "full"): CSSPropert
   };
 }
 
-function documentTabStyle(active: boolean): CSSProperties {
+function documentTabStyle(active: boolean, hasExternalUrl = false): CSSProperties {
   return {
     minHeight: "34px",
-    padding: "0 12px",
+    padding: hasExternalUrl ? "0 30px 0 12px" : "0 12px",
     borderRadius: "8px",
     border: active ? "1px solid rgba(14, 116, 144, 0.28)" : "1px solid rgba(148, 163, 184, 0.18)",
     background: active ? "rgba(224, 242, 254, 0.88)" : "rgba(248, 250, 252, 0.92)",
@@ -469,3 +524,42 @@ function documentTabStyle(active: boolean): CSSProperties {
     fontWeight: 600,
   };
 }
+
+const documentTabExternalButtonStyle: CSSProperties = {
+  position: "absolute",
+  right: "8px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  width: "16px",
+  height: "16px",
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
+};
+
+const documentTabExternalIconStyle: CSSProperties = {
+  width: "10px",
+  height: "10px",
+  opacity: 0.62,
+};
+
+const plainDocumentStyle: CSSProperties = {
+  padding: "18px",
+  borderRadius: "10px",
+  background: "rgba(255, 255, 255, 0.92)",
+  border: "1px solid rgba(148, 163, 184, 0.18)",
+};
+
+const plainDocumentTextStyle: CSSProperties = {
+  margin: 0,
+  whiteSpace: "pre-wrap",
+  overflowWrap: "anywhere",
+  color: "#0f172a",
+  fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+  fontSize: "12px",
+  lineHeight: 1.55,
+};

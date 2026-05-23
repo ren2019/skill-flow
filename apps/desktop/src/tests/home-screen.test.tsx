@@ -106,6 +106,47 @@ describe("home screen", () => {
     expect(markup).not.toContain("Current route");
   });
 
+  it("routes card repository and local path icons through desktop openers", async () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "openai/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+            repoUrl: "https://github.com/openai/alpha",
+            groupPath: "/Users/example/.skillflow/source/openai-alpha",
+          },
+        ],
+      },
+    });
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const openPath = vi.fn().mockResolvedValue(undefined);
+    const viewModel = new HomeViewModel(state, { openExternalUrl, openPath });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<HomeScreen viewModel={viewModel} />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-card-stat-action": "github" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-card-stat-action": "local-file" }).props.onClick();
+    });
+
+    expect(openExternalUrl.mock.calls).toEqual([["https://github.com/openai/alpha"]]);
+    expect(openPath.mock.calls).toEqual([["/Users/example/.skillflow/source/openai-alpha"]]);
+  });
+
   it("keeps project scope controls in the shared home content", () => {
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha"] },

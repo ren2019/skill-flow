@@ -106,6 +106,12 @@ export function MenuQuickConfigScreen({ viewModel }: MenuQuickConfigScreenProps)
                 onToggleAllTargets={() => {
                   stateTransition(() => viewModel.toggleAllCardTargets(card.sourceId));
                 }}
+                onOpenRepository={(url) => {
+                  stateTransition(() => viewModel.openCardRepository(url));
+                }}
+                onOpenLocalPath={(path) => {
+                  stateTransition(() => viewModel.openCardPath(path));
+                }}
                 groupTagItems={viewModel.inventoryTags(card.sourceId)}
                 groupTagSuggestions={[]}
                 canCreateGroupTag={false}

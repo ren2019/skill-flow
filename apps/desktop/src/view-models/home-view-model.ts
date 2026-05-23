@@ -22,6 +22,8 @@ type HomeViewModelOptions = {
   ) => Promise<void>;
   togglePinnedSource?: (sourceId: string) => Promise<string[] | undefined>;
   deleteSource?: (sourceId: string) => Promise<void>;
+  openExternalUrl?: (url: string) => Promise<void>;
+  openPath?: (path: string) => Promise<void>;
   persistSettings?: () => void;
   groupTagStore?: Pick<DesktopGroupTagStore, "loadCustomTags" | "saveCustomTags">;
   mutationCoordinator?: MutationCoordinator;
@@ -40,6 +42,8 @@ export class HomeViewModel {
   ) => Promise<void>;
   private readonly togglePinnedSource: (sourceId: string) => Promise<string[] | undefined>;
   private readonly deleteSourceCommand: (sourceId: string) => Promise<void>;
+  private readonly openExternalUrl: (url: string) => Promise<void>;
+  private readonly openPath: (path: string) => Promise<void>;
   private readonly persistSettings: () => void;
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly onChange: () => void;
@@ -56,6 +60,8 @@ export class HomeViewModel {
     this.updateSelection = options.updateSelection ?? (async () => undefined);
     this.togglePinnedSource = options.togglePinnedSource ?? (async () => undefined);
     this.deleteSourceCommand = options.deleteSource ?? (async () => undefined);
+    this.openExternalUrl = options.openExternalUrl ?? (async () => undefined);
+    this.openPath = options.openPath ?? (async () => undefined);
     this.persistSettings = options.persistSettings ?? (() => undefined);
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
@@ -351,6 +357,22 @@ export class HomeViewModel {
     this.state.view.selectedSourceId = normalizedSourceId;
     this.state.view.currentRoute = { kind: "detail", sourceId: normalizedSourceId };
     this.onChange();
+  }
+
+  async openCardRepository(url: string): Promise<void> {
+    const normalizedUrl = url.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+    await this.openExternalUrl(normalizedUrl);
+  }
+
+  async openCardPath(path: string): Promise<void> {
+    const normalizedPath = path.trim();
+    if (!normalizedPath) {
+      return;
+    }
+    await this.openPath(normalizedPath);
   }
 
   selectHomeTagFilter(tagId?: string): void {

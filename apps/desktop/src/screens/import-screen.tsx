@@ -207,6 +207,11 @@ function renderImportGroupCard(
       onToggleAllTargets={() => {
         viewModel.toggleAllTargets(group.id);
       }}
+      onOpenRepository={(url) => {
+        startTransition(() => {
+          void viewModel.openRepositoryUrl(url);
+        });
+      }}
       groupTagItems={[]}
       groupTagSuggestions={[]}
       canCreateGroupTag={false}

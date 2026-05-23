@@ -112,6 +112,16 @@
 - 已补齐 Detail 文档 metadata 展示：`MarkdownDocument` 渲染 mac 端同类 metadata 表格，bridge frontmatter 解析支持多行 `|` / `>` block 和简单数组 / 列表值，避免把多行 description 显示成 `|`。
 - 已补齐 Detail 组 header 的更新按钮：仅组概览显示，复用 HomeViewModel 的当前 source 更新路径、更新中状态和 toast 汇总逻辑，对齐 mac 端在详情页直接更新当前分组的入口。
 - 已补齐 Detail 组 header 的 GitHub / 本地路径入口：stats 图标可点击打开仓库 URL 或本地目录，renderer 通过 Tauri command 分别接入 macOS `open`、Windows `explorer` / `cmd start`、Linux `xdg-open`。
+- 已补齐 Settings Agent Display 的拖拽列表底部 drop target 和插入指示状态，拖到列表末尾时按 mac 端同类交互重排当前检测范围内的 agent。
+- 已对齐 Settings 控件形态：主题 / 卡片密度从原生 select 改为 segmented control，强调色 / 语言 / 日志级别从原生 select 改为带 swatch、菜单和选中态的自定义 dropdown。
+- 已对齐 Settings 更新状态流：检查更新行在发现新版本后切换为打开 Releases，`runningNewerBuild` 使用 mac 端 `newer_local` 文案并补齐三语本地化。
+- 已扩展 Detail Markdown 渲染能力，补齐链接、粗体、斜体、inline code、有序列表、引用、分隔线和 1-6 级标题，减少与 mac 端 GitHub 风格 StructuredText 的差距。
+- 已继续补齐 Detail Markdown 表格和图片渲染，支持 GFM 风格表格、图片 alt / src、表格单元格内 inline markdown。
+- 已补齐 Detail Markdown 任务列表和删除线渲染，进一步对齐 GitHub 风格 README 常见内容。
+- 已将 Detail Markdown 链接点击接入桌面外链打开通道，点击文档链接会阻止 webview 默认导航并复用 Tauri opener，贴近 mac 端 `NSWorkspace.shared.open` 行为。
+- 已补齐 Detail Markdown 相对资源路径：图片和本地文档链接会基于当前文档路径解析，图片走 Tauri asset protocol，本地文档链接走 path opener；Tauri 配置同步开启 `assetProtocol` 并添加 `protocol-asset` feature。
+- 已将 Home / Menu / Import 的 `SharedGroupCard` GitHub 和本地路径 meta 图标接入桌面 opener，不再依赖 webview 默认链接跳转；Home 本地路径入口走 path opener，GitHub 入口走 external URL opener。
+- 已对齐 Detail 文档内容分流：`.md` 文档继续走 Markdown 渲染，非 Markdown 文档按纯文本显示；文档 tab 的 `externalUrl` 增加独立外链按钮并复用桌面 opener。
 
 ### 当前未完成 / 风险
 
@@ -133,7 +143,7 @@ npm run desktop:test:cross-platform
 - `npx tsc -p apps/desktop/tsconfig.json --noEmit`：通过。
 - `npm run -w @skill-flow/desktop build:renderer`：通过。
 - `npm run -w @skill-flow/desktop test`：通过。
-- 最新测试汇总：`31` 个测试文件通过；`203` 个测试通过。
+- 最新测试汇总：`31` 个测试文件通过；`221` 个测试通过。
 - Vitest `--localstorage-file was provided without a valid path` warning 已清理。
 - 本轮补充验证：`npm run -w @skill-flow/desktop test -- src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/group-tag-store.test.ts src/tests/localization.test.tsx` 通过，`6` 个测试文件、`74` 个测试通过。
 - 菜单快速配置补充验证：`npm run -w @skill-flow/desktop test -- src/tests/menu-quick-config-screen.test.tsx src/tests/home-screen.test.tsx src/tests/tray.test.ts` 通过，`3` 个测试文件、`18` 个测试通过；此前 `src/tests/menu-quick-config-screen.test.tsx src/tests/tray.test.ts src/tests/home-view-model.test.ts src/tests/home-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx` 通过，`6` 个测试文件、`75` 个测试通过。
@@ -157,10 +167,20 @@ npm run desktop:test:cross-platform
 - Detail 文件树 / metadata 补充验证：`npm run -w skill-flow build` 通过；`npm run -w skill-flow test -- src/tests/bridge-command.test.ts` 通过，`17` 个测试通过；`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts` 通过，`3` 个测试文件、`35` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`199` 个测试通过；`git diff --check` 通过。
 - Detail header 更新入口补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/app.test.tsx src/tests/detail-view-model.test.ts src/tests/home-view-model.test.ts` 通过，`4` 个测试文件、`74` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`201` 个测试通过；`npm run -w skill-flow build`、`npm run -w skill-flow test -- src/tests/bridge-command.test.ts`、`git diff --check` 通过。
 - Detail header 打开入口补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-view-model.test.ts src/tests/detail-screen.test.tsx src/tests/app.test.tsx src/tests/desktop-integration-runtime.test.ts` 通过，`4` 个测试文件、`47` 个测试通过；`npm run -w skill-flow test -- src/tests/bridge-command.test.ts` 通过，`17` 个测试通过；`cargo test` 在 `apps/desktop/src-tauri` 通过，`4` 个单元测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`203` 个测试通过；`npm run -w skill-flow build`、`git diff --check` 通过。
+- Settings Agent 拖拽底部 drop 补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`27` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`204` 个测试通过；`git diff --check` 通过。
+- Settings 控件形态补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`28` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`205` 个测试通过；`git diff --check` 通过。
+- Settings 更新状态流补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/settings-screen.test.tsx src/tests/settings-view-model.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`30` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`207` 个测试通过；`git diff --check` 通过。
+- Detail Markdown 富文本补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`29` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`209` 个测试通过；`git diff --check` 通过。
+- Detail Markdown 表格 / 图片补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`30` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`210` 个测试通过；`git diff --check` 通过。
+- Detail Markdown 任务列表 / 删除线补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`3` 个测试文件、`31` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`211` 个测试通过；`git diff --check` 通过。
+- Detail Markdown 外链打开补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/localization.test.tsx` 通过，`4` 个测试文件、`49` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`213` 个测试通过；`git diff --check` 通过。
+- Detail Markdown 相对资源路径补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/desktop-integration-runtime.test.ts src/tests/shell-config.test.ts` 通过，`4` 个测试文件、`50` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`216` 个测试通过；`cargo test` 在 `apps/desktop/src-tauri` 通过，`4` 个单元测试通过；`git diff --check` 通过。
+- SharedGroupCard meta opener 补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/home-screen.test.tsx src/tests/home-view-model.test.ts src/tests/import-view-model.test.ts src/tests/import-screen.test.tsx src/tests/menu-quick-config-screen.test.tsx` 通过，`5` 个测试文件、`87` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`220` 个测试通过；`git diff --check` 通过。
+- Detail 文档内容分流补充验证：`npx tsc -p apps/desktop/tsconfig.json --noEmit` 通过；`npm run -w @skill-flow/desktop test -- src/tests/detail-screen.test.tsx src/tests/detail-view-model.test.ts src/tests/app.test.tsx src/tests/desktop-integration-runtime.test.ts` 通过，`4` 个测试文件、`56` 个测试通过；随后 `npm run desktop:test:cross-platform` 通过，`31` 个测试文件、`221` 个测试通过；`git diff --check` 通过。
 
 ## 下一步
 
 1. 继续对照 `origin/main` 的 mac 桌面端，按 Home、Import、Detail、Settings、Tray / Menu、runtime bridge 分区列出未复刻项。
-2. 优先补齐会影响真实使用闭环的差距：Home / Detail 视觉交互差异、菜单快速配置卡片 display mode 细节、Settings Agent 拖拽细节 polish。
+2. 优先补齐会影响真实使用闭环的差距：Home / Detail 视觉交互差异、菜单快速配置卡片 display mode 细节、Markdown renderer 与 mac StructuredText 的剩余边缘差异。
 3. 触发或等待 GitHub Actions 的 `test-cross-platform`，确认 macOS、Linux、Windows 三平台通过。
 4. 在 release workflow 中完成一次 `macos`、`linux`、`windows` 产物构建与 `validate-desktop-artifacts.sh` 校验。

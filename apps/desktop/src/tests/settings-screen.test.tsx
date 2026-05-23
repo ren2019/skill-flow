@@ -135,6 +135,62 @@ describe("settings screen", () => {
     });
   });
 
+  it("wires mac-style segmented and dropdown settings controls", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        themeModeRawValue: "light",
+        themeAccentRawValue: "blue",
+        desktopLanguageRawValue: "en",
+        homeCardDensityRawValue: "comfortable",
+        menuCardDensityRawValue: "compact",
+        logLevel: "info",
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "settings-segmented-control" })).toHaveLength(3);
+    expect(renderer!.root.findAllByProps({ "data-view": "settings-dropdown-control" })).toHaveLength(3);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-segment": "dark" }).props.onClick();
+      renderer!.root.findAllByProps({ "data-settings-segment": "compact" })[0]!.props.onClick();
+    });
+    expect(state.settings.themeModeRawValue).toBe("dark");
+    expect(state.settings.homeCardDensityRawValue).toBe("compact");
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-dropdown": "accent" }).props.onClick();
+    });
+    expect(renderer!.root.findByProps({ "data-settings-dropdown-menu": "accent" })).toBeTruthy();
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-dropdown-option": "accent:green" }).props.onClick();
+    });
+    expect(state.settings.themeAccentRawValue).toBe("green");
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-dropdown": "logLevel" }).props.onClick();
+    });
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-dropdown-option": "logLevel:error" }).props.onClick();
+    });
+    expect(state.settings.logLevel).toBe("error");
+  });
+
   it("wires agent ordering controls through the settings view model", async () => {
     const state = createDesktopAppState({
       settings: {
@@ -227,6 +283,72 @@ describe("settings screen", () => {
     expect(state.settings.agentDisplayPreferences.slice(0, 2)).toEqual([
       { targetId: "codex", isVisible: true, sortOrder: 0 },
       { targetId: "claude-code", isVisible: true, sortOrder: 1 },
+    ]);
+  });
+
+  it("reorders agents by dropping a dragged row at the list end like the mac settings view", async () => {
+    const state = createDesktopAppState({
+      settings: {
+        agentDisplayPreferences: [
+          { targetId: "claude-code", isVisible: true, sortOrder: 0 },
+          { targetId: "codex", isVisible: true, sortOrder: 1 },
+          { targetId: "cursor", isVisible: true, sortOrder: 2 },
+        ],
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} detectedTargetIds={["claude-code", "codex", "cursor"]} />;
+    }
+
+    const transferData: Record<string, string> = {};
+    const dataTransfer = {
+      effectAllowed: "",
+      dropEffect: "",
+      setData: vi.fn((key: string, value: string) => {
+        transferData[key] = value;
+      }),
+      getData: vi.fn((key: string) => transferData[key] ?? ""),
+    };
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-drag-handle-target-id": "claude-code" }).props.onDragStart({
+        dataTransfer,
+      });
+    });
+    const preventDefault = vi.fn();
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-drop-list-end": "true" }).props.onDragOver({
+        preventDefault,
+        dataTransfer,
+      });
+    });
+
+    expect(renderer!.root.findAllByProps({ "data-view": "settings-agent-insert-indicator" })).toHaveLength(1);
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-agent-drop-list-end": "true" }).props.onDrop({
+        preventDefault,
+        dataTransfer,
+      });
+    });
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(state.settings.agentDisplayPreferences.slice(0, 3)).toEqual([
+      { targetId: "codex", isVisible: true, sortOrder: 0 },
+      { targetId: "cursor", isVisible: true, sortOrder: 1 },
+      { targetId: "claude-code", isVisible: true, sortOrder: 2 },
     ]);
   });
 
@@ -328,6 +450,60 @@ describe("settings screen", () => {
     expect(markup).toContain("Version 1.3.1 is available on GitHub Releases.");
     expect(markup).toContain("1.3.1");
     expect(markup).not.toContain("data-view=\"settings-update-status\"");
+  });
+
+  it("opens releases from the check updates row when an update is available", async () => {
+    const openReleasePage = vi.fn();
+    const fetchLatestRelease = vi.fn().mockResolvedValue({
+      version: "1.3.1",
+      releaseUrl: "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+    });
+    const state = createDesktopAppState();
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new SettingsViewModel(state, {
+          updateChecker: { fetchLatestRelease },
+          currentVersionProvider: () => "1.1.0",
+          releasePageOpener: openReleasePage,
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <SettingsScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Open");
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-settings-update-action": "true" }).props.onClick();
+    });
+
+    expect(fetchLatestRelease).toHaveBeenCalledTimes(1);
+    expect(openReleasePage).toHaveBeenCalledWith(
+      "https://github.com/VintLin/skill-flow/releases/tag/v1.3.1",
+    );
+  });
+
+  it("renders the mac newer-local update status description", () => {
+    const viewModel = new SettingsViewModel(createDesktopAppState(), {
+      currentVersionProvider: () => "1.4.0",
+    });
+    viewModel.hydrateUpdateState({
+      status: "runningNewerBuild",
+      latestVersion: "1.3.1",
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <SettingsScreen viewModel={viewModel} />,
+    );
+
+    expect(markup).toContain("This build is newer than the latest GitHub release (1.3.1).");
   });
 
   it("checks for updates on mount and rerenders the fetched status", async () => {

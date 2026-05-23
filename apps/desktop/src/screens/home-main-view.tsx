@@ -186,6 +186,12 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
                   onToggleAllTargets={() => {
                     stateTransition(() => viewModel.toggleAllCardTargets(card.sourceId));
                   }}
+                  onOpenRepository={(url) => {
+                    stateTransition(() => viewModel.openCardRepository(url));
+                  }}
+                  onOpenLocalPath={(path) => {
+                    stateTransition(() => viewModel.openCardPath(path));
+                  }}
                   groupTagItems={viewModel.inventoryTags(card.sourceId)}
                   groupTagSuggestions={viewModel.tagSuggestions(card.sourceId)}
                   canCreateGroupTag={viewModel.canCreateGroupTag(card.sourceId)}

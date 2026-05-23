@@ -62,6 +62,7 @@ type ImportViewModelOptions = {
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
   mutationCoordinator?: MutationCoordinator;
+  openExternalUrl?: (url: string) => Promise<void>;
   onImportCompleted?: () => Promise<void> | void;
   onChange?: () => void;
 };
@@ -88,6 +89,7 @@ export class ImportViewModel {
     groupId: string,
     draft: { selectedSkillIds: string[]; enabledTargets: string[] },
   ) => Promise<{ sourceId: string }>;
+  private readonly openExternalUrl: (url: string) => Promise<void>;
   private readonly mutationCoordinator: MutationCoordinator;
   private readonly onImportCompleted: () => Promise<void> | void;
   private readonly onChange: () => void;
@@ -102,6 +104,7 @@ export class ImportViewModel {
     this.searchLoader = options.searchLoader ?? (async () => []);
     this.previewLoader = options.previewLoader ?? (async () => ({ skills: [], targets: [] }));
     this.importer = options.importer ?? (async (sourceId) => ({ sourceId }));
+    this.openExternalUrl = options.openExternalUrl ?? (async () => undefined);
     this.mutationCoordinator =
       options.mutationCoordinator ?? createPassthroughMutationCoordinator();
     this.onImportCompleted = options.onImportCompleted ?? (() => undefined);
@@ -162,6 +165,14 @@ export class ImportViewModel {
   showHome(): void {
     this.state.view.currentRoute = { kind: "home" };
     this.onChange();
+  }
+
+  async openRepositoryUrl(url: string): Promise<void> {
+    const normalizedUrl = url.trim();
+    if (!normalizedUrl) {
+      return;
+    }
+    await this.openExternalUrl(normalizedUrl);
   }
 
   get content(): ImportContent {

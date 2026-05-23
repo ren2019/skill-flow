@@ -46,4 +46,14 @@ describe("desktop shell config", () => {
     expect(config.bundle?.resources?.["gen/helper/dist/package.json"]).toBe("helper/dist/package.json");
     expect(config.bundle?.resources?.["gen/helper/dist/cli.js"]).toBe("helper/dist/cli.js");
   });
+
+  it("enables the asset protocol for local markdown resources", () => {
+    const configPath = fileURLToPath(new URL("../../src-tauri/tauri.conf.json", import.meta.url));
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as {
+      app?: { security?: { assetProtocol?: { enable?: boolean; scope?: string[] } } };
+    };
+
+    expect(config.app?.security?.assetProtocol?.enable).toBe(true);
+    expect(config.app?.security?.assetProtocol?.scope).toEqual(["$HOME/**", "$TEMP/**"]);
+  });
 });

@@ -74,6 +74,23 @@ describe("home view model", () => {
     expect(viewModel.sourceIds).toEqual(["alpha", "beta", "gamma"]);
   });
 
+  it("opens card repository and local path through injected desktop openers", async () => {
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const openPath = vi.fn().mockResolvedValue(undefined);
+    const viewModel = new HomeViewModel(createDesktopAppState(), {
+      openExternalUrl,
+      openPath,
+    });
+
+    await viewModel.openCardRepository("  https://github.com/openai/skills  ");
+    await viewModel.openCardRepository("   ");
+    await viewModel.openCardPath("  /Users/example/.skillflow/source  ");
+    await viewModel.openCardPath("");
+
+    expect(openExternalUrl.mock.calls).toEqual([["https://github.com/openai/skills"]]);
+    expect(openPath.mock.calls).toEqual([["/Users/example/.skillflow/source"]]);
+  });
+
   it("refreshes and updates all non-empty groups from home", async () => {
     const refreshList = vi.fn().mockResolvedValue(undefined);
     const updateGroup = vi.fn().mockResolvedValue(undefined);

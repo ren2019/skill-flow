@@ -894,6 +894,35 @@ describe("detail view model", () => {
     expect(openPath).toHaveBeenCalledTimes(1);
   });
 
+  it("opens markdown document URLs through the external opener", async () => {
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+    });
+    const viewModel = new DetailViewModel(state, { openExternalUrl });
+
+    await viewModel.openDocumentUrl(" https://example.com/docs ");
+    await viewModel.openDocumentUrl("   ");
+    await viewModel.openDocumentUrl("#");
+
+    expect(openExternalUrl).toHaveBeenCalledTimes(1);
+    expect(openExternalUrl).toHaveBeenCalledWith("https://example.com/docs");
+  });
+
+  it("opens markdown document local paths through the path opener", async () => {
+    const openPath = vi.fn().mockResolvedValue(undefined);
+    const viewModel = new DetailViewModel(createDesktopAppState(), { openPath });
+
+    await viewModel.openDocumentPath(" /groups/alpha/README.md ");
+    await viewModel.openDocumentPath("   ");
+
+    expect(openPath).toHaveBeenCalledTimes(1);
+    expect(openPath).toHaveBeenCalledWith("/groups/alpha/README.md");
+  });
+
   it("rolls back skill selection and records a toast when persistence fails", async () => {
     const state = createDesktopAppState({
       view: {

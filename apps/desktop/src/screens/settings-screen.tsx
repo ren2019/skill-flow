@@ -12,6 +12,8 @@ type SettingsScreenProps = {
   detectedTargetIds?: string[];
 };
 
+type SettingsDropdownId = "accent" | "language" | "logLevel";
+
 export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const rows = detectedTargetIds
@@ -21,6 +23,9 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
   const [customAgentDraft, setCustomAgentDraft] = useState<CustomAgentDraft>(() => viewModel.customAgentDraft());
   const [customAgentErrors, setCustomAgentErrors] = useState<Record<string, string>>({});
   const [draggedAgentTargetId, setDraggedAgentTargetId] = useState<string | undefined>(undefined);
+  const [targetedAgentRowTargetId, setTargetedAgentRowTargetId] = useState<string | undefined>(undefined);
+  const [isTargetingAgentListEnd, setIsTargetingAgentListEnd] = useState(false);
+  const [openDropdownId, setOpenDropdownId] = useState<SettingsDropdownId | undefined>(undefined);
   const isEditingCustomAgent = editingCustomAgentId !== undefined;
   const agentTargetIds = rows.map((row) => row.targetId);
 
@@ -47,8 +52,19 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
     const toIndex = agentTargetIds.indexOf(targetTargetId);
     viewModel.moveAgents(fromIndex, toIndex, agentTargetIds);
   };
+  const moveAgentToListEnd = (sourceTargetId: string) => {
+    const fromIndex = agentTargetIds.indexOf(sourceTargetId);
+    viewModel.moveAgents(fromIndex, agentTargetIds.length, agentTargetIds);
+  };
+  const clearAgentDropState = () => {
+    setDraggedAgentTargetId(undefined);
+    setTargetedAgentRowTargetId(undefined);
+    setIsTargetingAgentListEnd(false);
+  };
   const beginAgentDrag = (event: DragEvent<HTMLButtonElement>, targetId: string) => {
     setDraggedAgentTargetId(targetId);
+    setTargetedAgentRowTargetId(undefined);
+    setIsTargetingAgentListEnd(false);
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", targetId);
   };
@@ -56,7 +72,15 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
     if (draggedAgentTargetId && draggedAgentTargetId !== targetId) {
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
+      setTargetedAgentRowTargetId(targetId);
+      setIsTargetingAgentListEnd(false);
     }
+  };
+  const leaveAgentDrop = (event: DragEvent<HTMLLIElement>, targetId: string) => {
+    if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      return;
+    }
+    setTargetedAgentRowTargetId((current) => current === targetId ? undefined : current);
   };
   const dropAgent = (event: DragEvent<HTMLLIElement>, targetId: string) => {
     event.preventDefault();
@@ -64,7 +88,24 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
     if (sourceTargetId) {
       moveAgentToTarget(sourceTargetId, targetId);
     }
-    setDraggedAgentTargetId(undefined);
+    clearAgentDropState();
+  };
+  const allowAgentListEndDrop = (event: DragEvent<HTMLElement>) => {
+    if (!draggedAgentTargetId) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setTargetedAgentRowTargetId(undefined);
+    setIsTargetingAgentListEnd(true);
+  };
+  const dropAgentAtListEnd = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    const sourceTargetId = event.dataTransfer.getData("text/plain") || draggedAgentTargetId;
+    if (sourceTargetId) {
+      moveAgentToListEnd(sourceTargetId);
+    }
+    clearAgentDropState();
   };
 
   useEffect(() => {
@@ -93,7 +134,7 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
 
       <div style={gridStyle}>
         <SettingsSection title={t("settings.section.appearance")}>
-          <SettingsSelectRow
+          <SettingsSegmentedRow
             title={t("settings.row.theme.title")}
             description={t("settings.row.theme.description")}
             value={viewModel.themeMode}
@@ -105,23 +146,27 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
               viewModel.themeMode = value;
             }}
           />
-          <SettingsSelectRow
+          <SettingsDropdownRow
+            dropdownId="accent"
             title={t("settings.row.accent.title")}
             description={t("settings.row.accent.description")}
             value={viewModel.themeAccent}
             options={[
-              { value: "blue", label: t("settings.option.accent.blue") },
-              { value: "green", label: t("settings.option.accent.green") },
-              { value: "yellow", label: t("settings.option.accent.yellow") },
-              { value: "pink", label: t("settings.option.accent.pink") },
-              { value: "orange", label: t("settings.option.accent.orange") },
-              { value: "purple", label: t("settings.option.accent.purple") },
+              { value: "blue", label: t("settings.option.accent.blue"), swatch: settingsAccentSwatches.blue },
+              { value: "green", label: t("settings.option.accent.green"), swatch: settingsAccentSwatches.green },
+              { value: "yellow", label: t("settings.option.accent.yellow"), swatch: settingsAccentSwatches.yellow },
+              { value: "pink", label: t("settings.option.accent.pink"), swatch: settingsAccentSwatches.pink },
+              { value: "orange", label: t("settings.option.accent.orange"), swatch: settingsAccentSwatches.orange },
+              { value: "purple", label: t("settings.option.accent.purple"), swatch: settingsAccentSwatches.purple },
             ]}
+            openDropdownId={openDropdownId}
+            onOpenChange={setOpenDropdownId}
             onChange={(value) => {
               viewModel.themeAccent = value;
             }}
           />
-          <SettingsSelectRow
+          <SettingsDropdownRow
+            dropdownId="language"
             title={t("settings.row.language.title")}
             description={t("settings.row.language.description")}
             value={viewModel.desktopLanguage}
@@ -131,6 +176,8 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
               { value: "zh-Hans", label: t("settings.option.language.zh-Hans") },
               { value: "ja", label: t("settings.option.language.ja") },
             ]}
+            openDropdownId={openDropdownId}
+            onOpenChange={setOpenDropdownId}
             onChange={(value) => {
               viewModel.desktopLanguage = value;
             }}
@@ -138,7 +185,7 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.menu_bar")}>
-          <SettingsSelectRow
+          <SettingsSegmentedRow
             title={t("settings.row.home_card_density.title")}
             description={t("settings.row.home_card_density.description")}
             value={viewModel.homeCardDensity}
@@ -150,7 +197,7 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
               viewModel.homeCardDensity = value;
             }}
           />
-          <SettingsSelectRow
+          <SettingsSegmentedRow
             title={t("settings.row.menu_card_density.title")}
             description={t("settings.row.menu_card_density.description")}
             value={viewModel.menuCardDensity}
@@ -212,12 +259,14 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
                 data-view="settings-agent-row"
                 data-agent-drop-target-id={row.targetId}
                 onDragOver={(event) => allowAgentDrop(event, row.targetId)}
+                onDragLeave={(event) => leaveAgentDrop(event, row.targetId)}
                 onDrop={(event) => dropAgent(event, row.targetId)}
                 style={{
                   ...agentRowStyle,
                   ...(draggedAgentTargetId === row.targetId ? draggingAgentRowStyle : null),
                 }}
               >
+                {targetedAgentRowTargetId === row.targetId ? <AgentInsertIndicator /> : null}
                 <button
                   type="button"
                   draggable
@@ -225,7 +274,7 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
                   title={t("settings.action.drag_agent")}
                   data-agent-drag-handle-target-id={row.targetId}
                   onDragStart={(event) => beginAgentDrag(event, row.targetId)}
-                  onDragEnd={() => setDraggedAgentTargetId(undefined)}
+                  onDragEnd={clearAgentDropState}
                   style={dragHandleButtonStyle}
                 >
                   <img src={resolveActionIcon("drag-handle")} alt="" style={dragHandleIconStyle} />
@@ -305,7 +354,18 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
               </li>
                 ))}
               </ul>
-              <p data-view="settings-agent-footer" style={agentFooterStyle}>
+              <p
+                data-view="settings-agent-footer"
+                data-agent-drop-list-end="true"
+                onDragOver={allowAgentListEndDrop}
+                onDragLeave={() => setIsTargetingAgentListEnd(false)}
+                onDrop={dropAgentAtListEnd}
+                style={{
+                  ...agentFooterStyle,
+                  ...(isTargetingAgentListEnd ? agentFooterTargetStyle : null),
+                }}
+              >
+                {isTargetingAgentListEnd ? <AgentInsertIndicator /> : null}
                 {t("settings.agent_display.footer")}
               </p>
             </>
@@ -326,14 +386,19 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
             ) : (
               <button
                 type="button"
+                data-settings-update-action="true"
                 onClick={() => {
                   startTransition(() => {
-                    void viewModel.checkForUpdates();
+                    if (viewModel.updateStatus === "updateAvailable") {
+                      viewModel.openReleasePage();
+                    } else {
+                      void viewModel.checkForUpdates();
+                    }
                   });
                 }}
                 style={actionButtonStyle()}
               >
-                {t("settings.action.check_updates")}
+                {settingsUpdateActionTitle(viewModel, t)}
               </button>
             )}
           />
@@ -362,7 +427,8 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
         </SettingsSection>
 
         <SettingsSection title={t("settings.section.advanced")}>
-          <SettingsSelectRow
+          <SettingsDropdownRow
+            dropdownId="logLevel"
             title={t("settings.row.log_level.title")}
             description={t("settings.row.log_level.description")}
             value={viewModel.logLevel}
@@ -372,6 +438,8 @@ export function SettingsScreen({ viewModel, detectedTargetIds }: SettingsScreenP
               { value: "warn", label: t("settings.option.log_level.warn") },
               { value: "error", label: t("settings.option.log_level.error") },
             ]}
+            openDropdownId={openDropdownId}
+            onOpenChange={setOpenDropdownId}
             onChange={(value) => {
               viewModel.logLevel = value;
             }}
@@ -434,29 +502,97 @@ function SettingsControlRow({ title, description, value }: SettingsControlRowPro
   );
 }
 
-type SettingsSelectRowProps = {
+type SettingsOption = {
+  value: string;
+  label: string;
+  swatch?: string | undefined;
+};
+
+type SettingsChoiceRowProps = {
   title: string;
   description?: string;
   value: string;
-  options: Array<{ value: string; label: string }>;
+  options: SettingsOption[];
   onChange: (value: string) => void;
 };
 
-function SettingsSelectRow({ title, description, value, options, onChange }: SettingsSelectRowProps) {
+function SettingsSegmentedRow({ title, description, value, options, onChange }: SettingsChoiceRowProps) {
   return (
     <div data-view="settings-control-row" style={controlRowStyle}>
       <SettingsRowCopy title={title} description={description} />
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        style={selectStyle}
-      >
+      <div data-view="settings-segmented-control" style={segmentedControlStyle}>
         {options.map((option) => (
-          <option key={option.value} value={option.value}>
+          <button
+            key={option.value}
+            type="button"
+            data-settings-segment={option.value}
+            aria-pressed={option.value === value}
+            onClick={() => onChange(option.value)}
+            style={segmentedButtonStyle(option.value === value)}
+          >
             {option.label}
-          </option>
+          </button>
         ))}
-      </select>
+      </div>
+    </div>
+  );
+}
+
+type SettingsDropdownRowProps = SettingsChoiceRowProps & {
+  dropdownId: SettingsDropdownId;
+  openDropdownId: SettingsDropdownId | undefined;
+  onOpenChange: (dropdownId: SettingsDropdownId | undefined) => void;
+};
+
+function SettingsDropdownRow({
+  dropdownId,
+  title,
+  description,
+  value,
+  options,
+  openDropdownId,
+  onOpenChange,
+  onChange,
+}: SettingsDropdownRowProps) {
+  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+  const isOpen = openDropdownId === dropdownId;
+
+  return (
+    <div data-view="settings-control-row" style={controlRowStyle}>
+      <SettingsRowCopy title={title} description={description} />
+      <div data-view="settings-dropdown-control" style={dropdownWrapperStyle}>
+        <button
+          type="button"
+          data-settings-dropdown={dropdownId}
+          aria-expanded={isOpen}
+          onClick={() => onOpenChange(isOpen ? undefined : dropdownId)}
+          style={dropdownButtonStyle(isOpen)}
+        >
+          {selectedOption?.swatch ? <span aria-hidden="true" style={dropdownSwatchStyle(selectedOption.swatch)} /> : null}
+          <span style={dropdownLabelStyle}>{selectedOption?.label ?? value}</span>
+          <span aria-hidden="true" style={dropdownChevronStyle}>{isOpen ? "^" : "v"}</span>
+        </button>
+        {isOpen ? (
+          <div data-settings-dropdown-menu={dropdownId} style={dropdownMenuStyle}>
+            {options.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                data-settings-dropdown-option={`${dropdownId}:${option.value}`}
+                onClick={() => {
+                  onChange(option.value);
+                  onOpenChange(undefined);
+                }}
+                style={dropdownOptionStyle(option.value === value)}
+              >
+                {option.swatch ? <span aria-hidden="true" style={dropdownSwatchStyle(option.swatch)} /> : null}
+                <span style={dropdownLabelStyle}>{option.label}</span>
+                {option.value === value ? <span aria-hidden="true" style={dropdownCheckStyle}>*</span> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -600,6 +736,10 @@ function SettingsActionLoadingIndicator() {
   );
 }
 
+function AgentInsertIndicator() {
+  return <span data-view="settings-agent-insert-indicator" aria-hidden="true" style={agentInsertIndicatorStyle} />;
+}
+
 function settingsUpdateDescription(
   viewModel: SettingsViewModel,
   t: (key: string) => string,
@@ -614,14 +754,23 @@ function settingsUpdateDescription(
       return t("settings.row.check_updates.description.available")
         .replace("%@", viewModel.latestVersion ?? "-");
     case "runningNewerBuild":
-      return t("settings.row.check_updates.description.up_to_date")
-        .replace("%@", viewModel.currentVersion);
+      return t("settings.row.check_updates.description.newer_local")
+        .replace("%@", viewModel.latestVersion ?? "-");
     case "failed":
       return t("settings.row.check_updates.description.failed");
     case "idle":
     default:
       return t("settings.row.check_updates.description.idle");
   }
+}
+
+function settingsUpdateActionTitle(
+  viewModel: SettingsViewModel,
+  t: (key: string) => string,
+): string {
+  return viewModel.updateStatus === "updateAvailable"
+    ? t("settings.action.open_releases")
+    : t("settings.action.check_updates");
 }
 
 const pageStyle: CSSProperties = {
@@ -650,15 +799,125 @@ const controlRowStyle: CSSProperties = {
   background: "rgba(248, 250, 252, 0.92)",
 };
 
-const selectStyle: CSSProperties = {
+const settingsAccentSwatches: Record<string, string> = {
+  blue: "#2563eb",
+  green: "#16a34a",
+  yellow: "#ca8a04",
+  pink: "#db2777",
+  orange: "#ea580c",
+  purple: "#7c3aed",
+};
+
+const segmentedControlStyle: CSSProperties = {
+  display: "inline-grid",
+  gridAutoFlow: "column",
+  gridAutoColumns: "1fr",
+  minWidth: "168px",
   height: "32px",
-  minWidth: "140px",
-  padding: "0 10px",
-  borderRadius: "6px",
-  border: "none",
-  background: "rgba(255, 255, 255, 0.92)",
-  color: "#0f172a",
+  padding: "3px",
+  borderRadius: "8px",
+  background: "rgba(226, 232, 240, 0.76)",
+};
+
+function segmentedButtonStyle(isSelected: boolean): CSSProperties {
+  return {
+    height: "26px",
+    padding: "0 10px",
+    border: "none",
+    borderRadius: "6px",
+    background: isSelected ? "rgba(255, 255, 255, 0.96)" : "transparent",
+    boxShadow: isSelected ? "0 1px 3px rgba(15, 23, 42, 0.12)" : "none",
+    color: isSelected ? "#0f172a" : "#64748b",
+    fontSize: "12px",
+    fontWeight: 600,
+  };
+}
+
+const dropdownWrapperStyle: CSSProperties = {
+  position: "relative",
+  width: "148px",
+};
+
+function dropdownButtonStyle(isOpen: boolean): CSSProperties {
+  return {
+    width: "148px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "0 10px",
+    border: "none",
+    borderRadius: "8px",
+    background: isOpen ? "rgba(239, 246, 255, 0.96)" : "rgba(255, 255, 255, 0.92)",
+    boxShadow: isOpen ? "0 0 0 1px rgba(37, 99, 235, 0.18)" : "0 1px 2px rgba(15, 23, 42, 0.06)",
+    color: "#0f172a",
+    fontSize: "12px",
+    fontWeight: 600,
+  };
+}
+
+function dropdownSwatchStyle(color: string): CSSProperties {
+  return {
+    width: "10px",
+    height: "10px",
+    borderRadius: "999px",
+    background: color,
+    flex: "0 0 auto",
+  };
+}
+
+const dropdownLabelStyle: CSSProperties = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  textAlign: "left",
+  flex: "1 1 auto",
+};
+
+const dropdownChevronStyle: CSSProperties = {
+  color: "#64748b",
+  fontSize: "11px",
+  fontWeight: 700,
+  flex: "0 0 auto",
+};
+
+const dropdownMenuStyle: CSSProperties = {
+  position: "absolute",
+  zIndex: 30,
+  top: "38px",
+  right: 0,
+  width: "148px",
+  display: "grid",
+  gap: "4px",
+  padding: "6px",
+  borderRadius: "10px",
+  background: "rgba(255, 255, 255, 0.98)",
+  boxShadow: "0 12px 28px rgba(15, 23, 42, 0.14)",
+};
+
+function dropdownOptionStyle(isSelected: boolean): CSSProperties {
+  return {
+    width: "100%",
+    height: "30px",
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "0 10px",
+    border: "none",
+    borderRadius: "7px",
+    background: isSelected ? "rgba(239, 246, 255, 0.92)" : "transparent",
+    color: "#0f172a",
+    fontSize: "12px",
+    fontWeight: 600,
+  };
+}
+
+const dropdownCheckStyle: CSSProperties = {
+  color: "#2563eb",
   fontSize: "12px",
+  fontWeight: 800,
+  flex: "0 0 auto",
 };
 
 const agentListStyle: CSSProperties = {
@@ -670,6 +929,7 @@ const agentListStyle: CSSProperties = {
 };
 
 const agentRowStyle: CSSProperties = {
+  position: "relative",
   display: "grid",
   gridTemplateColumns: "24px 34px minmax(0, 1fr) auto auto auto",
   gap: "10px",
@@ -713,9 +973,24 @@ const agentEmptyStyle: CSSProperties = {
 };
 
 const agentFooterStyle: CSSProperties = {
+  position: "relative",
   margin: 0,
   color: "#64748b",
   fontSize: "11px",
+};
+
+const agentFooterTargetStyle: CSSProperties = {
+  paddingTop: "8px",
+};
+
+const agentInsertIndicatorStyle: CSSProperties = {
+  position: "absolute",
+  top: 0,
+  left: "8px",
+  right: "8px",
+  height: "2px",
+  background: "#2563eb",
+  borderRadius: "2px",
 };
 
 const agentTextButtonStyle: CSSProperties = {

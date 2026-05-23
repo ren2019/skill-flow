@@ -65,6 +65,8 @@ type SharedGroupCardProps = {
   onToggleAllSkills(): void;
   onToggleTarget(targetId: string): void;
   onToggleAllTargets(): void;
+  onOpenRepository?(url: string): void | Promise<void>;
+  onOpenLocalPath?(path: string): void | Promise<void>;
   groupTagItems: WorkspaceTagPreference[];
   groupTagSuggestions: WorkspaceTagPreference[];
   canCreateGroupTag: boolean;
@@ -117,6 +119,8 @@ export function SharedGroupCard({
   onToggleAllSkills,
   onToggleTarget,
   onToggleAllTargets,
+  onOpenRepository,
+  onOpenLocalPath,
   groupTagItems,
   groupTagSuggestions,
   canCreateGroupTag,
@@ -256,10 +260,10 @@ export function SharedGroupCard({
             <MetadataIcon icon="star" label={formatCount(card.starCount)} statId="star" />
           ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={38} statId="star" themeMode={themeMode} /> : null}
           {card.repoUrl ? (
-            <MetadataLink icon="github" href={card.repoUrl} statId="github" />
+            <MetadataLink icon="github" href={card.repoUrl} statId="github" onOpen={onOpenRepository} />
           ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={16} statId="github" themeMode={themeMode} /> : null}
           {card.groupPath ? (
-            <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" />
+            <MetadataLink icon="local-file" href={card.groupPath} statId="local-file" onOpen={onOpenLocalPath} />
           ) : showsLoadingStatPlaceholders ? <MetadataPlaceholder width={16} statId="local-file" themeMode={themeMode} /> : null}
         </div>
       ) : null}
@@ -501,10 +505,39 @@ function MetadataIcon({ icon, label, statId }: { icon: GroupCardIconId; label: s
   );
 }
 
-function MetadataLink({ icon, href, statId }: { icon: GroupCardIconId; href: string; statId: string }) {
+function MetadataLink({
+  icon,
+  href,
+  statId,
+  onOpen,
+}: {
+  icon: GroupCardIconId;
+  href: string;
+  statId: string;
+  onOpen?: ((href: string) => void | Promise<void>) | undefined;
+}) {
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        data-group-card-stat={statId}
+        data-group-card-stat-action={statId}
+        aria-label={href}
+        title={href}
+        onClick={() => {
+          void onOpen(href);
+        }}
+        style={metadataButtonStyle}
+      >
+        <img src={resolveGroupCardIcon(icon)} alt="" aria-hidden="true" style={metadataIconStyle} />
+      </button>
+    );
+  }
+
   return (
     <a
       data-group-card-stat={statId}
+      title={href}
       href={href}
       style={metadataLinkStyle}
       target="_blank"
@@ -1126,6 +1159,14 @@ const metadataLinkStyle: CSSProperties = {
   justifyContent: "center",
   width: "14px",
   height: "14px",
+};
+
+const metadataButtonStyle: CSSProperties = {
+  ...metadataLinkStyle,
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  cursor: "pointer",
 };
 
 const metadataIconStyle: CSSProperties = {

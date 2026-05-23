@@ -88,6 +88,7 @@ export const enMessages = {
   "settings.row.check_updates.description.checking": "Checking GitHub Releases...",
   "settings.row.check_updates.description.up_to_date": "You're up to date on %@.",
   "settings.row.check_updates.description.available": "Version %@ is available on GitHub Releases.",
+  "settings.row.check_updates.description.newer_local": "This build is newer than the latest GitHub release (%@).",
   "settings.row.check_updates.description.failed": "Could not fetch the latest release right now.",
   "settings.row.open_releases.title": "Open releases",
   "settings.row.open_releases.description": "Open the latest GitHub release page in your browser.",

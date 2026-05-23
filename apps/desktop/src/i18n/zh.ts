@@ -88,6 +88,7 @@ export const zhHansMessages = {
   "settings.row.check_updates.description.checking": "正在检查 GitHub Releases...",
   "settings.row.check_updates.description.up_to_date": "当前已经是 %@ 版本。",
   "settings.row.check_updates.description.available": "GitHub Releases 上已有 %@ 版本可用。",
+  "settings.row.check_updates.description.newer_local": "当前构建比 GitHub Releases 最新版本（%@）更新。",
   "settings.row.check_updates.description.failed": "暂时无法获取最新 release。",
   "settings.row.open_releases.title": "打开 Releases",
   "settings.row.open_releases.description": "在浏览器中打开最新的 GitHub release 页面。",

@@ -2,6 +2,7 @@ import backIcon from "../assets/ActionIcons/back.svg";
 import closeIcon from "../assets/ActionIcons/close.svg";
 import deleteIcon from "../assets/ActionIcons/delete.svg";
 import dragHandleIcon from "../assets/ActionIcons/drag-handle.svg";
+import externalLinkIcon from "../assets/ActionIcons/external-link.svg";
 import importIcon from "../assets/ActionIcons/import.svg";
 import moreIcon from "../assets/ActionIcons/more.svg";
 import pinIcon from "../assets/ActionIcons/pin.svg";
@@ -21,6 +22,7 @@ export type ActionIconId =
   | "close"
   | "delete"
   | "drag-handle"
+  | "external-link"
   | "import"
   | "more"
   | "pin"
@@ -39,6 +41,7 @@ const actionIconMap: Record<ActionIconId, string> = {
   close: closeIcon,
   delete: deleteIcon,
   "drag-handle": dragHandleIcon,
+  "external-link": externalLinkIcon,
   import: importIcon,
   more: moreIcon,
   pin: pinIcon,

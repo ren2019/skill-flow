@@ -88,6 +88,7 @@ export const jaMessages = {
   "settings.row.check_updates.description.checking": "GitHub Releases を確認中...",
   "settings.row.check_updates.description.up_to_date": "現在のバージョン %@ は最新です。",
   "settings.row.check_updates.description.available": "GitHub Releases でバージョン %@ を利用できます。",
+  "settings.row.check_updates.description.newer_local": "このビルドは GitHub Releases の最新バージョン（%@）より新しいです。",
   "settings.row.check_updates.description.failed": "最新リリースを取得できませんでした。",
   "settings.row.open_releases.title": "Releases を開く",
   "settings.row.open_releases.description": "ブラウザで最新の GitHub release ページを開きます。",

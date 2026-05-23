@@ -144,6 +144,40 @@ describe("import screen", () => {
     expect(markup).toContain("codex");
   });
 
+  it("routes recommendation repository icons through the import view model opener", async () => {
+    const state = createDesktopAppState({
+      importState: {
+        importSubmittedQuery: "",
+        recommendedGroups: [
+          {
+            id: "starter",
+            title: "Starter",
+            locator: "openai/starter",
+            repoUrl: "https://github.com/openai/starter",
+            categoryId: "featured",
+            categoryTitle: "Featured",
+            previewPhase: { kind: "ready" },
+            skills: [],
+            targets: [],
+          },
+        ],
+      },
+    });
+    const openExternalUrl = vi.fn().mockResolvedValue(undefined);
+    const viewModel = new ImportViewModel(state, { openExternalUrl });
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<ImportScreen viewModel={viewModel} />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-card-stat-action": "github" }).props.onClick();
+    });
+
+    expect(openExternalUrl.mock.calls).toEqual([["https://github.com/openai/starter"]]);
+  });
+
   it("renders a centered empty state for failed import search", () => {
     const state = createDesktopAppState({
       importState: {
