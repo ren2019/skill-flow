@@ -1,6 +1,7 @@
-import { startTransition, type CSSProperties } from "react";
+import { startTransition, type CSSProperties, type MouseEvent } from "react";
 import { DesktopTopBar } from "../components/desktop-top-bar";
 import { SharedGroupCard } from "../components/shared-group-card";
+import { resolveActionIcon } from "../icons/action-icons";
 import { localize } from "../i18n";
 import { desktopTheme } from "../theme/app-theme";
 import { HomeViewModel } from "../view-models/home-view-model";
@@ -13,6 +14,7 @@ type HomeMainViewProps = {
 export function HomeMainView({ viewModel }: HomeMainViewProps) {
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
   const visibleCards = viewModel.inventoryCards;
+  const hasVisibleCards = visibleCards.length > 0;
   const cardDisplayMode = homeGroupCardDisplayMode(viewModel.homeCardDensity);
 
   return (
@@ -49,7 +51,7 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
           </div>
         ) : null}
         <section data-view="home-grid-section" style={gridSectionStyle}>
-          {viewModel.showsProjectScopeBar ? (
+          {hasVisibleCards && viewModel.showsProjectScopeBar ? (
             <section data-view="home-project-scope-bar" style={scopeBarStyle}>
               <button
                 type="button"
@@ -74,34 +76,52 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
               <div data-view="home-filter-divider" style={filterDividerStyle(viewModel.themeMode)} />
               <div style={horizontalScrollerStyle}>
                 {viewModel.recentProjectScopes.map((scope) => (
-                  <button
-                    key={scope.projectId}
-                    type="button"
-                    data-project-scope={`project:${scope.projectId}`}
-                    onClick={() => {
-                      stateTransition(() =>
-                        viewModel.selectProjectScope({ kind: "project", projectId: scope.projectId }),
-                      );
-                    }}
-                    style={projectScopeButtonStyle(
-                      viewModel.selectedProjectScope.kind === "project"
-                      && viewModel.selectedProjectScope.projectId === scope.projectId,
-                    )}
-                  >
-                    <span style={projectScopeContentStyle()}>
-                      {viewModel.selectedProjectScope.kind === "project"
-                      && viewModel.selectedProjectScope.projectId === scope.projectId ? (
-                        <span aria-hidden="true" style={projectScopeIndicatorStyle(viewModel.themeAccent)} />
-                        ) : null}
-                      <span>{scope.title}</span>
-                    </span>
-                  </button>
+                  <span key={scope.projectId} style={projectScopeShellStyle}>
+                    <button
+                      type="button"
+                      data-project-scope={`project:${scope.projectId}`}
+                      onClick={() => {
+                        stateTransition(() =>
+                          viewModel.selectProjectScope({ kind: "project", projectId: scope.projectId }),
+                        );
+                      }}
+                      style={projectScopeButtonStyle(
+                        viewModel.selectedProjectScope.kind === "project"
+                        && viewModel.selectedProjectScope.projectId === scope.projectId,
+                        false,
+                        Boolean(scope.projectPath),
+                      )}
+                    >
+                      <span style={projectScopeContentStyle(false, Boolean(scope.projectPath))}>
+                        {viewModel.selectedProjectScope.kind === "project"
+                        && viewModel.selectedProjectScope.projectId === scope.projectId ? (
+                          <span aria-hidden="true" style={projectScopeIndicatorStyle(viewModel.themeAccent)} />
+                          ) : null}
+                        <span>{scope.title}</span>
+                      </span>
+                    </button>
+                    {scope.projectPath ? (
+                      <button
+                        type="button"
+                        data-project-scope-path={scope.projectPath}
+                        aria-label={scope.projectPath}
+                        title={scope.projectPath}
+                        onClick={(event) => {
+                          stopClick(event);
+                          stateTransition(() => viewModel.openCardPath(scope.projectPath ?? ""));
+                        }}
+                        style={projectScopePathButtonStyle}
+                      >
+                        <img src={resolveActionIcon("external-link")} alt="" aria-hidden="true" style={projectScopePathIconStyle} />
+                      </button>
+                    ) : null}
+                  </span>
                 ))}
               </div>
             </section>
           ) : null}
 
-          {viewModel.homeTagFilters.length > 0 ? (
+          {hasVisibleCards && viewModel.homeTagFilters.length > 0 ? (
             <section data-view="home-tag-filter-bar" style={tagFilterBarStyle}>
               <button
                 type="button"
@@ -141,15 +161,16 @@ export function HomeMainView({ viewModel }: HomeMainViewProps) {
           {viewModel.homeBootstrapPhase.kind === "loading" ? (
             <div data-view="home-loading-state" style={loadingStateStyle}>
               <div aria-hidden="true" style={spinnerStyle} />
-              <span>{t("page.home.loading_workspace")}</span>
+              <span>{t("common.loading.groups")}</span>
             </div>
           ) : viewModel.homeBootstrapPhase.kind === "failed" ? (
             <div data-view="home-empty-state" style={emptyStateStyle}>
               {viewModel.homeBootstrapPhase.message}
             </div>
-          ) : visibleCards.length === 0 ? (
+          ) : !hasVisibleCards ? (
             <div data-view="home-empty-state" style={emptyStateStyle}>
-              {t("page.home.empty")}
+              <h2 style={emptyStateTitleStyle}>{t("home.empty.title")}</h2>
+              <p style={emptyStateSubtitleStyle}>{t("home.empty.subtitle")}</p>
             </div>
           ) : (
             <section data-view="home-card-grid" style={inventoryGridStyle}>
@@ -246,6 +267,10 @@ function stateTransition(action: () => Promise<unknown> | unknown) {
   });
 }
 
+function stopClick(event: MouseEvent): void {
+  event.stopPropagation();
+}
+
 const pageStyle: CSSProperties = {
   minHeight: "100vh",
   background: desktopTheme.pageBackground("light"),
@@ -287,13 +312,27 @@ const tagFilterBarStyle: CSSProperties = {
 
 const emptyStateStyle: CSSProperties = {
   minHeight: "220px",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
+  display: "grid",
+  placeItems: "center",
+  alignContent: "center",
+  gap: "6px",
   padding: "24px",
-  borderRadius: "14px",
-  background: "rgba(248, 250, 252, 0.92)",
+  borderRadius: "10px",
   color: "#64748b",
+};
+
+const emptyStateTitleStyle: CSSProperties = {
+  margin: 0,
+  color: "#0f172a",
+  fontSize: "14px",
+  fontWeight: 650,
+};
+
+const emptyStateSubtitleStyle: CSSProperties = {
+  margin: 0,
+  color: "#64748b",
+  fontSize: "12px",
+  fontWeight: 400,
 };
 
 const loadingStateStyle: CSSProperties = {
@@ -322,7 +361,7 @@ const inventoryGridStyle: CSSProperties = {
 };
 
 
-function projectScopeButtonStyle(active: boolean, fixedWidth = false): CSSProperties {
+function projectScopeButtonStyle(active: boolean, fixedWidth = false, hasPath = false): CSSProperties {
   return {
     minWidth: fixedWidth ? "132px" : undefined,
     height: "32px",
@@ -334,6 +373,7 @@ function projectScopeButtonStyle(active: boolean, fixedWidth = false): CSSProper
     fontSize: "12px",
     fontWeight: 600,
     boxShadow: active ? "0 8px 20px rgba(59, 130, 246, 0.12)" : undefined,
+    position: "relative",
   };
 }
 
@@ -375,17 +415,44 @@ const horizontalScrollerStyle: CSSProperties = {
   msOverflowStyle: "none",
 };
 
-function projectScopeContentStyle(centered = false): CSSProperties {
+const projectScopeShellStyle: CSSProperties = {
+  position: "relative",
+  display: "inline-flex",
+};
+
+function projectScopeContentStyle(centered = false, hasPath = false): CSSProperties {
   return {
     display: "flex",
     alignItems: "center",
     gap: "6px",
     justifyContent: centered ? "center" : "flex-start",
     width: "100%",
-    padding: centered ? "0 12px" : "0 12px",
+    padding: centered ? "0 12px" : `0 ${hasPath ? 30 : 12}px 0 12px`,
     whiteSpace: "nowrap",
   };
 }
+
+const projectScopePathButtonStyle: CSSProperties = {
+  position: "absolute",
+  right: "6px",
+  top: "50%",
+  transform: "translateY(-50%)",
+  width: "18px",
+  height: "18px",
+  padding: 0,
+  border: "none",
+  background: "transparent",
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const projectScopePathIconStyle: CSSProperties = {
+  width: "10px",
+  height: "10px",
+  opacity: 0.68,
+};
 
 function projectScopeIndicatorStyle(accent: string): CSSProperties {
   return {

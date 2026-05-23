@@ -157,6 +157,7 @@ describe("home screen", () => {
             projectId: "repo-a",
             title: "Repo A",
             lastActivityAt: "2026-04-02T10:00:00Z",
+            projectPath: "/Users/example/repo-a",
             tools: ["codex"],
           },
         ],
@@ -442,7 +443,7 @@ describe("home screen", () => {
 
     expect(markup).toContain("data-view=\"home-top-bar\"");
     expect(markup).toContain("data-view=\"home-loading-state\"");
-    expect(markup).toContain("Loading workspace");
+    expect(markup).toContain("Loading groups");
   });
 
   it("renders the home toast message when present", () => {
@@ -474,10 +475,57 @@ describe("home screen", () => {
 
     expect(markup).toContain("data-view=\"home-top-bar\"");
     expect(markup).toContain("data-view=\"home-empty-state\"");
+    expect(markup).toContain("No groups matched");
+    expect(markup).toContain("Try a broader search query.");
     expect(markup).not.toContain("</main><p>");
   });
 
+  it("hides home filter bars while rendering an empty result state", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        customTagsBySourceId: {
+          alpha: [{ id: "custom:official", title: "Official" }],
+        },
+        selectedHomeTagFilterId: "custom:missing",
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 1,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+          },
+        ],
+      },
+      settings: {
+        recentProjectScopes: [
+          {
+            projectId: "repo-a",
+            title: "Repo A",
+            lastActivityAt: "2026-04-02T10:00:00Z",
+            projectPath: "/Users/example/repo-a",
+            tools: ["codex"],
+          },
+        ],
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <HomeScreen viewModel={new HomeViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"home-empty-state\"");
+    expect(markup).not.toContain("data-view=\"home-project-scope-bar\"");
+    expect(markup).not.toContain("data-view=\"home-tag-filter-bar\"");
+  });
+
   it("wires pin and project scope actions", async () => {
+    const openPath = vi.fn().mockResolvedValue(undefined);
     const state = createDesktopAppState({
       workspace: { sourceIds: ["alpha", "beta"] },
       settings: {
@@ -486,6 +534,7 @@ describe("home screen", () => {
             projectId: "repo-a",
             title: "Repo A",
             lastActivityAt: "2026-04-02T10:00:00Z",
+            projectPath: "/Users/example/repo-a",
             tools: ["codex"],
           },
         ],
@@ -499,6 +548,7 @@ describe("home screen", () => {
       const [, setRevision] = useState(0);
       const viewModelRef = useRef(
         new HomeViewModel(state, {
+          openPath,
           onChange: () => setRevision((value) => value + 1),
         }),
       );
@@ -518,6 +568,7 @@ describe("home screen", () => {
 
     const projectButton = renderer!.root.findByProps({ "data-project-scope": "global" });
     const recentProjectButton = renderer!.root.findByProps({ "data-project-scope": "project:repo-a" });
+    const projectPathButton = renderer!.root.findByProps({ "data-project-scope-path": "/Users/example/repo-a" });
 
     await act(async () => {
       renderer!.root.findByProps({ "data-testid": "group-card-action-menu-alpha" }).props.onClick();
@@ -527,10 +578,12 @@ describe("home screen", () => {
     await act(async () => {
       pinButton.props.onClick();
       await projectButton.props.onClick();
+      await projectPathButton.props.onClick({ stopPropagation: vi.fn() });
       await recentProjectButton.props.onClick();
     });
 
     expect(state.workspace.pinnedSourceIds).toEqual(["alpha"]);
+    expect(openPath).toHaveBeenCalledWith("/Users/example/repo-a");
     expect(state.settings.selectedProjectScope).toEqual({ kind: "project", projectId: "repo-a" });
   });
 

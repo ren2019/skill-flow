@@ -38,6 +38,8 @@ export type DetailTargetState = {
 export type DetailSkillState = {
   id: string;
   title: string;
+  version?: string;
+  documentContent?: string;
   isEnabled: boolean;
   documents: DetailDocumentTab[];
 };
@@ -76,11 +78,17 @@ export type DetailRecord = {
 
 export type DetailUiState = {
   selectedSkillIdByGroup: Record<string, string | undefined>;
+  pendingSkillIdByGroup: Record<string, string | undefined>;
+  skillSelectionTokenByGroup: Record<string, number | undefined>;
   showsGroupOverviewByGroup: Record<string, boolean | undefined>;
   selectedTreeItemIdByGroup: Record<string, string | undefined>;
   collapsedTreeItemIdsByGroup: Record<string, string[] | undefined>;
   selectedGroupDocumentIdByGroup: Record<string, string | undefined>;
+  pendingGroupDocumentIdByGroup: Record<string, string | undefined>;
+  groupDocumentSelectionTokenByGroup: Record<string, number | undefined>;
   selectedSkillDocumentIdBySkill: Record<string, string | undefined>;
+  pendingSkillDocumentIdBySkill: Record<string, string | undefined>;
+  skillDocumentSelectionTokenBySkill: Record<string, number | undefined>;
 };
 
 export type DetailState = {
@@ -93,11 +101,17 @@ export function createDetailState(seed: Partial<DetailState> = {}): DetailState 
     detailsBySourceId: { ...(seed.detailsBySourceId ?? {}) },
     ui: {
       selectedSkillIdByGroup: { ...(seed.ui?.selectedSkillIdByGroup ?? {}) },
+      pendingSkillIdByGroup: { ...(seed.ui?.pendingSkillIdByGroup ?? {}) },
+      skillSelectionTokenByGroup: { ...(seed.ui?.skillSelectionTokenByGroup ?? {}) },
       showsGroupOverviewByGroup: { ...(seed.ui?.showsGroupOverviewByGroup ?? {}) },
       selectedTreeItemIdByGroup: { ...(seed.ui?.selectedTreeItemIdByGroup ?? {}) },
       collapsedTreeItemIdsByGroup: { ...(seed.ui?.collapsedTreeItemIdsByGroup ?? {}) },
       selectedGroupDocumentIdByGroup: { ...(seed.ui?.selectedGroupDocumentIdByGroup ?? {}) },
+      pendingGroupDocumentIdByGroup: { ...(seed.ui?.pendingGroupDocumentIdByGroup ?? {}) },
+      groupDocumentSelectionTokenByGroup: { ...(seed.ui?.groupDocumentSelectionTokenByGroup ?? {}) },
       selectedSkillDocumentIdBySkill: { ...(seed.ui?.selectedSkillDocumentIdBySkill ?? {}) },
+      pendingSkillDocumentIdBySkill: { ...(seed.ui?.pendingSkillDocumentIdBySkill ?? {}) },
+      skillDocumentSelectionTokenBySkill: { ...(seed.ui?.skillDocumentSelectionTokenBySkill ?? {}) },
     },
   };
 }

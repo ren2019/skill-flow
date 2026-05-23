@@ -77,7 +77,7 @@ describe("app", () => {
     });
 
     const text = JSON.stringify(renderer!.toJSON());
-    expect(text).toContain("Source Detail");
+    expect(text).toContain("Group Detail");
     expect(text).toContain("Alpha");
     expect(text).toContain("data-view");
     expect(text).toContain("detail-header-stats");
@@ -253,8 +253,24 @@ describe("app", () => {
     expect(loadDetail).toHaveBeenCalledTimes(2);
   });
 
-  it("shows loading or empty detail presentation instead of stale content from the previous source", async () => {
+  it("shows the detail loading shell instead of stale content from the previous source", async () => {
     const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha", "beta"],
+        inventorySummaries: [
+          {
+            sourceId: "beta",
+            title: "Beta Tools",
+            locator: "obra/beta",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 0,
+          },
+        ],
+      },
       view: {
         currentRoute: { kind: "detail", sourceId: "alpha" },
         selectedSourceId: "alpha",
@@ -295,7 +311,9 @@ describe("app", () => {
 
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).not.toContain("Alpha");
-    expect(text).toContain("Loading source detail");
+    expect(text).toContain("Beta Tools");
+    expect(text).toContain("detail-document-loading");
+    expect(text).toContain("detail-document-tab-loading");
   });
 
   it("rebuilds detail presentation when the incoming document or file-tree revision changes", async () => {

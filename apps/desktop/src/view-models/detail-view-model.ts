@@ -12,9 +12,12 @@ import type {
   DetailRecord,
   DetailSelectionState,
 } from "../store/detail-state";
-import type { WorkspaceTagPreference } from "../store/workspace-state";
+import type { InventorySummaryState, WorkspaceTagPreference } from "../store/workspace-state";
 import type { DesktopAccentColor, DesktopThemeMode } from "../theme/app-theme";
 import { GroupTagController } from "./group-tag-controller";
+
+const DETAIL_SKILL_SELECTION_DELAY_MS = 80;
+const DETAIL_DOCUMENT_SELECTION_DELAY_MS = 40;
 
 export class DetailViewModel {
   private readonly onChange: () => void;
@@ -79,6 +82,23 @@ export class DetailViewModel {
     return this.state.detailState.detailsBySourceId[sourceId];
   }
 
+  get presentedDetail(): DetailRecord | undefined {
+    return this.detail ?? this.fallbackDetail;
+  }
+
+  get isDetailLoading(): boolean {
+    return this.sourceId !== undefined && this.detail === undefined;
+  }
+
+  private get fallbackDetail(): DetailRecord | undefined {
+    const sourceId = this.sourceId;
+    if (!sourceId) {
+      return undefined;
+    }
+    const summary = this.state.workspace.inventorySummaries.find((item) => item.sourceId === sourceId);
+    return summary ? detailFromInventorySummary(summary) : detailFromSourceId(sourceId);
+  }
+
   get showingGroupOverview(): boolean {
     const sourceId = this.sourceId;
     if (!sourceId) {
@@ -108,6 +128,10 @@ export class DetailViewModel {
     const detail = this.detail;
     if (!sourceId || !detail) {
       return undefined;
+    }
+    const pending = this.state.detailState.ui.pendingSkillIdByGroup[sourceId];
+    if (pending && detail.skills.some((skill) => skill.id === pending)) {
+      return pending;
     }
     const stored = this.state.detailState.ui.selectedSkillIdByGroup[sourceId];
     if (stored) {
@@ -141,7 +165,8 @@ export class DetailViewModel {
       return undefined;
     }
 
-    const selectedId = this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId];
+    const pendingId = this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+    const selectedId = pendingId ?? this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId];
     return detail.groupDocuments.find((document) => document.id === selectedId) ?? detail.groupDocuments[0];
   }
 
@@ -156,8 +181,45 @@ export class DetailViewModel {
     if (!skill) {
       return undefined;
     }
-    const selectedId = this.state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId];
+    const pendingId = this.state.detailState.ui.pendingSkillDocumentIdBySkill[selectedSkillId];
+    const selectedId = pendingId ?? this.state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId];
     return skill.documents.find((document) => document.id === selectedId) ?? skill.documents[0];
+  }
+
+  get isGroupDocumentLoading(): boolean {
+    const sourceId = this.sourceId;
+    const detail = this.detail;
+    if (!sourceId || !detail || !this.showingGroupOverview) {
+      return false;
+    }
+    const pending = this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+    return Boolean(pending && detail.groupDocuments.some((document) => document.id === pending));
+  }
+
+  get isSkillDocumentLoading(): boolean {
+    const detail = this.detail;
+    const selectedSkillId = this.selectedSkillId;
+    if (!detail || !selectedSkillId || this.showingGroupOverview) {
+      return false;
+    }
+    const skill = detail.skills.find((candidate) => candidate.id === selectedSkillId);
+    const pending = this.state.detailState.ui.pendingSkillDocumentIdBySkill[selectedSkillId];
+    return Boolean(pending && skill?.documents.some((document) => document.id === pending));
+  }
+
+  get isSkillContentLoading(): boolean {
+    const sourceId = this.sourceId;
+    const detail = this.detail;
+    if (!sourceId || !detail || this.showingGroupOverview) {
+      return false;
+    }
+    const pending = this.state.detailState.ui.pendingSkillIdByGroup[sourceId];
+    return Boolean(pending && detail.skills.some((skill) => skill.id === pending));
+  }
+
+  isPendingSkill(skillId: string): boolean {
+    const sourceId = this.sourceId;
+    return Boolean(sourceId && this.state.detailState.ui.pendingSkillIdByGroup[sourceId] === skillId);
   }
 
   get isUpdatingCurrentGroup(): boolean {
@@ -200,17 +262,36 @@ export class DetailViewModel {
 
   selectSkill(skillId: string): void {
     const sourceId = this.sourceId;
-    if (!sourceId) {
+    const detail = this.detail;
+    if (!sourceId || !detail || !detail.skills.some((skill) => skill.id === skillId)) {
+      return;
+    }
+    const currentId = this.state.detailState.ui.selectedSkillIdByGroup[sourceId];
+    const pendingId = this.state.detailState.ui.pendingSkillIdByGroup[sourceId];
+    if (currentId === skillId && pendingId === undefined && !this.showingGroupOverview) {
       return;
     }
     this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = false;
-    this.state.detailState.ui.selectedSkillIdByGroup[sourceId] = skillId;
+    this.state.detailState.ui.pendingSkillIdByGroup[sourceId] = skillId;
+    const token = (this.state.detailState.ui.skillSelectionTokenByGroup[sourceId] ?? 0) + 1;
+    this.state.detailState.ui.skillSelectionTokenByGroup[sourceId] = token;
     const fallbackTreeItemId = findSkillRootId(this.detail?.fileTree ?? [], skillId);
     if (fallbackTreeItemId) {
       this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = fallbackTreeItemId;
       this.expandTreePath(sourceId, fallbackTreeItemId);
     }
     this.onChange();
+    setTimeout(() => {
+      if (this.state.detailState.ui.skillSelectionTokenByGroup[sourceId] !== token) {
+        return;
+      }
+      if (this.state.detailState.ui.pendingSkillIdByGroup[sourceId] !== skillId) {
+        return;
+      }
+      this.state.detailState.ui.selectedSkillIdByGroup[sourceId] = skillId;
+      delete this.state.detailState.ui.pendingSkillIdByGroup[sourceId];
+      this.onChange();
+    }, DETAIL_SKILL_SELECTION_DELAY_MS);
   }
 
   showOverview(): void {
@@ -219,6 +300,10 @@ export class DetailViewModel {
       return;
     }
     this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = true;
+    delete this.state.detailState.ui.pendingSkillIdByGroup[sourceId];
+    this.state.detailState.ui.skillSelectionTokenByGroup[sourceId] =
+      (this.state.detailState.ui.skillSelectionTokenByGroup[sourceId] ?? 0) + 1;
+    delete this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId];
     this.onChange();
   }
 
@@ -235,9 +320,8 @@ export class DetailViewModel {
     this.state.detailState.ui.selectedTreeItemIdByGroup[sourceId] = itemId;
     if (item.skillId && (item.isSkillRoot || item.isSkillDocument)) {
       this.state.detailState.ui.showsGroupOverviewByGroup[sourceId] = false;
-      this.state.detailState.ui.selectedSkillIdByGroup[sourceId] = item.skillId;
       this.expandTreePath(sourceId, itemId);
-      this.onChange();
+      this.selectSkill(item.skillId);
       return;
     }
 
@@ -258,16 +342,58 @@ export class DetailViewModel {
 
   selectGroupDocument(documentId: string): void {
     const sourceId = this.sourceId;
-    if (!sourceId) {
+    const detail = this.detail;
+    if (!sourceId || !detail || !detail.groupDocuments.some((document) => document.id === documentId)) {
       return;
     }
-    this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = documentId;
+    const currentId = this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId];
+    const pendingId = this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+    if (currentId === documentId && pendingId === undefined) {
+      return;
+    }
+    this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId] = documentId;
+    const token = (this.state.detailState.ui.groupDocumentSelectionTokenByGroup[sourceId] ?? 0) + 1;
+    this.state.detailState.ui.groupDocumentSelectionTokenByGroup[sourceId] = token;
     this.onChange();
+    setTimeout(() => {
+      if (this.state.detailState.ui.groupDocumentSelectionTokenByGroup[sourceId] !== token) {
+        return;
+      }
+      if (this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId] !== documentId) {
+        return;
+      }
+      this.state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = documentId;
+      delete this.state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+      this.onChange();
+    }, DETAIL_DOCUMENT_SELECTION_DELAY_MS);
   }
 
   selectSkillDocument(skillId: string, documentId: string): void {
-    this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId] = documentId;
+    const detail = this.detail;
+    const skill = detail?.skills.find((candidate) => candidate.id === skillId);
+    if (!skill?.documents.some((document) => document.id === documentId)) {
+      return;
+    }
+    const currentId = this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId];
+    const pendingId = this.state.detailState.ui.pendingSkillDocumentIdBySkill[skillId];
+    if (currentId === documentId && pendingId === undefined) {
+      return;
+    }
+    this.state.detailState.ui.pendingSkillDocumentIdBySkill[skillId] = documentId;
+    const token = (this.state.detailState.ui.skillDocumentSelectionTokenBySkill[skillId] ?? 0) + 1;
+    this.state.detailState.ui.skillDocumentSelectionTokenBySkill[skillId] = token;
     this.onChange();
+    setTimeout(() => {
+      if (this.state.detailState.ui.skillDocumentSelectionTokenBySkill[skillId] !== token) {
+        return;
+      }
+      if (this.state.detailState.ui.pendingSkillDocumentIdBySkill[skillId] !== documentId) {
+        return;
+      }
+      this.state.detailState.ui.selectedSkillDocumentIdBySkill[skillId] = documentId;
+      delete this.state.detailState.ui.pendingSkillDocumentIdBySkill[skillId];
+      this.onChange();
+    }, DETAIL_DOCUMENT_SELECTION_DELAY_MS);
   }
 
   groupTagItems(sourceId: string): WorkspaceTagPreference[] {
@@ -505,12 +631,73 @@ function restoreOptionalNumber(
   detail[key] = value;
 }
 
+function detailFromInventorySummary(summary: InventorySummaryState): DetailRecord {
+  const author = authorFromByline(summary.byline);
+  return {
+    sourceId: summary.sourceId,
+    title: summary.title,
+    locator: summary.locator,
+    enabledSkillCount: summary.enabledSkillCount,
+    totalSkillCount: summary.skillCount,
+    enabledTargetCount: summary.activeTargetCount,
+    enabledTargetLabels: summary.enabledTargetLabels ?? [],
+    fileTree: [],
+    groupDocuments: [],
+    targets: summary.targets ?? [],
+    skills: (summary.skills ?? []).map((skill) => ({
+      id: skill.id,
+      title: skill.title,
+      isEnabled: skill.isEnabled,
+      documents: [],
+    })),
+    sourceFacts: [],
+    deploymentFacts: [],
+    skillSelection: summary.skillSelection ?? selectionState(summary.enabledSkillCount, summary.skillCount),
+    targetSelection: summary.targetSelection ?? selectionState(summary.activeTargetCount, summary.targets?.length ?? 0),
+    ...(author ? { author } : {}),
+    ...(summary.downloadCount !== undefined ? { downloadCount: summary.downloadCount } : {}),
+    ...(summary.starCount !== undefined ? { starCount: summary.starCount } : {}),
+    ...(summary.repoUrl ? { repoUrl: summary.repoUrl } : {}),
+    ...(summary.groupPath ? { groupPath: summary.groupPath } : {}),
+  };
+}
+
+function detailFromSourceId(sourceId: string): DetailRecord {
+  return {
+    sourceId,
+    title: sourceId,
+    locator: sourceId,
+    enabledTargetLabels: [],
+    fileTree: [],
+    groupDocuments: [],
+    targets: [],
+    skills: [],
+    sourceFacts: [],
+    deploymentFacts: [],
+    skillSelection: "empty",
+    targetSelection: "empty",
+  };
+}
+
+function authorFromByline(byline: string | undefined): string | undefined {
+  if (!byline) {
+    return undefined;
+  }
+  const normalized = byline.trim();
+  return normalized.toLowerCase().startsWith("by ") ? normalized.slice(3).trim() : normalized;
+}
+
 export function seedDetailUiSelectionState(
   state: DesktopAppState,
   sourceId: string,
   detail: DetailRecord,
 ): void {
   const defaultSkillId = detail.skills.find((skill) => skill.isEnabled)?.id ?? detail.skills[0]?.id;
+  const pendingSkillId = state.detailState.ui.pendingSkillIdByGroup[sourceId];
+  if (pendingSkillId && !detail.skills.some((skill) => skill.id === pendingSkillId)) {
+    delete state.detailState.ui.pendingSkillIdByGroup[sourceId];
+  }
+
   const currentSkillId = state.detailState.ui.selectedSkillIdByGroup[sourceId];
   const hasCurrentSkill = currentSkillId
     ? detail.skills.some((skill) => skill.id === currentSkillId)
@@ -524,6 +711,10 @@ export function seedDetailUiSelectionState(
   state.detailState.ui.selectedGroupDocumentIdByGroup[sourceId] = hasCurrentGroupDocument
     ? currentGroupDocumentId
     : detail.groupDocuments[0]?.id;
+  const pendingGroupDocumentId = state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+  if (pendingGroupDocumentId && !detail.groupDocuments.some((document) => document.id === pendingGroupDocumentId)) {
+    delete state.detailState.ui.pendingGroupDocumentIdByGroup[sourceId];
+  }
 
   const selectedSkillId = state.detailState.ui.selectedSkillIdByGroup[sourceId];
   if (selectedSkillId) {
@@ -535,6 +726,10 @@ export function seedDetailUiSelectionState(
     state.detailState.ui.selectedSkillDocumentIdBySkill[selectedSkillId] = hasCurrentSkillDocument
       ? currentSkillDocumentId
       : selectedSkill?.documents[0]?.id;
+    const pendingSkillDocumentId = state.detailState.ui.pendingSkillDocumentIdBySkill[selectedSkillId];
+    if (pendingSkillDocumentId && !selectedSkill?.documents.some((document) => document.id === pendingSkillDocumentId)) {
+      delete state.detailState.ui.pendingSkillDocumentIdBySkill[selectedSkillId];
+    }
   }
 
   if (state.detailState.ui.showsGroupOverviewByGroup[sourceId] === undefined) {

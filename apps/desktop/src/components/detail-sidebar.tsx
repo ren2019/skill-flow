@@ -1,13 +1,14 @@
 import { startTransition, type CSSProperties, type MouseEvent } from "react";
 import { localize } from "../i18n";
 import { DetailViewModel } from "../view-models/detail-view-model";
+import { DetailInfoRow } from "./detail-info-row";
 
 type DetailSidebarProps = {
   viewModel: DetailViewModel;
 };
 
 export function DetailSidebar({ viewModel }: DetailSidebarProps) {
-  const detail = viewModel.detail;
+  const detail = viewModel.presentedDetail;
   const sourceId = viewModel.sourceId;
   const t = (key: string) => localize(key, viewModel.desktopLanguage);
 
@@ -25,6 +26,7 @@ export function DetailSidebar({ viewModel }: DetailSidebarProps) {
           }}
           style={sidebarPrimaryButtonStyle(viewModel.showingGroupOverview)}
         >
+          <SidebarSelectionIndicator active={viewModel.showingGroupOverview} />
           <span style={sidebarTitleStackStyle}>
             <span>{detail.title}</span>
             <span style={sidebarMetaStyle}>{detail.author ? t("detail.meta.by").replace("%@", detail.author) : t("page.detail.overview")}</span>
@@ -45,20 +47,28 @@ export function DetailSidebar({ viewModel }: DetailSidebarProps) {
         </div>
       </div>
       <div style={sidebarBlockStyle}>
-        <h2 style={sidebarHeadingStyle}>{t("page.detail.skills")}</h2>
+        <div data-view="detail-sidebar-skill-divider" style={sidebarSkillDividerStyle} />
         <ul style={sidebarListStyle}>
-          {detail.skills.map((skill) => (
-            <li key={skill.id}>
+          {detail.skills.map((skill) => {
+            const isSelected = viewModel.selectedSkillId === skill.id && !viewModel.showingGroupOverview;
+            const isPending = viewModel.isPendingSkill(skill.id);
+            return (
+            <li key={skill.id} style={skillRowShellStyle(isPending)}>
               <div
                 data-skill-id={skill.id}
                 onClick={() => {
                   viewModel.selectSkill(skill.id);
                 }}
-                style={sidebarSkillButtonStyle(viewModel.selectedSkillId === skill.id && !viewModel.showingGroupOverview)}
+                style={sidebarSkillButtonStyle(isSelected)}
               >
+                <SidebarSelectionIndicator active={isSelected} />
                 <span style={sidebarTitleStackStyle}>
                   <span>{skill.title}</span>
-                  <span style={sidebarMetaStyle}>{skill.id}</span>
+                  <DetailInfoRow
+                    version={skill.version}
+                    documentContent={skill.documentContent ?? skill.documents.find((document) => document.isLoaded)?.content}
+                    fontSize={11}
+                  />
                 </span>
                 <button
                   type="button"
@@ -75,10 +85,22 @@ export function DetailSidebar({ viewModel }: DetailSidebarProps) {
                 </button>
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       </div>
     </aside>
+  );
+}
+
+function SidebarSelectionIndicator({ active }: { active: boolean }) {
+  return (
+    <span
+      data-view="detail-sidebar-selection-indicator"
+      data-selected={active ? "true" : "false"}
+      aria-hidden="true"
+      style={sidebarSelectionIndicatorStyle(active)}
+    />
   );
 }
 
@@ -114,15 +136,6 @@ const sidebarBlockStyle: CSSProperties = {
   gap: "10px",
 };
 
-const sidebarHeadingStyle: CSSProperties = {
-  margin: 0,
-  fontSize: "12px",
-  fontWeight: 700,
-  letterSpacing: "0.12em",
-  textTransform: "uppercase",
-  color: "#475569",
-};
-
 const sidebarListStyle: CSSProperties = {
   listStyle: "none",
   padding: 0,
@@ -131,13 +144,23 @@ const sidebarListStyle: CSSProperties = {
   gap: "8px",
 };
 
+const sidebarSkillDividerStyle: CSSProperties = {
+  height: "1px",
+  background: "rgba(148, 163, 184, 0.32)",
+};
+
+const skillRowShellStyle = (isPending: boolean): CSSProperties => ({
+  opacity: isPending ? 0.72 : 1,
+});
+
 function sidebarPrimaryButtonStyle(active: boolean): CSSProperties {
   return {
+    position: "relative",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: "10px",
-    minHeight: "54px",
+    minHeight: "64px",
     padding: "0 14px",
     borderRadius: "8px",
     border: active ? "1px solid rgba(14, 116, 144, 0.28)" : "1px solid rgba(148, 163, 184, 0.18)",
@@ -151,12 +174,13 @@ function sidebarPrimaryButtonStyle(active: boolean): CSSProperties {
 
 function sidebarSkillButtonStyle(active: boolean): CSSProperties {
   return {
+    position: "relative",
     width: "100%",
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
     gap: "8px",
-    minHeight: "44px",
+    minHeight: "60px",
     padding: "10px 12px",
     borderRadius: "8px",
     border: active ? "1px solid rgba(14, 116, 144, 0.28)" : "1px solid rgba(148, 163, 184, 0.16)",
@@ -164,6 +188,20 @@ function sidebarSkillButtonStyle(active: boolean): CSSProperties {
     color: "#0f172a",
     textAlign: "left",
     cursor: "default",
+  };
+}
+
+function sidebarSelectionIndicatorStyle(active: boolean): CSSProperties {
+  return {
+    position: "absolute",
+    left: 0,
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "4px",
+    height: "36px",
+    borderRadius: "999px",
+    background: "#0e7490",
+    opacity: active ? 1 : 0,
   };
 }
 

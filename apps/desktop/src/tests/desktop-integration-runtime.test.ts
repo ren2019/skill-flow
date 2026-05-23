@@ -396,6 +396,114 @@ describe("desktop integration runtime", () => {
     expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("group:filetree");
   });
 
+  it("cleans dirty detail titles using snapshot and locator fallbacks", async () => {
+    const state = createDesktopAppState();
+    const dirtyTitle = "zsh-compatible: use find in missing directory";
+    const invoke = vi.fn()
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "inspect",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          summary: {
+            source: {
+              id: "alpha",
+              displayName: dirtyTitle,
+              locator: "https://github.com/anthropics/skills",
+            },
+          },
+          source: {
+            id: "alpha",
+            displayName: dirtyTitle,
+            locator: "https://github.com/anthropics/skills",
+            kind: "git",
+          },
+          binding: {
+            selectedLeafIds: ["alpha:browse"],
+            targets: {},
+          },
+          leafs: [
+            {
+              id: "alpha:browse",
+              name: dirtyTitle,
+              linkName: "browse",
+              version: "1.0.0",
+              documentContent: "one two three",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "inspect-enrichment",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          sourceSnapshot: {
+            title: "Anthropic Skills",
+            skills: [{ skillId: "browse", title: "Browse Web" }],
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "inspect",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {
+          summary: {
+            source: {
+              id: "beta",
+              displayName: dirtyTitle,
+              locator: "https://github.com/anthropics/skills",
+            },
+          },
+          source: {
+            id: "beta",
+            displayName: dirtyTitle,
+            locator: "https://github.com/anthropics/skills",
+            kind: "git",
+          },
+          binding: {
+            selectedLeafIds: ["beta:debug"],
+            targets: {},
+          },
+          leafs: [
+            {
+              id: "beta:debug",
+              name: dirtyTitle,
+              linkName: "debug",
+            },
+          ],
+        },
+      })
+      .mockResolvedValueOnce({
+        protocolVersion: "1.0",
+        command: "inspect-enrichment",
+        ok: true,
+        warnings: [],
+        errors: [],
+        data: {},
+      });
+    const integration = createDesktopIntegration(state, {
+      bridgeClient: { invoke },
+    });
+
+    await integration.loadDetail?.("alpha");
+    await integration.loadDetail?.("beta");
+
+    expect(state.detailState.detailsBySourceId.alpha?.title).toBe("Anthropic Skills");
+    expect(state.detailState.detailsBySourceId.alpha?.skills[0]?.title).toBe("Browse Web");
+    expect(state.detailState.detailsBySourceId.alpha?.skills[0]?.version).toBe("1.0.0");
+    expect(state.detailState.detailsBySourceId.alpha?.skills[0]?.documentContent).toBe("one two three");
+    expect(state.detailState.detailsBySourceId.beta?.title).toBe("skills");
+    expect(state.detailState.detailsBySourceId.beta?.skills[0]?.title).toBe("debug");
+  });
+
   it("sends update requests for a single source through the bridge", async () => {
     const state = createDesktopAppState();
     const invoke = vi.fn().mockResolvedValue({

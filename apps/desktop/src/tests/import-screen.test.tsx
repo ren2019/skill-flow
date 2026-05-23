@@ -126,7 +126,7 @@ describe("import screen", () => {
       <ImportScreen viewModel={new ImportViewModel(state)} />,
     );
 
-    expect(markup).toContain("Import Sources");
+    expect(markup).toContain("Import");
     expect(markup).toContain("data-view=\"import-page\"");
     expect(markup).toContain("data-view=\"recommendation-rails\"");
     expect(markup).toContain("data-view=\"import-rail\"");

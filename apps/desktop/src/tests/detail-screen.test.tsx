@@ -1,6 +1,6 @@
 import ReactDOMServer from "react-dom/server";
 import { act, create } from "react-test-renderer";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { useRef, useState } from "react";
 import { formatDetailVersionText } from "../components/detail-header";
 import { MarkdownDocument, parseMarkdownBlocks } from "../components/markdown-document";
@@ -12,6 +12,10 @@ import { DetailViewModel } from "../view-models/detail-view-model";
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 describe("detail screen", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("normalizes the version prefix for the detail header", () => {
     expect(formatDetailVersionText("1.0.0", "en")).toBe("Version v1.0.0");
     expect(formatDetailVersionText("v1.0.0", "en")).toBe("Version v1.0.0");
@@ -194,6 +198,197 @@ describe("detail screen", () => {
     expect(openExternalUrl.mock.calls).toEqual([["https://example.com/config"]]);
   });
 
+  it("shows a loading placeholder while group document tab selection is pending", async () => {
+    vi.useFakeTimers();
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedGroupDocumentIdByGroup: { alpha: "readme" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+              {
+                id: "guide",
+                title: "GUIDE.md",
+                path: "GUIDE.md",
+                metadata: [],
+                renderCacheKey: "guide",
+                content: "# Guide",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    function Harness() {
+      const [, setRevision] = useState(0);
+      const viewModelRef = useRef(
+        new DetailViewModel(state, {
+          onChange: () => setRevision((value) => value + 1),
+        }),
+      );
+      return <DetailScreen viewModel={viewModelRef.current} />;
+    }
+
+    let renderer: ReturnType<typeof create>;
+    await act(async () => {
+      renderer = create(<Harness />);
+    });
+
+    await act(async () => {
+      renderer!.root.findByProps({ "data-group-document-id": "guide" }).props.onClick();
+    });
+
+    expect(JSON.stringify(renderer!.toJSON())).toContain("detail-document-loading");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(40);
+    });
+
+    const text = JSON.stringify(renderer!.toJSON());
+    expect(text).toContain("Guide");
+    expect(text).toContain("markdown-rendered-content");
+  });
+
+  it("shows localized loading placeholders for selected unloaded documents", () => {
+    const groupState = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+      },
+      detailState: {
+        ui: {
+          selectedGroupDocumentIdByGroup: { alpha: "guide" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "group:filetree",
+                title: "File Tree",
+                path: ".",
+                metadata: [],
+                renderCacheKey: "group:filetree",
+                content: "",
+                isLoaded: true,
+              },
+              {
+                id: "guide",
+                title: "GUIDE.md",
+                path: "GUIDE.md",
+                metadata: [],
+                renderCacheKey: "guide",
+                content: "",
+                isLoaded: false,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const skillState = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedSkillIdByGroup: { alpha: "debug" },
+          selectedSkillDocumentIdBySkill: { debug: "debug-md" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              {
+                id: "debug",
+                title: "Debug",
+                isEnabled: true,
+                documents: [
+                  {
+                    id: "debug-md",
+                    title: "DEBUG.md",
+                    path: "DEBUG.md",
+                    metadata: [],
+                    renderCacheKey: "debug-md",
+                    content: "",
+                    isLoaded: false,
+                  },
+                ],
+              },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    const groupMarkup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(groupState)} />,
+    );
+    const skillMarkup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(skillState)} />,
+    );
+
+    expect(groupMarkup).toContain("data-view=\"detail-document-loading\"");
+    expect(groupMarkup).toContain("正在加载文档...");
+    expect(groupMarkup).not.toContain("markdown-rendered-content");
+    expect(skillMarkup).toContain("data-view=\"detail-document-loading\"");
+    expect(skillMarkup).toContain("正在加载文档...");
+    expect(skillMarkup).not.toContain("markdown-rendered-content");
+  });
+
   it("renders the detail sidebar with group row and skill rows", () => {
     const state = createDesktopAppState({
       view: {
@@ -238,11 +433,13 @@ describe("detail screen", () => {
                 isLoaded: true,
               },
             ],
-            targets: [{ id: "claude-code", label: "Claude Code", isEnabled: true }],
+            targets: [{ id: "claude-code", label: "Claude Code", shortLabel: "CC", isEnabled: true }],
             skills: [
               {
                 id: "skill-a",
                 title: "Browse",
+                version: "2.0.0",
+                documentContent: "one two three",
                 isEnabled: true,
                 documents: [],
               },
@@ -269,10 +466,17 @@ describe("detail screen", () => {
     expect(markup).toContain("data-view=\"detail-file-tree-card\"");
     expect(markup).not.toContain("data-view=\"detail-fact-rail\"");
     expect(markup).toContain("Overview");
-    expect(markup).toContain("Skills");
+    expect(markup).toContain("data-view=\"detail-sidebar-skill-divider\"");
+    expect(markup).toContain("data-view=\"detail-sidebar-selection-indicator\"");
+    expect(markup).toContain("data-selected=\"true\"");
     expect(markup).toContain("Alpha");
     expect(markup).toContain("README");
     expect(markup).toContain("Claude Code");
+    expect(markup).toContain("data-target-id=\"claude-code\"");
+    expect(markup).toContain("data-view=\"detail-info-row\"");
+    expect(markup).toContain("data-detail-info-item=\"version\"");
+    expect(markup).toContain("v2.0.0");
+    expect(markup).toContain("data-detail-info-item=\"word-count\"");
     expect(markup).toContain("skill-a");
   });
 
@@ -321,6 +525,55 @@ describe("detail screen", () => {
     });
 
     expect(state.view.currentRoute).toEqual({ kind: "home" });
+  });
+
+  it("renders skill raw document content when the skill has no document tabs", () => {
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedSkillIdByGroup: { alpha: "skill-a" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              {
+                id: "skill-a",
+                title: "Standalone Skill",
+                documentContent: "# Raw skill body\n\nUse this directly.",
+                isEnabled: true,
+                documents: [],
+              },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"detail-skill-documents\"");
+    expect(markup).not.toContain("data-view=\"detail-document-section-title\"");
+    expect(markup).not.toContain("data-skill-document-id");
+    expect(markup).toContain("plain-document");
+    expect(markup).toContain("# Raw skill body");
+    expect(markup).not.toContain("markdown-rendered-content");
   });
 
   it("renders and wires the detail tag rail", async () => {
@@ -649,7 +902,97 @@ describe("detail screen", () => {
     expect(markup).toContain("save failed");
   });
 
+  it("keeps the detail shell visible while inspect detail is loading", () => {
+    const state = createDesktopAppState({
+      workspace: {
+        sourceIds: ["alpha"],
+        inventorySummaries: [
+          {
+            sourceId: "alpha",
+            title: "Alpha Starter",
+            locator: "obra/alpha",
+            health: "HEALTHY",
+            warningCount: 0,
+            errorCount: 0,
+            skillCount: 2,
+            enabledSkillCount: 1,
+            activeTargetCount: 1,
+            byline: "by obra",
+            downloadCount: 1200,
+            starCount: 34,
+            skills: [{ id: "browse", title: "Browse", isEnabled: true }],
+            targets: [{ id: "codex", label: "Codex", shortLabel: "CX", isEnabled: true }],
+            skillSelection: "partial",
+            targetSelection: "full",
+          },
+        ],
+      },
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"detail-layout\"");
+    expect(markup).toContain("data-detail-loading=\"true\"");
+    expect(markup).toContain("Alpha Starter");
+    expect(markup).toContain("by obra");
+    expect(markup).toContain("data-view=\"detail-sidebar\"");
+    expect(markup).toContain("data-view=\"detail-header\"");
+    expect(markup).toContain("data-view=\"detail-agent-rail\"");
+    expect(markup).toContain("data-target-id=\"codex\"");
+    expect(markup).toContain("data-view=\"detail-document-tab-loading\"");
+    expect(markup).toContain("data-view=\"detail-document-loading\"");
+    expect(markup).not.toContain("Loading source detail");
+  });
+
+  it("renders the mac-style empty state when skill view has no selected skill", () => {
+    const state = createDesktopAppState({
+      settings: {
+        desktopLanguageRawValue: "zh-Hans",
+      },
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+
+    const markup = ReactDOMServer.renderToStaticMarkup(
+      <DetailScreen viewModel={new DetailViewModel(state)} />,
+    );
+
+    expect(markup).toContain("data-view=\"detail-empty-state\"");
+    expect(markup).toContain("未选择技能");
+    expect(markup).toContain("请从左侧列表中选择一个技能。");
+    expect(markup).not.toContain("还没有加载详情内容");
+  });
+
   it("wires overview, skill, tree, and document selections", async () => {
+    vi.useFakeTimers();
     const updateSelection = vi.fn().mockResolvedValue(undefined);
     const state = createDesktopAppState({
       view: {
@@ -696,6 +1039,8 @@ describe("detail screen", () => {
               {
                 id: "skill-a",
                 title: "Browse",
+                version: "1.0.0",
+                documentContent: "# Skill",
                 isEnabled: true,
                 documents: [
                   {
@@ -745,10 +1090,20 @@ describe("detail screen", () => {
       skillButton.props.onClick();
     });
 
+    const pendingText = JSON.stringify(renderer!.toJSON());
+    expect(pendingText).toContain("detail-document-loading");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
     const text = JSON.stringify(renderer!.toJSON());
     expect(text).toContain("Browse");
     expect(text).toContain("SKILL.md");
     expect(text).toContain("Skill");
+    expect(text).toContain("data-detail-info-item");
+    expect(text).toContain("v1.0.0");
+    expect(text).toContain("word-count");
     expect(text).toContain("markdown-rendered-content");
     expect(text).toContain("markdown-metadata-table");
     expect(text).toContain("browse");
@@ -760,6 +1115,7 @@ describe("detail screen", () => {
   });
 
   it("renders nested file tree items and selects the owning skill from tree clicks", async () => {
+    vi.useFakeTimers();
     const state = createDesktopAppState({
       view: {
         currentRoute: desktopRoute.detail("alpha"),
@@ -849,12 +1205,20 @@ describe("detail screen", () => {
     });
 
     expect(renderer!.root.findByProps({ "data-tree-item-id": "root/debug/SKILL.md" })).toBeTruthy();
+    expect(renderer!.root.findAllByProps({ "data-tree-row-depth": 0 })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-tree-row-depth": 1 })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-tree-row-depth": 2 })).toHaveLength(1);
+    expect(renderer!.root.findAllByProps({ "data-tree-guide-column": "true" }).length).toBeGreaterThan(0);
+    expect(renderer!.root.findAllByProps({ "data-tree-node-lead": "true" }).length).toBeGreaterThan(0);
+    expect(renderer!.root.findAllByProps({ "data-tree-node-icon": "folder" })).toHaveLength(2);
+    expect(renderer!.root.findAllByProps({ "data-tree-node-icon": "document" })).toHaveLength(1);
 
     const rootButton = renderer!.root.findByProps({ "data-tree-item-id": "root" });
     await act(async () => {
       rootButton.props.onClick();
     });
     expect(renderer!.root.findAllByProps({ "data-tree-item-id": "root/debug/SKILL.md" })).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ "data-tree-selected": "true" })).toHaveLength(1);
 
     await act(async () => {
       rootButton.props.onClick();
@@ -867,6 +1231,13 @@ describe("detail screen", () => {
     });
 
     expect(state.detailState.ui.showsGroupOverviewByGroup.alpha).toBe(false);
+    expect(state.detailState.ui.pendingSkillIdByGroup.alpha).toBe("debug");
+    expect(JSON.stringify(renderer!.toJSON())).toContain("detail-document-loading");
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(80);
+    });
+
     expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("debug");
     expect(JSON.stringify(renderer!.toJSON())).toContain("Debug");
   });

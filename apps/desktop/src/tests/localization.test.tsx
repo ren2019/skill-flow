@@ -123,10 +123,10 @@ describe("desktop localization", () => {
       />
     );
 
-    expect(importMarkup).toContain("导入来源");
+    expect(importMarkup).toContain("导入");
     expect(importMarkup).toContain("搜索");
     expect(importMarkup).toContain("技能");
-    expect(detailMarkup).toContain("来源详情");
+    expect(detailMarkup).toContain("分组详情");
     expect(detailMarkup).toContain("概览");
     expect(settingsMarkup).toContain("设置");
     expect(settingsMarkup).toContain("登录时启动");

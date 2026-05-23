@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { createDesktopAppState } from "../store/desktop-app-state";
 import { desktopRoute } from "../navigation/desktop-route";
 import { DetailViewModel } from "../view-models/detail-view-model";
 
 describe("detail view model", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("reads and updates the selected source through shared state", () => {
     const state = createDesktopAppState({
       view: {
@@ -921,6 +925,249 @@ describe("detail view model", () => {
 
     expect(openPath).toHaveBeenCalledTimes(1);
     expect(openPath).toHaveBeenCalledWith("/groups/alpha/README.md");
+  });
+
+  it("uses pending skill selection during sidebar transitions and commits after a short delay", async () => {
+    vi.useFakeTimers();
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedSkillIdByGroup: { alpha: "browse" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [
+              {
+                id: "root/debug",
+                title: "debug",
+                path: "/alpha/debug",
+                isDirectory: true,
+                isSkillRoot: true,
+                isSkillDocument: false,
+                skillId: "debug",
+                children: [],
+              },
+            ],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              { id: "browse", title: "Browse", isEnabled: true, documents: [] },
+              { id: "debug", title: "Debug", isEnabled: true, documents: [] },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const onChange = vi.fn();
+    const viewModel = new DetailViewModel(state, { onChange });
+
+    viewModel.selectSkill("debug");
+
+    expect(viewModel.selectedSkillId).toBe("debug");
+    expect(viewModel.isSkillContentLoading).toBe(true);
+    expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("browse");
+    expect(state.detailState.ui.pendingSkillIdByGroup.alpha).toBe("debug");
+    expect(state.detailState.ui.selectedTreeItemIdByGroup.alpha).toBe("root/debug");
+
+    await vi.advanceTimersByTimeAsync(79);
+    expect(viewModel.isSkillContentLoading).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("debug");
+    expect(state.detailState.ui.pendingSkillIdByGroup.alpha).toBeUndefined();
+    expect(viewModel.isSkillContentLoading).toBe(false);
+    expect(onChange).toHaveBeenCalledTimes(2);
+  });
+
+  it("cancels pending skill selection when returning to the group overview", async () => {
+    vi.useFakeTimers();
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedSkillIdByGroup: { alpha: "browse" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              { id: "browse", title: "Browse", isEnabled: true, documents: [] },
+              { id: "debug", title: "Debug", isEnabled: true, documents: [] },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.selectSkill("debug");
+    viewModel.showOverview();
+    await vi.advanceTimersByTimeAsync(80);
+
+    expect(state.detailState.ui.showsGroupOverviewByGroup.alpha).toBe(true);
+    expect(state.detailState.ui.selectedSkillIdByGroup.alpha).toBe("browse");
+    expect(state.detailState.ui.pendingSkillIdByGroup.alpha).toBeUndefined();
+    expect(state.detailState.ui.selectedTreeItemIdByGroup.alpha).toBeUndefined();
+  });
+
+  it("uses pending group document selection before committing the selected tab", async () => {
+    vi.useFakeTimers();
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          selectedGroupDocumentIdByGroup: { alpha: "readme" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [
+              {
+                id: "readme",
+                title: "README.md",
+                path: "README.md",
+                metadata: [],
+                renderCacheKey: "readme",
+                content: "# Alpha",
+                isLoaded: true,
+              },
+              {
+                id: "guide",
+                title: "GUIDE.md",
+                path: "GUIDE.md",
+                metadata: [],
+                renderCacheKey: "guide",
+                content: "# Guide",
+                isLoaded: true,
+              },
+            ],
+            targets: [],
+            skills: [],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "empty",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.selectGroupDocument("guide");
+
+    expect(viewModel.selectedGroupDocument?.id).toBe("guide");
+    expect(viewModel.isGroupDocumentLoading).toBe(true);
+    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("readme");
+    expect(state.detailState.ui.pendingGroupDocumentIdByGroup.alpha).toBe("guide");
+
+    await vi.advanceTimersByTimeAsync(40);
+
+    expect(state.detailState.ui.selectedGroupDocumentIdByGroup.alpha).toBe("guide");
+    expect(state.detailState.ui.pendingGroupDocumentIdByGroup.alpha).toBeUndefined();
+    expect(viewModel.isGroupDocumentLoading).toBe(false);
+  });
+
+  it("uses pending skill document selection before committing the selected tab", async () => {
+    vi.useFakeTimers();
+    const state = createDesktopAppState({
+      view: {
+        currentRoute: desktopRoute.detail("alpha"),
+        selectedSourceId: "alpha",
+      },
+      detailState: {
+        ui: {
+          showsGroupOverviewByGroup: { alpha: false },
+          selectedSkillIdByGroup: { alpha: "debug" },
+          selectedSkillDocumentIdBySkill: { debug: "skill" },
+        },
+        detailsBySourceId: {
+          alpha: {
+            sourceId: "alpha",
+            title: "Alpha",
+            enabledTargetLabels: [],
+            fileTree: [],
+            groupDocuments: [],
+            targets: [],
+            skills: [
+              {
+                id: "debug",
+                title: "Debug",
+                isEnabled: true,
+                documents: [
+                  {
+                    id: "skill",
+                    title: "SKILL.md",
+                    path: "SKILL.md",
+                    metadata: [],
+                    renderCacheKey: "skill",
+                    content: "# Skill",
+                    isLoaded: true,
+                  },
+                  {
+                    id: "guide",
+                    title: "GUIDE.md",
+                    path: "GUIDE.md",
+                    metadata: [],
+                    renderCacheKey: "guide",
+                    content: "# Guide",
+                    isLoaded: true,
+                  },
+                ],
+              },
+            ],
+            sourceFacts: [],
+            deploymentFacts: [],
+            skillSelection: "full",
+            targetSelection: "empty",
+          },
+        },
+      },
+    });
+    const viewModel = new DetailViewModel(state);
+
+    viewModel.selectSkillDocument("debug", "guide");
+
+    expect(viewModel.selectedSkillDocument?.id).toBe("guide");
+    expect(viewModel.isSkillDocumentLoading).toBe(true);
+    expect(state.detailState.ui.selectedSkillDocumentIdBySkill.debug).toBe("skill");
+    expect(state.detailState.ui.pendingSkillDocumentIdBySkill.debug).toBe("guide");
+
+    await vi.advanceTimersByTimeAsync(40);
+
+    expect(state.detailState.ui.selectedSkillDocumentIdBySkill.debug).toBe("guide");
+    expect(state.detailState.ui.pendingSkillDocumentIdBySkill.debug).toBeUndefined();
+    expect(viewModel.isSkillDocumentLoading).toBe(false);
   });
 
   it("rolls back skill selection and records a toast when persistence fails", async () => {

@@ -4,6 +4,7 @@ import { resolveActionIcon } from "../icons/action-icons";
 import { resolveGroupCardIcon, type GroupCardIconId } from "../icons/group-card-icons";
 import { localize } from "../i18n";
 import { DetailViewModel } from "../view-models/detail-view-model";
+import { DetailInfoRow } from "./detail-info-row";
 
 type DetailHeaderProps = {
   viewModel: DetailViewModel;
@@ -19,7 +20,7 @@ export function formatDetailVersionText(version: string | undefined, language: s
 }
 
 export function DetailHeader({ viewModel }: DetailHeaderProps) {
-  const detail = viewModel.detail;
+  const detail = viewModel.presentedDetail;
 
   if (!detail) {
     return null;
@@ -29,6 +30,7 @@ export function DetailHeader({ viewModel }: DetailHeaderProps) {
     : detail.skills.find((skill) => skill.id === viewModel.selectedSkillId) ?? detail.skills[0];
   const title = selectedSkill?.title ?? detail.title;
   const author = detail.author ?? "@unknown";
+  const selectedSkillDocument = viewModel.showingGroupOverview ? undefined : viewModel.selectedSkillDocument;
 
   return (
     <header data-view="detail-header" style={headerStyle}>
@@ -89,7 +91,15 @@ export function DetailHeader({ viewModel }: DetailHeaderProps) {
         </div>
       ) : (
         <div data-view="detail-header-stats" style={statsRowStyle}>
-          <span style={emptyMetaStyle}>{formatDetailVersionText(detail.revision, viewModel.desktopLanguage)}</span>
+          {selectedSkill ? (
+            <DetailInfoRow
+              version={selectedSkill.version}
+              documentContent={selectedSkill.documentContent ?? selectedSkillDocument?.content}
+              fontSize={12}
+            />
+          ) : (
+            <span style={emptyMetaStyle}> </span>
+          )}
         </div>
       )}
     </header>

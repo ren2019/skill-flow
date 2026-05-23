@@ -98,6 +98,7 @@ type DesktopInspectResult = {
     name?: string;
     linkName?: string;
     title?: string;
+    version?: string;
     relativePath?: string;
     absolutePath?: string;
     skillFilePath?: string;
@@ -125,11 +126,16 @@ type DesktopInspectEnrichmentResult = {
     };
   };
   sourceSnapshot?: {
+    title?: string;
     repoStars?: number;
     totalInstalls?: number;
     repoLabel?: string;
     repoUrl?: string;
     summary?: string;
+    skills?: Array<{
+      skillId?: string;
+      title?: string;
+    }>;
   };
 };
 
@@ -535,7 +541,7 @@ function toDetailRecord(
     : [];
   const targets = toDetailTargets(binding?.targets);
   const enabledTargetLabels = targets.filter((target) => target.isEnabled).map((target) => target.label ?? target.id);
-  const skills = toDetailSkills(leafs, selectedLeafIds);
+  const skills = toDetailSkills(leafs, selectedLeafIds, enrichmentData?.sourceSnapshot);
   const sourceFacts = toSourceFacts(summary, source, enrichmentData);
   const deploymentFacts = deployments.flatMap((deployment) => {
     if (typeof deployment?.target !== "string") {
@@ -565,10 +571,16 @@ function toDetailRecord(
     ? enrichmentData.sourceSnapshot.repoUrl
     : undefined;
   const locator = source?.locator ?? summary?.source?.locator;
+  const title = preferredDetailGroupTitle({
+    sourceId,
+    displayName: source?.displayName ?? summary?.source?.displayName,
+    snapshotTitle: enrichmentData?.sourceSnapshot?.title,
+    locator: locator ?? sourceId,
+  });
 
   return {
     sourceId,
-    title: source?.displayName ?? summary?.source?.displayName ?? sourceId,
+    title,
     ...(revision ? { revision } : {}),
     ...(typeof source?.kind === "string" ? { subtitle: source.kind } : {}),
     ...(author ? { author } : {}),
@@ -618,25 +630,117 @@ function toDetailTargets(
 function toDetailSkills(
   leafs: DesktopInspectResult["leafs"],
   selectedLeafIds: string[],
+  sourceSnapshot: DesktopInspectEnrichmentResult["sourceSnapshot"] | undefined,
 ): DetailSkillState[] {
   return (leafs ?? []).flatMap((leaf) => {
     if (typeof leaf?.id !== "string" || leaf.id.length === 0) {
       return [];
     }
 
-    const title = typeof leaf.title === "string" && leaf.title.length > 0
-      ? leaf.title
-      : typeof leaf.name === "string" && leaf.name.length > 0
-      ? leaf.name
-      : leaf.linkName ?? leaf.id;
+    const fallbackLinkName = stringValue(leaf.linkName) ?? leaf.id;
+    const snapshotSkill = sourceSnapshot?.skills?.find((skill) => {
+      const skillId = stringValue(skill.skillId);
+      return skillId === fallbackLinkName || skillId === leaf.id;
+    });
+    const title = preferredDetailSkillTitle({
+      payloadTitle: leaf.title,
+      snapshotTitle: snapshotSkill?.title,
+      rawLeafName: leaf.name,
+      fallbackLinkName,
+    });
+
+    const documents = toSkillDocuments(leaf);
+    const version = stringValue(leaf.version);
+    const documentContent = stringValue(leaf.documentContent)
+      ?? documents.find((document) => document.isLoaded && document.content.trim().length > 0)?.content
+      ?? stringValue(leaf.description);
 
     return [{
       id: leaf.id,
       title,
+      ...(version ? { version } : {}),
+      ...(documentContent ? { documentContent } : {}),
       isEnabled: selectedLeafIds.includes(leaf.id),
-      documents: toSkillDocuments(leaf),
+      documents,
     }];
   });
+}
+
+function preferredDetailGroupTitle({
+  sourceId,
+  displayName,
+  snapshotTitle,
+  locator,
+}: {
+  sourceId: string;
+  displayName?: string | undefined;
+  snapshotTitle?: string | undefined;
+  locator: string;
+}): string {
+  const normalizedSnapshotTitle = nonEmptyTrimmed(snapshotTitle);
+  if (normalizedSnapshotTitle) {
+    return normalizedSnapshotTitle;
+  }
+
+  const sanitizedDisplayName = sanitizedDetailTitle(displayName);
+  if (sanitizedDisplayName) {
+    return sanitizedDisplayName;
+  }
+
+  return detailTitleFallback(locator, sourceId);
+}
+
+function preferredDetailSkillTitle({
+  payloadTitle,
+  snapshotTitle,
+  rawLeafName,
+  fallbackLinkName,
+}: {
+  payloadTitle?: string | undefined;
+  snapshotTitle?: string | undefined;
+  rawLeafName?: string | undefined;
+  fallbackLinkName: string;
+}): string {
+  return nonEmptyTrimmed(payloadTitle)
+    ?? nonEmptyTrimmed(snapshotTitle)
+    ?? sanitizedDetailTitle(rawLeafName)
+    ?? fallbackLinkName;
+}
+
+function sanitizedDetailTitle(value: string | undefined): string | undefined {
+  const trimmed = nonEmptyTrimmed(value);
+  if (!trimmed) {
+    return undefined;
+  }
+
+  const lower = trimmed.toLowerCase();
+  const rejectedFragments = [
+    "zsh-compatible:",
+    "use find",
+    "no such file",
+    "command not found",
+    "permission denied",
+  ];
+  if (rejectedFragments.some((fragment) => lower.includes(fragment))) {
+    return undefined;
+  }
+
+  return trimmed;
+}
+
+function detailTitleFallback(locator: string, sourceId: string): string {
+  const trimmed = locator.trim().replace(/\.git$/i, "").replace(/^\/+|\/+$/g, "");
+  if (!trimmed) {
+    return sourceId;
+  }
+
+  if (trimmed.startsWith("clawhub:")) {
+    const slug = trimmed.split(":").pop()?.split("@")[0];
+    const leaf = slug?.split("/").filter(Boolean).pop();
+    return leaf ?? sourceId;
+  }
+
+  return trimmed.split("/").filter(Boolean).pop() ?? sourceId;
 }
 
 function toSkillDocuments(
@@ -905,6 +1009,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function nonEmptyTrimmed(value: string | undefined): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
 }
 
 function numberValue(value: unknown): number | undefined {

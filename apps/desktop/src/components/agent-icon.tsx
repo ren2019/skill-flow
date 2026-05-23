@@ -13,8 +13,12 @@ import windsurfIcon from "../assets/AgentIcons/windsurf.svg";
 
 type AgentIconProps = {
   targetId: string;
-  shortLabel?: string;
-  title?: string;
+  shortLabel?: string | undefined;
+  title?: string | undefined;
+  size?: number;
+  imageSize?: number;
+  borderRadius?: number | string;
+  background?: string;
 };
 
 const agentIconByTargetId: Record<string, string> = {
@@ -32,7 +36,15 @@ const agentIconByTargetId: Record<string, string> = {
   windsurf: windsurfIcon,
 };
 
-export function AgentIcon({ targetId, shortLabel, title }: AgentIconProps) {
+export function AgentIcon({
+  targetId,
+  shortLabel,
+  title,
+  size = 34,
+  imageSize = 22,
+  borderRadius = "12px",
+  background = "linear-gradient(135deg, rgba(14, 116, 144, 0.16), rgba(59, 130, 246, 0.12))",
+}: AgentIconProps) {
   const icon = agentIconByTargetId[targetId];
   return (
     <span
@@ -42,12 +54,12 @@ export function AgentIcon({ targetId, shortLabel, title }: AgentIconProps) {
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
-        width: "34px",
-        height: "34px",
-        borderRadius: "12px",
-        background: "linear-gradient(135deg, rgba(14, 116, 144, 0.16), rgba(59, 130, 246, 0.12))",
+        width: `${size}px`,
+        height: `${size}px`,
+        borderRadius,
+        background,
         color: "#0f172a",
-        fontSize: "12px",
+        fontSize: size <= 20 ? "11px" : "12px",
         fontWeight: 700,
       }}
     >
@@ -58,8 +70,8 @@ export function AgentIcon({ targetId, shortLabel, title }: AgentIconProps) {
           src={icon}
           style={{
             display: "block",
-            width: "22px",
-            height: "22px",
+            width: `${imageSize}px`,
+            height: `${imageSize}px`,
             objectFit: "contain",
           }}
         />
