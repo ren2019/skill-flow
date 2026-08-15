@@ -111,4 +111,51 @@ describe.sequential("externally managed sources (CLI)", () => {
     expect(result.ok).toBe(false);
     expect(result.errors[0]?.code).toBe("EXTERNAL_PATH_ALREADY_MANAGED");
   });
+
+  test("add --command registers from the preset and discovers on-disk paths", { timeout: 60_000 }, async () => {
+    const claudeDir = await writeTargetSkill("claude", "agent-reach");
+    await writeTargetSkill("codex", "agent-reach");
+
+    const output = runCli(["add", "agent-reach", "--command"]);
+    expect(output).toContain("Registered command skills group 'agent-reach'");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    const state = await stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === "agent-reach");
+    expect(source?.kind).toBe("command");
+    expect(source?.presetToolName).toBe("agent-reach");
+    expect(source?.externalCommands?.install).toBe("agent-reach skill --install");
+    expect(source?.externalCommands?.update).toContain("pipx upgrade agent-reach");
+    const lock = state.lockFile.sources["agent-reach"]!;
+    expect(lock.observedTargets?.map((observed) => observed.targetPath).sort()).toEqual(
+      [claudeDir, path.join(sandbox.targetsRoot, "codex", "agent-reach")].sort(),
+    );
+    expect(state.lockFile.leafInventory.filter((leaf) => leaf.sourceId === "agent-reach").length).toBe(2);
+  });
+
+  test("add --command registers a not-yet-installed tool with empty leafs", { timeout: 60_000 }, async () => {
+    const output = runCli([
+      "add", "fresh-tool", "--command",
+      "--install", "fresh-tool install",
+      "--update", "fresh-tool update",
+    ]);
+    expect(output).toContain("Registered command skills group 'fresh-tool'");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    const state = await stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === "fresh-tool");
+    expect(source?.kind).toBe("command");
+    expect(source?.externalCommands).toEqual({
+      install: "fresh-tool install",
+      update: "fresh-tool update",
+    });
+    expect(state.lockFile.sources["fresh-tool"]!.leafIds).toEqual([]);
+  });
+
+  test("add --command without preset or commands is rejected", { timeout: 60_000 }, async () => {
+    const app = new SkillFlowApp();
+    const result = await app.addCommandSourceByTool({ toolName: "unknown-tool" });
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]?.code).toBe("EXTERNAL_COMMAND_REQUIRED");
+  });
 });

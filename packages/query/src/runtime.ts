@@ -8,6 +8,7 @@ import type {
   CollectionsFile,
   DeploymentTargetId,
   Diagnostic,
+  ExternalSourceCommands,
   DraftBinding,
   DeploymentAction,
   DeploymentPlan,
@@ -61,6 +62,7 @@ import type {
   Warning,
   WorkflowSummary,
 } from "@skill-flow/domain/types";
+import { findExternalToolPreset } from "@skill-flow/domain/external-presets";
 import { RuntimeStore } from "@skill-flow/storage/runtime-store";
 import { StateStore } from "@skill-flow/storage/state-store";
 import { ImportPreparationCacheStore } from "@skill-flow/storage/import-preparation-cache-store";
@@ -813,6 +815,58 @@ export class SkillFlowApp {
       displayName: path.basename(resolvedPath),
       observedPaths: observedTargets,
     });
+  }
+
+  async addCommandSourceByTool(input: {
+    toolName: string;
+    commands?: ExternalSourceCommands;
+  }): Promise<Result<{ sourceId: string }>> {
+    const preset = findExternalToolPreset(input.toolName);
+    const commands: ExternalSourceCommands = {
+      ...(preset?.commands ?? {}),
+      ...(input.commands ?? {}),
+    };
+    if (!commands.install && !commands.update) {
+      return fail({
+        code: "EXTERNAL_COMMAND_REQUIRED",
+        message: input.commands
+          ? "Provide at least an --install or --update command for a command skills group."
+          : `No built-in preset for tool '${input.toolName}'; provide at least an --install or --update command.`,
+      });
+    }
+
+    const observedPaths = await this.discoverExternalObservedPaths(input.toolName);
+    return this.runAuditedMutation(
+      "add-source",
+      { kind: "command", toolName: input.toolName },
+      async () => {
+        const result = await this.externalSourceService.addCommandSource({
+          displayName: preset?.displayName ?? input.toolName,
+          commands,
+          ...(preset ? { presetToolName: preset.toolName } : {}),
+          observedPaths,
+        });
+        if (!result.ok) {
+          return fail(result.errors, result.warnings);
+        }
+        return ok({ sourceId: result.data.manifest.id }, result.warnings);
+      },
+    );
+  }
+
+  private async discoverExternalObservedPaths(name: string): Promise<
+    Array<{ target: DeploymentTargetId; rootPath: string; targetPath: string }>
+  > {
+    const matches: Array<{ target: DeploymentTargetId; rootPath: string; targetPath: string }> = [];
+    for (const target of TARGET_ORDER) {
+      for (const rootPath of getTargetScanRoots(target).map((root) => path.resolve(root))) {
+        const candidate = path.join(rootPath, name);
+        if (await pathExists(path.join(candidate, "SKILL.md"))) {
+          matches.push({ target, rootPath, targetPath: candidate });
+        }
+      }
+    }
+    return matches;
   }
 
   async prepareAddSource(

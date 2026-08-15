@@ -41,6 +41,10 @@ program
   .option("--yes", "Skip prompts and use default selections")
   .option("--all", "Enable all discovered skills and all detected targets")
   .option("--watch", "Register an on-disk skill as externally managed without importing it")
+  .option("--command", "Register an externally managed skills group driven by install/update commands")
+  .option("--install <command>", "Install command for a --command skills group")
+  .option("--update <command>", "Update command for a --command skills group")
+  .option("--version <command>", "Optional version command for a --command skills group")
   .action(async (
     source: string,
     options: {
@@ -51,6 +55,10 @@ program
       yes?: boolean;
       all?: boolean;
       watch?: boolean;
+      command?: boolean;
+      install?: string;
+      update?: string;
+      version?: string;
     },
   ) => {
     if (options.watch) {
@@ -61,6 +69,29 @@ program
         return;
       }
       console.log(`Registered watch skills group '${result.data.sourceId}' (files left untouched).`);
+      return;
+    }
+
+    if (options.command) {
+      const hasOverrides = Boolean(options.install || options.update || options.version);
+      const result = await app.addCommandSourceByTool({
+        toolName: source,
+        ...(hasOverrides
+          ? {
+            commands: {
+              ...(options.install ? { install: options.install } : {}),
+              ...(options.update ? { update: options.update } : {}),
+              ...(options.version ? { version: options.version } : {}),
+            },
+          }
+          : {}),
+      });
+      if (!result.ok) {
+        printErrors(result.errors.map((error) => ({ message: error.message })));
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`Registered command skills group '${result.data.sourceId}'.`);
       return;
     }
 
