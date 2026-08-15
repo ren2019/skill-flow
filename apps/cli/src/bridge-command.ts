@@ -235,6 +235,11 @@ const bridgeCommandHandlers = {
     const sourceIds = parseOptionalStringArray(payload?.sourceIds, "update.sourceIds");
     return runBridgeResult(request, () => app.updateSources(sourceIds));
   },
+  "install-external-source": async (app, request) => {
+    const payload = expectObjectPayload(request.payload, "install-external-source");
+    const sourceId = expectString(payload.sourceId, "sourceId", "install-external-source");
+    return runBridgeResult(request, () => app.installExternalSource(sourceId));
+  },
   uninstall: async (app, request) => {
     const payload = expectObjectPayload(request.payload, "uninstall");
     const sourceIds = parseRequiredStringArray(payload.sourceIds, "uninstall.sourceIds");

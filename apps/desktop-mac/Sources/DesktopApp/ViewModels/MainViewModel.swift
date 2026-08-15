@@ -186,6 +186,7 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     /// Published mirrors of the coordinator (single writer: GroupOperationCoordinator).
     private(set) var updateOperationPhases: [String: GroupOperationQueue.Phase] = [:]
     private(set) var importOperationPhases: [String: GroupOperationQueue.Phase] = [:]
+    private(set) var installOperationPhases: [String: GroupOperationQueue.Phase] = [:]
 
     var loadState: LoadState { stateManager.loadState }
     var selectedSection: Section { stateManager.selectedSection }
@@ -313,6 +314,10 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                 isImportInstalledLocally: { [weak self] groupId in
                     self?.importLogic.isImportGroupInstalledLocally(groupId) == true
                 },
+                isInstallTargetPresent: { [weak self] sourceId in
+                    guard let self else { return false }
+                    return self.sourceIds.contains(sourceId) || self.sourceManagement.summary(for: sourceId) != nil
+                },
                 performUpdate: { [weak self] sourceId in
                     await self?.performQueuedUpdate(sourceId: sourceId)
                 },
@@ -328,6 +333,9 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                         enabledTargets: request.enabledTargets
                     )
                 },
+                performInstall: { [weak self] sourceId in
+                    await self?.performQueuedInstall(sourceId: sourceId)
+                },
                 onAlreadyQueued: { [weak self] in
                     self?.showOperationAlreadyQueuedToast()
                 },
@@ -337,11 +345,12 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                 onImportAlreadyExists: { [weak self] in
                     self?.showImportAlreadyExistsToast()
                 },
-                onPhasesChange: { [weak self] updatePhases, importPhases in
+                onPhasesChange: { [weak self] updatePhases, importPhases, installPhases in
                     guard let self else { return }
                     self.updateOperationPhases = updatePhases
                     self.importOperationPhases = importPhases
-                    self.stateManager.setUpdatingSourceIds(Set(updatePhases.keys))
+                    self.installOperationPhases = installPhases
+                    self.stateManager.setUpdatingSourceIds(Set(updatePhases.keys).union(Set(installPhases.keys)))
                 }
             )
         )
@@ -1222,6 +1231,16 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
             await synchronizeState(refreshDoctor: true)
             registerRecentlyUpdatedSources(from: response.data?.value)
             presentBulkUpdateOutcome(requestedCount: sourceIds.count, payload: response.data?.value, warnings: response.warnings)
+        } catch {
+            showOperationFailureToast(fallbackKey: "toast.update.failed", fallbackArgument: error.localizedDescription, error: error)
+        }
+    }
+
+    private func performQueuedInstall(sourceId: String) async {
+        do {
+            _ = try await sourceManagement.installExternalSource(sourceId)
+            await synchronizeState(refreshDoctor: true)
+            showToast(style: .success, text: .plain("Installed \(sourceId)"))
         } catch {
             showOperationFailureToast(fallbackKey: "toast.update.failed", fallbackArgument: error.localizedDescription, error: error)
         }

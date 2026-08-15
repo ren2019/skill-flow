@@ -278,6 +278,10 @@ final class SourceManagement {
         return nil
     }
 
+    func installExternalSource(_ sourceId: String) async throws -> BridgeResponse {
+        try await bridgeClient.installExternalSource(sourceId: sourceId)
+    }
+
     func applyChanges(
         sourceId: String,
         scope: ProjectScopeSelection,

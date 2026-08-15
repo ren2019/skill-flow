@@ -15,6 +15,10 @@ struct DesktopBridgeCommandFacade<Transport: DesktopBridgeTransporting>: Desktop
         try await bridgeClient.updateSources(sourceIds)
     }
 
+    func installExternalSource(sourceId: String) async throws -> BridgeResponse {
+        try await bridgeClient.installExternalSource(sourceId: sourceId)
+    }
+
     func importSource(locator: String, selectedSkills: [ImportSkillSelection], enabledTargets: [String]) async throws -> BridgeResponse {
         try await bridgeClient.importSource(locator: locator, selectedSkills: selectedSkills, enabledTargets: enabledTargets)
     }

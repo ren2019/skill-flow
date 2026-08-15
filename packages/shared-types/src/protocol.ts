@@ -22,6 +22,7 @@ export const BRIDGE_COMMAND_NAMES = [
   "add",
   "apply",
   "update",
+  "install-external-source",
   "uninstall",
   "save-settings",
 ] as const;

@@ -12,6 +12,7 @@ final class GroupOperationQueue {
         case update(sourceId: String)
         case bulkUpdate(sourceIds: [String])
         case importGroup(groupId: String)
+        case install(sourceId: String)
     }
 
     enum EnqueueOutcome: Equatable, Sendable {
@@ -84,6 +85,20 @@ final class GroupOperationQueue {
         return .enqueued
     }
 
+    func enqueueInstall(sourceId: String) -> EnqueueOutcome {
+        let normalized = Self.normalize(sourceId)
+        guard !normalized.isEmpty else {
+            return .alreadyPresent
+        }
+
+        if installPhase(for: normalized) != nil {
+            return .alreadyPresent
+        }
+
+        entries.append(Entry(operation: .install(sourceId: normalized), phase: .queued))
+        return .enqueued
+    }
+
     func startNext() -> Operation? {
         guard !entries.contains(where: { $0.phase == .running }) else {
             return nil
@@ -141,6 +156,20 @@ final class GroupOperationQueue {
         return nil
     }
 
+    func installPhase(for sourceId: String) -> Phase? {
+        let normalized = Self.normalize(sourceId)
+        guard !normalized.isEmpty else {
+            return nil
+        }
+
+        for entry in entries {
+            if case .install(let id) = entry.operation, id == normalized {
+                return entry.phase
+            }
+        }
+        return nil
+    }
+
     var runningImportGroupId: String? {
         for entry in entries where entry.phase == .running {
             if case .importGroup(let id) = entry.operation {
@@ -182,6 +211,16 @@ final class GroupOperationQueue {
         for entry in entries {
             if case .importGroup(let groupId) = entry.operation {
                 result[groupId] = Self.preferRunning(result[groupId], entry.phase)
+            }
+        }
+        return result
+    }
+
+    func snapshotInstallPhases() -> [String: Phase] {
+        var result: [String: Phase] = [:]
+        for entry in entries {
+            if case .install(let sourceId) = entry.operation {
+                result[sourceId] = Self.preferRunning(result[sourceId], entry.phase)
             }
         }
         return result

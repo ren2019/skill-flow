@@ -16,13 +16,15 @@ final class GroupOperationCoordinator {
     struct Hosts {
         var isSourcePresent: (String) -> Bool
         var isImportInstalledLocally: (String) -> Bool
+        var isInstallTargetPresent: (String) -> Bool
         var performUpdate: (String) async -> Void
         var performBulkUpdate: ([String]) async -> Void
         var performImport: (String, PendingImportRequest) async -> Void
+        var performInstall: (String) async -> Void
         var onAlreadyQueued: () -> Void
         var onSkippedMissing: () -> Void
         var onImportAlreadyExists: () -> Void
-        var onPhasesChange: (_ update: [String: GroupOperationQueue.Phase], _ importPhases: [String: GroupOperationQueue.Phase]) -> Void
+        var onPhasesChange: (_ update: [String: GroupOperationQueue.Phase], _ importPhases: [String: GroupOperationQueue.Phase], _ installPhases: [String: GroupOperationQueue.Phase]) -> Void
     }
 
     private let queue = GroupOperationQueue()
@@ -34,6 +36,7 @@ final class GroupOperationCoordinator {
 
     private(set) var updatePhases: [String: GroupOperationQueue.Phase] = [:]
     private(set) var importPhases: [String: GroupOperationQueue.Phase] = [:]
+    private(set) var installPhases: [String: GroupOperationQueue.Phase] = [:]
 
     var importingImportGroupId: String? {
         queue.runningImportGroupId
@@ -152,9 +155,25 @@ final class GroupOperationCoordinator {
                 await runBulkUpdate(sourceIds: sourceIds)
             case .importGroup(let groupId):
                 await runImport(groupId: groupId)
+            case .install(let sourceId):
+                await runInstall(sourceId: sourceId)
             }
             queue.completeRunning()
             publishPhases()
+        }
+    }
+
+    func enqueueInstall(sourceId: String) async {
+        let normalized = sourceId.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else {
+            return
+        }
+        switch queue.enqueueInstall(sourceId: normalized) {
+        case .alreadyPresent:
+            hosts?.onAlreadyQueued()
+        case .enqueued:
+            publishPhases()
+            await drain()
         }
     }
 
@@ -188,6 +207,14 @@ final class GroupOperationCoordinator {
         await hosts?.performImport(groupId, request)
     }
 
+    private func runInstall(sourceId: String) async {
+        guard hosts?.isInstallTargetPresent(sourceId) == true else {
+            hosts?.onSkippedMissing()
+            return
+        }
+        await hosts?.performInstall(sourceId)
+    }
+
     private func publishPhases() {
         updatePhases = queue.snapshotUpdatePhases()
         var nextImportPhases = queue.snapshotImportPhases()
@@ -197,6 +224,7 @@ final class GroupOperationCoordinator {
             }
         }
         importPhases = nextImportPhases
-        hosts?.onPhasesChange(updatePhases, importPhases)
+        installPhases = queue.snapshotInstallPhases()
+        hosts?.onPhasesChange(updatePhases, importPhases, installPhases)
     }
 }

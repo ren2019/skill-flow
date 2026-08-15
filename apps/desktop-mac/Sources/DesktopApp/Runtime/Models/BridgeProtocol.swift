@@ -22,6 +22,7 @@ enum BridgeCommand: String, Codable, Sendable, CaseIterable {
     case add
     case apply
     case update
+    case installExternalSource = "install-external-source"
     case uninstall
     case saveSettings = "save-settings"
 }
@@ -38,7 +39,8 @@ extension BridgeCommand {
              .commitImportSource,
              .importSource,
              .add,
-             .update:
+             .update,
+             .installExternalSource:
             return true
         case .bootstrap,
              .list,

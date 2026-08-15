@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { describe, expect, test, vi } from "vitest";
 import { SkillFlowApp } from "@skill-flow/query/runtime";
 import * as githubCatalog from "@skill-flow/integration/utils/github-catalog";
@@ -11,6 +13,33 @@ describe.sequential("bridge command dispatcher", () => {
 
   test("has one CLI handler for every supported bridge command", () => {
     expect(getBridgeCommandHandlerNames()).toEqual(BRIDGE_COMMAND_NAMES);
+  });
+
+  test("installs an external command group via the bridge", async () => {
+    const skillDir = path.join(sandbox.targetsRoot, "claude", "bridge-tool");
+    await fs.mkdir(skillDir, { recursive: true });
+    await fs.writeFile(path.join(skillDir, "SKILL.md"), skillDoc("bridge-tool", "Bridged."));
+
+    const app = new SkillFlowApp();
+    const registered = await app.addCommandSourceByTool({
+      toolName: "bridge-tool",
+      commands: { install: "/usr/bin/true" },
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const response = await executeBridgeRequest(app, {
+      protocolVersion: PROTOCOL_VERSION,
+      command: "install-external-source",
+      requestId: "r-install",
+      payload: { sourceId: "bridge-tool" },
+    });
+
+    expect(response.ok).toBe(true);
+    expect(response.command).toBe("install-external-source");
+    expect(response.requestId).toBe("r-install");
   });
 
   test("returns unsupported command response before handler lookup", async () => {

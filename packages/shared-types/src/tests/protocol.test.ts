@@ -41,6 +41,7 @@ describe("bridge protocol", () => {
       "add",
       "apply",
       "update",
+      "install-external-source",
       "uninstall",
       "save-settings",
     ]);

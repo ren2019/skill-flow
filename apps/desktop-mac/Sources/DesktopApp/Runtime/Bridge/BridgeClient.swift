@@ -351,6 +351,12 @@ final class BridgeClient: @unchecked Sendable {
         }
     }
 
+    func installExternalSource(sourceId: String) async throws -> BridgeResponse {
+        try await mutationCoordinator.runMutation {
+            try await self.send(command: .installExternalSource, payload: ["sourceId": AnyCodable(sourceId)])
+        }
+    }
+
     func uninstall(sourceIds: [String]) async throws -> BridgeResponse {
         try await mutationCoordinator.runMutation {
             try await self.send(command: .uninstall, payload: ["sourceIds": AnyCodable(sourceIds)])
