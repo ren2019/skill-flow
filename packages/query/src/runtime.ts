@@ -315,6 +315,7 @@ type AuditMutationName =
   | "import-source"
   | "apply-draft"
   | "update-sources"
+  | "install-external-source"
   | "doctor"
   | "uninstall";
 type AuditEvent = {
@@ -797,6 +798,26 @@ export class SkillFlowApp {
           return fail(result.errors, result.warnings);
         }
         return ok({ sourceId: result.data.manifest.id }, result.warnings);
+      },
+    );
+  }
+
+  async installExternalSource(sourceId: string): Promise<Result<{ sourceId: string; leafCount: number; executedSteps: string[] }>> {
+    return this.runAuditedMutation(
+      "install-external-source",
+      { sourceId },
+      async () => {
+        const executedSteps: string[] = [];
+        const result = await this.externalSourceService.installCommandSource(sourceId, {
+          onStep: (step) => executedSteps.push(step),
+        });
+        if (!result.ok) {
+          return fail(result.errors, result.warnings);
+        }
+        return ok(
+          { sourceId, leafCount: result.data.leafCount, executedSteps },
+          result.warnings,
+        );
       },
     );
   }

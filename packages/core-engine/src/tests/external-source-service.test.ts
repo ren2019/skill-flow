@@ -199,4 +199,97 @@ describe.sequential("ExternalSourceService", () => {
     expect(result.ok).toBe(false);
     expect(result.errors[0]?.code).toBe("EXTERNAL_PATH_ALREADY_MANAGED");
   });
+
+  test("install runs the install command, rediscovers paths, and records the version output", async () => {
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+
+    const skillRoot = path.join(sandbox.targetsRoot, "claude", "tool-x");
+    const installScript = path.join(sandbox.sandboxRoot, "install-tool-x.sh");
+    await fs.writeFile(installScript, [
+      "#!/bin/sh",
+      `mkdir -p "${skillRoot}"`,
+      `printf -- '---\\nname: tool-x\\ndescription: Installed.\\n---\\n' > "${skillRoot}/SKILL.md"`,
+      "",
+    ].join("\n"), { mode: 0o755 });
+
+    const registered = await service.addCommandSource({
+      displayName: "tool-x",
+      commands: {
+        install: `${installScript}`,
+        version: "/bin/echo tool-x 1.2.3",
+      },
+      observedPaths: [],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const installed = await service.installCommandSource(registered.data.manifest.id, {
+      onStep: () => {},
+    });
+    expect(installed.ok).toBe(true);
+    if (!installed.ok) {
+      return;
+    }
+
+    const state = await stateStore.readState();
+    const lock = state.lockFile.sources[registered.data.manifest.id]!;
+    expect(lock.observedTargets?.map((observed) => observed.targetPath)).toEqual([skillRoot]);
+    expect(lock.leafIds.length).toBe(1);
+    expect(state.lockFile.leafInventory.some((leaf) =>
+      leaf.sourceId === registered.data.manifest.id && leaf.absolutePath === skillRoot)).toBe(true);
+    expect(lock.lastVersionOutput).toContain("tool-x 1.2.3");
+    // files exist, no managed checkout appeared
+    await expect(fs.access(path.join(skillRoot, "SKILL.md"))).resolves.toBeUndefined();
+    await expect(fs.access(path.join(sandbox.stateRoot, "source", "command"))).rejects.toThrow();
+  });
+
+  test("install fails cleanly when the command fails and state is unchanged", async () => {
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+
+    const registered = await service.addCommandSource({
+      displayName: "broken-tool",
+      commands: { install: "/usr/bin/false" },
+      observedPaths: [],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const installed = await service.installCommandSource(registered.data.manifest.id, {
+      onStep: () => {},
+    });
+    expect(installed.ok).toBe(false);
+    expect(installed.errors[0]?.code).toBe("EXTERNAL_COMMAND_FAILED");
+
+    const state = await stateStore.readState();
+    expect(state.lockFile.sources[registered.data.manifest.id]!.leafIds).toEqual([]);
+    expect(state.lockFile.leafInventory.filter((leaf) =>
+      leaf.sourceId === registered.data.manifest.id)).toEqual([]);
+  });
+
+  test("install rejects a source without an install command", async () => {
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+
+    const registered = await service.addCommandSource({
+      displayName: "update-only",
+      commands: { update: "tool update" },
+      observedPaths: [],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const installed = await service.installCommandSource(registered.data.manifest.id, {
+      onStep: () => {},
+    });
+    expect(installed.ok).toBe(false);
+    expect(installed.errors[0]?.code).toBe("EXTERNAL_INSTALL_COMMAND_MISSING");
+  });
 });

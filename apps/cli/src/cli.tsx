@@ -44,7 +44,7 @@ program
   .option("--command", "Register an externally managed skills group driven by install/update commands")
   .option("--install <command>", "Install command for a --command skills group")
   .option("--update <command>", "Update command for a --command skills group")
-  .option("--version <command>", "Optional version command for a --command skills group")
+  .option("--version-command <command>", "Optional version command for a --command skills group")
   .action(async (
     source: string,
     options: {
@@ -58,7 +58,7 @@ program
       command?: boolean;
       install?: string;
       update?: string;
-      version?: string;
+      versionCommand?: string;
     },
   ) => {
     if (options.watch) {
@@ -73,7 +73,7 @@ program
     }
 
     if (options.command) {
-      const hasOverrides = Boolean(options.install || options.update || options.version);
+      const hasOverrides = Boolean(options.install || options.update || options.versionCommand);
       const result = await app.addCommandSourceByTool({
         toolName: source,
         ...(hasOverrides
@@ -81,7 +81,7 @@ program
             commands: {
               ...(options.install ? { install: options.install } : {}),
               ...(options.update ? { update: options.update } : {}),
-              ...(options.version ? { version: options.version } : {}),
+              ...(options.versionCommand ? { version: options.versionCommand } : {}),
             },
           }
           : {}),
@@ -121,6 +121,23 @@ program
 
     const result = await runRenderedAddFlow(app, request);
     handleAddFlowResult(result, { rendered: true });
+  });
+
+program
+  .command("install")
+  .argument("<sourceId>", "Command skills group id")
+  .description("Run a command group's install command and rediscover its files")
+  .action(async (sourceId: string) => {
+    const result = await app.installExternalSource(sourceId);
+    if (!result.ok) {
+      printErrors(result.errors.map((error) => ({ message: error.message })));
+      process.exitCode = 1;
+      return;
+    }
+    const leafCount = result.data.leafCount;
+    console.log(
+      `Installed '${sourceId}' (${leafCount} skill location${leafCount === 1 ? "" : "s"} discovered).`,
+    );
   });
 
 program

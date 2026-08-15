@@ -158,4 +158,55 @@ describe.sequential("externally managed sources (CLI)", () => {
     expect(result.ok).toBe(false);
     expect(result.errors[0]?.code).toBe("EXTERNAL_COMMAND_REQUIRED");
   });
+
+  test("install runs the external install command and rediscovers paths", { timeout: 60_000 }, async () => {
+    const installScript = path.join(sandbox.sandboxRoot, "install-late-tool.sh");
+    const skillDir = path.join(sandbox.targetsRoot, "claude", "late-tool");
+    await fs.writeFile(installScript, [
+      "#!/bin/sh",
+      `mkdir -p "${skillDir}"`,
+      `printf -- '---\\nname: late-tool\\ndescription: Installed externally.\\n---\\n' > "${skillDir}/SKILL.md"`,
+      "",
+    ].join("\n"), { mode: 0o755 });
+
+    const output = runCli([
+      "add", "late-tool", "--command",
+      "--install", installScript,
+      "--version-command", "/bin/echo late-tool v1.0.0",
+    ]);
+    expect(output).toContain("Registered command skills group 'late-tool'");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    let state = await stateStore.readState();
+    // not installed yet: no leafs
+    expect(state.lockFile.sources["late-tool"]!.leafIds).toEqual([]);
+
+    const installOutput = runCli(["install", "late-tool"]);
+    expect(installOutput).toContain("Installed 'late-tool' (1 skill location discovered)");
+
+    state = await stateStore.readState();
+    const lock = state.lockFile.sources["late-tool"]!;
+    expect(lock.observedTargets?.[0]?.targetPath).toBe(skillDir);
+    expect(lock.lastVersionOutput).toContain("late-tool v1.0.0");
+    expect(state.lockFile.leafInventory.some((leaf) =>
+      leaf.sourceId === "late-tool" && leaf.absolutePath === skillDir)).toBe(true);
+
+    // audit log records the install mutation
+    const audit = await fs.readFile(path.join(sandbox.stateRoot, "audit.log.jsonl"), "utf8");
+    expect(audit).toContain('"mutation":"install-external-source"');
+    expect(audit).toContain('"sourceId":"late-tool"');
+  });
+
+  test("install of a failing command reports the failure and keeps state clean", { timeout: 60_000 }, async () => {
+    runCli(["add", "doomed-tool", "--command", "--install", "/usr/bin/false"]);
+
+    const app = new SkillFlowApp();
+    const result = await app.installExternalSource("doomed-tool");
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]?.code).toBe("EXTERNAL_COMMAND_FAILED");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    const state = await stateStore.readState();
+    expect(state.lockFile.sources["doomed-tool"]!.leafIds).toEqual([]);
+  });
 });

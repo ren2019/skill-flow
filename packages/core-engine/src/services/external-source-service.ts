@@ -14,6 +14,8 @@ import type { StateStore } from "@skill-flow/storage/state-store";
 import { hashDirectory, isPathInside, pathExists } from "@skill-flow/integration/utils/fs";
 import { fail, ok } from "@skill-flow/integration/utils/result";
 import { deriveSourceId } from "@skill-flow/integration/utils/source-id";
+import { getTargetScanRoots, TARGET_ORDER } from "@skill-flow/integration/utils/constants";
+import { runExternalCommandChain } from "./external-command-executor.js";
 import { parseSkillFrontmatter } from "./skill-frontmatter.js";
 
 export type ExternalObservedPath = {
@@ -218,6 +220,162 @@ export class ExternalSourceService {
     return ok({
       manifest: source,
       lock,
+      leafs,
+      leafCount: leafs.length,
+      invalidLeafCount: 0,
+    });
+  }
+
+  async installCommandSource(
+    sourceId: string,
+    options: { onStep: (step: string) => void },
+  ): Promise<Result<ExternalSourceSnapshot>> {
+    const state = await this.options.stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === sourceId);
+    const lock = state.lockFile.sources[sourceId];
+    if (!source || !lock) {
+      return fail({
+        code: "SOURCE_NOT_FOUND",
+        message: `Skills group id '${sourceId}' is not registered.`,
+      });
+    }
+    if (source.kind !== "command") {
+      return fail({
+        code: "EXTERNAL_SOURCE_INVALID",
+        message: `Skills group '${sourceId}' is not a command group.`,
+      });
+    }
+
+    const installCommand = source.externalCommands?.install?.trim();
+    if (!installCommand) {
+      return fail({
+        code: "EXTERNAL_INSTALL_COMMAND_MISSING",
+        message: `Skills group '${sourceId}' has no install command configured.`,
+      });
+    }
+
+    const run = await runExternalCommandChain("install", {
+      command: installCommand,
+      onStep: options.onStep,
+    });
+    if (!run.ok) {
+      return fail({
+        code: run.errorCode ?? "EXTERNAL_COMMAND_FAILED",
+        message: run.message ?? `The install command for '${sourceId}' failed.`,
+      });
+    }
+
+    const observedPaths = await this.discoverObservedPaths(state, source.displayName);
+    const versionOutput = await this.runVersionCommand(source);
+    return this.commitRediscoveredState(source, lock, state, observedPaths, versionOutput);
+  }
+
+  private async runVersionCommand(
+    source: SourceManifestRecord,
+  ): Promise<string | undefined> {
+    const versionCommand = source.externalCommands?.version?.trim();
+    if (!versionCommand) {
+      return undefined;
+    }
+    const run = await runExternalCommandChain("version", {
+      command: versionCommand,
+      onStep: () => {},
+    });
+    return run.ok ? run.output.trim() : undefined;
+  }
+
+  private async discoverObservedPaths(
+    state: { lockFile: { sources: Record<string, { localPath: string }>; projections: Array<{ status: string; targetPath: string }> } },
+    name: string,
+  ): Promise<ExternalObservedPath[]> {
+    const matches: ExternalObservedPath[] = [];
+    const managedCheckouts = new Set(
+      Object.values(state.lockFile.sources).map((lock) => path.resolve(lock.localPath)),
+    );
+    const managedTargetPaths = new Set(
+      state.lockFile.projections
+        .filter((projection) => projection.status === "active")
+        .map((projection) => path.resolve(projection.targetPath)),
+    );
+    for (const target of TARGET_ORDER) {
+      for (const rootPath of getTargetScanRoots(target).map((root) => path.resolve(root))) {
+        const candidate = path.join(rootPath, name);
+        if (!(await pathExists(path.join(candidate, "SKILL.md")))) {
+          continue;
+        }
+        const resolved = path.resolve(candidate);
+        if (managedCheckouts.has(resolved) || managedTargetPaths.has(resolved)) {
+          continue;
+        }
+        if (matches.some((existing) => path.resolve(existing.targetPath) === resolved)) {
+          continue;
+        }
+        matches.push({ target, rootPath, targetPath: candidate });
+      }
+    }
+    return matches;
+  }
+
+  private async commitRediscoveredState(
+    source: SourceManifestRecord,
+    lock: SourceLockRecord,
+    state: Awaited<ReturnType<StateStore["readState"]>>,
+    observedPaths: ExternalObservedPath[],
+    versionOutput: string | undefined,
+  ): Promise<Result<ExternalSourceSnapshot>> {
+    const leafs: LeafRecord[] = [];
+    for (const observed of observedPaths) {
+      const resolved = path.resolve(observed.targetPath);
+      const leaf = await this.toLeafRecord(resolved, source.displayName);
+      leafs.push({ ...leaf, sourceId: source.id, id: `${source.id}:${path.basename(resolved)}` });
+    }
+
+    const now = new Date().toISOString();
+    const primaryPath = observedPaths.length > 0
+      ? path.resolve(observedPaths[0]!.targetPath)
+      : "";
+    const contentHash = leafs.length > 0 ? await hashDirectory(leafs[0]!.absolutePath) : undefined;
+    const nextLock: SourceLockRecord = {
+      ...lock,
+      localPath: primaryPath || lock.localPath,
+      revision: {
+        provider: "command",
+        ...(contentHash ? { contentHash } : {}),
+        capturedAt: now,
+      },
+      leafIds: leafs.map((leaf) => leaf.id),
+      observedTargets: observedPaths.map((observed) => ({
+        target: observed.target,
+        rootPath: observed.rootPath,
+        targetPath: observed.targetPath,
+      })),
+      ...(contentHash ? { contentHash } : {}),
+      ...(versionOutput !== undefined ? { lastVersionOutput: versionOutput } : {}),
+    };
+
+    await this.options.stateStore.writeState({
+      ...state,
+      manifest: {
+        ...state.manifest,
+        sources: state.manifest.sources.map((item) =>
+          item.id === source.id ? { ...item, updatedAt: now } : item),
+      },
+      lockFile: {
+        ...state.lockFile,
+        sources: {
+          ...state.lockFile.sources,
+          [source.id]: nextLock,
+        },
+        leafInventory: [
+          ...state.lockFile.leafInventory.filter((leaf) => leaf.sourceId !== source.id),
+          ...leafs,
+        ],
+      },
+    });
+
+    return ok({
+      manifest: source,
+      lock: nextLock,
       leafs,
       leafCount: leafs.length,
       invalidLeafCount: 0,
