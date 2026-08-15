@@ -209,4 +209,35 @@ describe.sequential("externally managed sources (CLI)", () => {
     const state = await stateStore.readState();
     expect(state.lockFile.sources["doomed-tool"]!.leafIds).toEqual([]);
   });
+
+  test("update --all covers external sources and reports diffs", { timeout: 60_000 }, async () => {
+    const skillDir = await writeTargetSkill("claude", "up-tool");
+    const updateScript = path.join(sandbox.sandboxRoot, "update-up-tool.sh");
+    await fs.writeFile(updateScript, [
+      "#!/bin/sh",
+      `printf -- '---\\nname: up-tool\\ndescription: Updated by external command.\\n---\\n' > "${skillDir}/SKILL.md"`,
+      "",
+    ].join("\n"), { mode: 0o755 });
+
+    runCli([
+      "add", "up-tool", "--command",
+      "--install", "/usr/bin/true",
+      "--update", updateScript,
+    ]);
+
+    const app = new SkillFlowApp();
+    const result = await app.updateSources(["up-tool"]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.data.updated.some((item) =>
+      item.sourceId === "up-tool" && item.changed)).toBe(true);
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    const state = await stateStore.readState();
+    expect(state.lockFile.sources["up-tool"]?.leafIds.length).toBe(1);
+    // update never created a managed checkout
+    await expect(fs.access(path.join(sandbox.stateRoot, "source", "command", "up-tool"))).rejects.toThrow();
+  });
 });

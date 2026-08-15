@@ -8,6 +8,8 @@ import type {
   Result,
   SourceLockRecord,
   SourceManifestRecord,
+  SourceUpdateDiff,
+  SourceUpdateResultItem,
 } from "@skill-flow/domain/types";
 import { validateExternalSourceCommands } from "@skill-flow/domain/types";
 import type { StateStore } from "@skill-flow/storage/state-store";
@@ -270,6 +272,78 @@ export class ExternalSourceService {
     return this.commitRediscoveredState(source, lock, state, observedPaths, versionOutput);
   }
 
+  async updateExternalSource(
+    sourceId: string,
+    options: { onStep: (step: string) => void },
+  ): Promise<Result<SourceUpdateResultItem>> {
+    const state = await this.options.stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === sourceId);
+    const lock = state.lockFile.sources[sourceId];
+    if (!source || !lock) {
+      return fail({
+        code: "SOURCE_NOT_FOUND",
+        message: `Skills group id '${sourceId}' is not registered.`,
+      });
+    }
+    if (source.kind !== "command" && source.kind !== "watch") {
+      return fail({
+        code: "EXTERNAL_SOURCE_INVALID",
+        message: `Skills group '${sourceId}' is not externally managed.`,
+      });
+    }
+
+    if (source.kind === "command") {
+      const updateCommand = source.externalCommands?.update?.trim();
+      if (updateCommand) {
+        const run = await runExternalCommandChain("update", {
+          command: updateCommand,
+          onStep: options.onStep,
+        });
+        if (!run.ok) {
+          return fail({
+            code: run.errorCode ?? "EXTERNAL_COMMAND_FAILED",
+            message: run.message ?? `The update command for '${sourceId}' failed.`,
+          });
+        }
+      }
+    }
+
+    const previousLeafs = state.lockFile.leafInventory.filter((leaf) => leaf.sourceId === sourceId);
+    const observedPaths = source.kind === "command"
+      ? await this.discoverObservedPaths(state, source.displayName, { excludeSourceId: sourceId })
+      : await this.rescanWatchPaths(state, lock);
+    const versionOutput = source.kind === "command"
+      ? await this.runVersionCommand(source)
+      : undefined;
+    const committed = await this.commitRediscoveredState(
+      source,
+      lock,
+      state,
+      observedPaths,
+      versionOutput,
+    );
+    if (!committed.ok) {
+      return fail(committed.errors, committed.warnings);
+    }
+
+    const diff = buildExternalDiff(sourceId, previousLeafs, committed.data.leafs);
+    return ok(diff, committed.warnings);
+  }
+
+  private async rescanWatchPaths(
+    state: Awaited<ReturnType<StateStore["readState"]>>,
+    lock: SourceLockRecord,
+  ): Promise<ExternalObservedPath[]> {
+    const surviving: ExternalObservedPath[] = [];
+    for (const observed of lock.observedTargets ?? []) {
+      if (await pathExists(path.join(observed.targetPath, "SKILL.md"))) {
+        surviving.push(observed);
+      }
+    }
+    void state;
+    return surviving;
+  }
+
   private async runVersionCommand(
     source: SourceManifestRecord,
   ): Promise<string | undefined> {
@@ -287,10 +361,13 @@ export class ExternalSourceService {
   private async discoverObservedPaths(
     state: { lockFile: { sources: Record<string, { localPath: string }>; projections: Array<{ status: string; targetPath: string }> } },
     name: string,
+    options: { excludeSourceId?: string } = {},
   ): Promise<ExternalObservedPath[]> {
     const matches: ExternalObservedPath[] = [];
     const managedCheckouts = new Set(
-      Object.values(state.lockFile.sources).map((lock) => path.resolve(lock.localPath)),
+      Object.entries(state.lockFile.sources)
+        .filter(([id]) => id !== options.excludeSourceId)
+        .map(([, lock]) => path.resolve(lock.localPath)),
     );
     const managedTargetPaths = new Set(
       state.lockFile.projections
@@ -427,4 +504,61 @@ export class ExternalSourceService {
     const description = frontmatter?.data.description?.trim() ?? "";
     return { title, description };
   }
+}
+
+function buildExternalDiff(
+  sourceId: string,
+  previousLeafs: LeafRecord[],
+  nextLeafs: LeafRecord[],
+): SourceUpdateResultItem {
+  const previousById = new Map(previousLeafs.map((leaf) => [leaf.id, leaf]));
+  const nextById = new Map(nextLeafs.map((leaf) => [leaf.id, leaf]));
+  const diffs: SourceUpdateDiff[] = [];
+
+  for (const previous of previousLeafs) {
+    const next = nextById.get(previous.id);
+    if (!next) {
+      diffs.push({
+        kind: "removed",
+        sourceId,
+        leafId: previous.id,
+        relativePath: previous.relativePath,
+        contentHash: previous.contentHash,
+      });
+      continue;
+    }
+    if (next.contentHash !== previous.contentHash) {
+      diffs.push({
+        kind: "changed",
+        sourceId,
+        leafId: next.id,
+        relativePath: next.relativePath,
+        contentHash: next.contentHash,
+        previousLeafId: previous.id,
+        previousRelativePath: previous.relativePath,
+        previousContentHash: previous.contentHash,
+      });
+    }
+  }
+
+  for (const next of nextLeafs) {
+    if (!previousById.has(next.id)) {
+      diffs.push({
+        kind: "added",
+        sourceId,
+        leafId: next.id,
+        relativePath: next.relativePath,
+        contentHash: next.contentHash,
+      });
+    }
+  }
+
+  return {
+    sourceId,
+    changed: diffs.length > 0,
+    addedLeafIds: diffs.filter((diff) => diff.kind === "added").map((diff) => diff.leafId),
+    removedLeafIds: diffs.filter((diff) => diff.kind === "removed").map((diff) => diff.leafId),
+    invalidatedLeafIds: [],
+    diffs,
+  };
 }

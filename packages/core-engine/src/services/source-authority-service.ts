@@ -28,11 +28,13 @@ import type {
   SourceCheckoutKind,
   SourceCheckoutService,
 } from "./source-checkout-service.js";
+import type { ExternalSourceService } from "./external-source-service.js";
 import type { AddSourceOptions } from "./source-types.js";
 
 export type SourceAuthorityServiceOptions = {
   stateStore: StateStore;
   checkoutService: SourceCheckoutService;
+  externalSourceService?: ExternalSourceService;
 };
 
 export type AddSourceOptionsWithCheckout = AddSourceOptions & {
@@ -307,6 +309,30 @@ export class SourceAuthorityService {
         continue;
       }
 
+      if (source.kind === "watch" || source.kind === "command") {
+        const externalResult = await this.updateExternalSource(sourceId);
+        if (!externalResult) {
+          failed.push({
+            sourceId,
+            code: "SOURCE_UPDATE_FAILED",
+            message: `Unable to update skills group '${sourceId}': no external source service configured.`,
+          });
+          continue;
+        }
+        if (!externalResult.ok) {
+          const code = externalResult.errors[0]?.code ?? "SOURCE_UPDATE_FAILED";
+          const message = externalResult.errors[0]?.message
+            ?? `Unable to update skills group '${sourceId}'.`;
+          failed.push({ sourceId, code, message });
+          warnings.push(...externalResult.warnings);
+          warnings.push({ code: "SOURCE_UPDATE_FAILED", message });
+          continue;
+        }
+        warnings.push(...externalResult.warnings);
+        updated.push(externalResult.data);
+        continue;
+      }
+
       const tempCheckoutPath = path.join(
         this.options.stateStore.rootPath,
         "source",
@@ -516,6 +542,12 @@ export class SourceAuthorityService {
     }
 
     return ok({ updatedSourceIds }, warnings);
+  }
+
+  private async updateExternalSource(
+    sourceId: string,
+  ): Promise<Result<SourceUpdateResultItem> | undefined> {
+    return this.options.externalSourceService?.updateExternalSource(sourceId, { onStep: () => {} });
   }
 
   private toCheckoutKind(kind: SourceKind): SourceCheckoutKind | undefined {

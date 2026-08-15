@@ -472,9 +472,13 @@ export class SkillFlowApp {
       sourceRoot: path.join(this.stateStore.rootPath, "source"),
       inventoryService: this.inventoryService,
     });
+    this.externalSourceService = new ExternalSourceService({
+      stateStore: this.stateStore,
+    });
     this.sourceAuthorityService = new SourceAuthorityService({
       stateStore: this.stateStore,
       checkoutService: this.sourceCheckoutService,
+      externalSourceService: this.externalSourceService,
     });
     this.importPreparationService = new ImportPreparationService({
       cacheStore: this.importPreparationCacheStore,
@@ -482,9 +486,6 @@ export class SkillFlowApp {
       checkoutService: this.sourceCheckoutService,
     });
     this.doctorService = new DoctorService();
-    this.externalSourceService = new ExternalSourceService({
-      stateStore: this.stateStore,
-    });
     this.workflowService = new WorkflowService();
     this.recentProjectService = new RecentProjectService();
     this.workspaceBootstrapService = new WorkspaceBootstrapService({

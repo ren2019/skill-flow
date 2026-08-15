@@ -292,4 +292,94 @@ describe.sequential("ExternalSourceService", () => {
     expect(installed.ok).toBe(false);
     expect(installed.errors[0]?.code).toBe("EXTERNAL_INSTALL_COMMAND_MISSING");
   });
+
+  test("updateExternalSource runs the update command and reports content diffs", async () => {
+    const skillDir = await writeTargetSkill("claude", "tool-y");
+    const updateScript = path.join(sandbox.sandboxRoot, "update-tool-y.sh");
+    await fs.writeFile(updateScript, [
+      "#!/bin/sh",
+      `printf -- '---\\nname: tool-y\\ndescription: Updated description.\\n---\\n' > "${skillDir}/SKILL.md"`,
+      "",
+    ].join("\n"), { mode: 0o755 });
+
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addCommandSource({
+      displayName: "tool-y",
+      commands: {
+        update: updateScript,
+        version: "/bin/echo tool-y 2.0.0",
+      },
+      observedPaths: [{ target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: skillDir }],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+    const beforeHash = (await stateStore.readState()).lockFile.sources["tool-y"]?.contentHash;
+
+    const steps: string[] = [];
+    const result = await service.updateExternalSource("tool-y", { onStep: (step) => steps.push(step) });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(result.data.changed).toBe(true);
+    expect(result.data.diffs.some((diff) => diff.kind === "changed")).toBe(true);
+    expect(steps).toEqual([updateScript]);
+
+    const state2 = await stateStore.readState();
+    expect(state2.lockFile.sources["tool-y"]!.contentHash).not.toBe(beforeHash);
+    expect(state2.lockFile.sources["tool-y"]!.lastVersionOutput).toContain("tool-y 2.0.0");
+    // no checkout was created for this source
+    await expect(fs.access(path.join(sandbox.stateRoot, "source", "command", "tool-y"))).rejects.toThrow();
+  });
+
+  test("updateExternalSource for a watch source is a pure rescan", async () => {
+    const dir = await writeTargetSkill("claude", "watch-only");
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addWatchSource({
+      displayName: "watch-only",
+      observedPaths: [{ target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: dir }],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const steps: string[] = [];
+    const result = await service.updateExternalSource("watch-only", { onStep: (step) => steps.push(step) });
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      return;
+    }
+    expect(steps).toEqual([]);
+    expect(result.data.changed).toBe(false);
+
+    // edit the file externally; a second update detects the change without any command
+    await fs.writeFile(path.join(dir, "SKILL.md"), skillDoc("watch-only", "Edited by hand."));
+    const second = await service.updateExternalSource("watch-only", { onStep: () => {} });
+    expect(second.ok).toBe(true);
+    if (second.ok) {
+      expect(second.data.changed).toBe(true);
+      expect(second.data.diffs.some((diff) => diff.kind === "changed")).toBe(true);
+    }
+  });
+
+  test("updateExternalSource reports a failed external command per source", async () => {
+    const dir = await writeTargetSkill("claude", "failing-tool");
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addCommandSource({
+      displayName: "failing-tool",
+      commands: { update: "/usr/bin/false" },
+      observedPaths: [{ target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: dir }],
+    });
+    expect(registered.ok).toBe(true);
+
+    const result = await service.updateExternalSource("failing-tool", { onStep: () => {} });
+    expect(result.ok).toBe(false);
+    expect(result.errors[0]?.code).toBe("EXTERNAL_COMMAND_FAILED");
+  });
 });
