@@ -15,7 +15,7 @@ const PREPARATION_STATUSES = new Set<ImportPreparationStatus>([
   "stale",
 ]);
 
-const SOURCE_KINDS = new Set<SourceKind>(["local", "git", "clawhub", "collection"]);
+const SOURCE_KINDS = new Set<SourceKind>(["local", "git", "clawhub", "collection", "watch", "command"]);
 const COMMITTING_PREPARATION_STALE_MS = 5 * 60 * 1000;
 
 export function createEmptyImportPreparationCache(): ImportPreparationCache {

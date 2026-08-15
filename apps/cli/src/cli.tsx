@@ -40,6 +40,7 @@ program
   .option("--agent <target>", "Enable a specific deployment target", collectOption, [])
   .option("--yes", "Skip prompts and use default selections")
   .option("--all", "Enable all discovered skills and all detected targets")
+  .option("--watch", "Register an on-disk skill as externally managed without importing it")
   .action(async (
     source: string,
     options: {
@@ -49,8 +50,20 @@ program
       agent?: string[];
       yes?: boolean;
       all?: boolean;
+      watch?: boolean;
     },
   ) => {
+    if (options.watch) {
+      const result = await app.addWatchSourceByPath(source);
+      if (!result.ok) {
+        printErrors(result.errors.map((error) => ({ message: error.message })));
+        process.exitCode = 1;
+        return;
+      }
+      console.log(`Registered watch skills group '${result.data.sourceId}' (files left untouched).`);
+      return;
+    }
+
     let resolvedSource: string;
     try {
       resolvedSource = resolveAddSourceLocator(source, options.from);

@@ -12,9 +12,54 @@ export type Result<T> =
   | { ok: true; data: T; warnings: Warning[]; errors: [] }
   | { ok: false; data?: T; warnings: Warning[]; errors: Failure[] };
 
-export const SOURCE_KINDS = ["git", "local", "clawhub", "collection"] as const;
+export const SOURCE_KINDS = [
+  "git",
+  "local",
+  "clawhub",
+  "collection",
+  "watch",
+  "command",
+] as const;
 
 export type SourceKind = typeof SOURCE_KINDS[number];
+
+export const EXTERNALLY_MANAGED_KINDS = ["watch", "command"] as const;
+
+export type ExternallyManagedKind = typeof EXTERNALLY_MANAGED_KINDS[number];
+
+export type ExternalSourceCommands = {
+  install?: string;
+  update?: string;
+  version?: string;
+};
+
+export function isExternallyManagedKind(kind: SourceKind): kind is ExternallyManagedKind {
+  return (EXTERNALLY_MANAGED_KINDS as readonly string[]).includes(kind);
+}
+
+export function validateExternalSourceCommands(
+  kind: SourceKind,
+  commands: ExternalSourceCommands | undefined,
+): void {
+  const hasAnyCommand = commands !== undefined
+    && Object.values(commands).some((value) => typeof value === "string" && value.trim().length > 0);
+  if (!hasAnyCommand) {
+    if (kind === "command") {
+      throw new Error(
+        "A command skills group requires at least an install or update command.",
+      );
+    }
+    return;
+  }
+  if (!isExternallyManagedKind(kind)) {
+    throw new Error(
+      `External commands are only allowed on externally managed kinds, not '${kind}'.`,
+    );
+  }
+  if (kind === "watch") {
+    throw new Error("A watch skills group cannot carry external commands.");
+  }
+}
 
 export type DeploymentTargetName =
   | "claude-code"
@@ -735,6 +780,8 @@ export type SourceManifestRecord = {
   updatedAt: string;
   requestedPath?: string;
   originRequestedPath?: string;
+  externalCommands?: ExternalSourceCommands;
+  presetToolName?: string;
 };
 
 export type SourceBinding = {
@@ -765,6 +812,11 @@ export type SourceRevision =
     }
   | {
       provider: "collection";
+      capturedAt: string;
+    }
+  | {
+      provider: "watch" | "command";
+      contentHash?: string;
       capturedAt: string;
     };
 
@@ -820,6 +872,8 @@ export type SourceLockRecord = {
     targetPath: string;
   }>;
   importMode?: "explicit-add" | "bootstrap-detected";
+  externalCommands?: ExternalSourceCommands;
+  lastVersionOutput?: string;
 };
 
 export interface LockFile {

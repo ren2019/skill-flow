@@ -647,6 +647,8 @@ function createSourceRevision(
         capturedAt,
       };
     case "local":
+    case "watch":
+    case "command":
       return { provider, capturedAt };
     case "collection":
       return { provider, capturedAt };

@@ -7,7 +7,7 @@ describe("SourceKind", () => {
     const sourceKinds: readonly SourceKind[] = SOURCE_KINDS;
     const currentSourceKinds: readonly SourceKind[] = SOURCE_KINDS;
 
-    expect(sourceKinds).toEqual(["git", "local", "clawhub", "collection"]);
+    expect(sourceKinds).toEqual(["git", "local", "clawhub", "collection", "watch", "command"]);
     expect(currentSourceKinds).toBe(sourceKinds);
   });
 });

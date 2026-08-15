@@ -2398,7 +2398,7 @@ description: |
   });
 });
 
-function runCli(args: string[]): string {
+export function runCli(args: string[]): string {
   return execFileSync("node", [
     "--import",
     "tsx",

@@ -123,6 +123,7 @@ import {
 } from "@skill-flow/integration/utils/skills-directory";
 import { ConfigCoordinator } from "./config-coordinator.js";
 import { DoctorService } from "@skill-flow/core-engine/services/doctor-service";
+import { ExternalSourceService } from "@skill-flow/core-engine/services/external-source-service";
 import { InventoryService } from "@skill-flow/core-engine/services/inventory-service";
 import { ImportPreparationService } from "@skill-flow/core-engine/services/import-preparation-service";
 import { RecentProjectService } from "@skill-flow/core-engine/services/recent-project-service";
@@ -443,6 +444,7 @@ export class SkillFlowApp {
   readonly sourceAuthorityService: SourceAuthorityService;
   readonly importPreparationService: ImportPreparationService;
   readonly doctorService: DoctorService;
+  readonly externalSourceService: ExternalSourceService;
   readonly workflowService: WorkflowService;
   readonly recentProjectService: RecentProjectService;
   readonly workspaceBootstrapService: WorkspaceBootstrapService;
@@ -477,6 +479,9 @@ export class SkillFlowApp {
       checkoutService: this.sourceCheckoutService,
     });
     this.doctorService = new DoctorService();
+    this.externalSourceService = new ExternalSourceService({
+      stateStore: this.stateStore,
+    });
     this.workflowService = new WorkflowService();
     this.recentProjectService = new RecentProjectService();
     this.workspaceBootstrapService = new WorkspaceBootstrapService({
@@ -771,6 +776,43 @@ export class SkillFlowApp {
       },
       () => this.addSourceImpl(locator, options),
     );
+  }
+
+  async addWatchSource(input: {
+    displayName: string;
+    observedPaths: Array<{
+      target: DeploymentTargetId;
+      rootPath: string;
+      targetPath: string;
+    }>;
+  }): Promise<Result<{ sourceId: string }>> {
+    return this.runAuditedMutation(
+      "add-source",
+      { kind: "watch", displayName: input.displayName },
+      async () => {
+        const result = await this.externalSourceService.addWatchSource(input);
+        if (!result.ok) {
+          return fail(result.errors, result.warnings);
+        }
+        return ok({ sourceId: result.data.manifest.id }, result.warnings);
+      },
+    );
+  }
+
+  async addWatchSourceByPath(skillPath: string): Promise<Result<{ sourceId: string }>> {
+    const resolvedPath = path.resolve(skillPath);
+    const observedTargets = await this.detectLocalImportObservedTargets(resolvedPath);
+    if (observedTargets.length === 0) {
+      return fail({
+        code: "EXTERNAL_PATH_NOT_IN_TARGET_ROOT",
+        message:
+          `Path ${resolvedPath} is not inside any configured agent target root; watch groups register skills that already live in target directories.`,
+      });
+    }
+    return this.addWatchSource({
+      displayName: path.basename(resolvedPath),
+      observedPaths: observedTargets,
+    });
   }
 
   async prepareAddSource(

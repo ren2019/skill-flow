@@ -45,7 +45,7 @@ A desktop session FIFO that holds Group Operations so the user can keep requesti
 _Avoid_: parallel download pool, batch update coalescer, multi-flight mutation
 
 **Group Operation**:
-One discrete user-requested unit of work on a skill group—today either **Update** (an already-installed group) or **Import** (a not-yet-installed group from the import page). Distinct from card chrome actions such as pin, rename, or tag edit.
+One discrete user-requested unit of work on a skill group—today **Update** (an already-installed group), **Import** (a not-yet-installed group from the import page), or **Install** (run a Command Source's install command on a Not Installed card). Distinct from card chrome actions such as pin, rename, or tag edit.
 _Avoid_: mutation (bridge-layer term), job (too generic), download (import-only wording)
 
 **Queued / Running**:
@@ -100,3 +100,47 @@ _Avoid_: continuous multi-domain merge, manual-only import as the default path, 
 **Last-Write-Wins Suite Sharing**:
 When multiple desktop packages (production and dev) are open on the same Mac, concurrent writes to the Shared Desktop Suite use UserDefaults last-write-wins semantics. No cross-process locking or merge for this scope.
 _Avoid_: transactional multi-app merge, file locks for tags/visibility
+
+### Externally managed sources
+
+**Externally Managed**:
+The umbrella term for sources whose files skill-flow did not distribute and never rewrites: `command` and `watch` kinds. Registered for catalog visibility and update visibility, never for takeover.
+_Avoid_: adopted (collides with the existing bootstrap-detected takeover import), third-party skills
+
+**Command Source**:
+A `command` kind source: skill files are installed and updated by running user-provided shell commands (install, update, optional version). skill-flow executes the commands, then discovers and hashes what landed on disk.
+_Avoid_: delegated, external-tool, pipx source
+
+**Watch Source**:
+A `watch` kind source: no commands; skill-flow only records observed paths and hashes so the skill appears in the catalog and stops the doctor warning. For users who want tracking without any execution.
+_Avoid_: observed, tracked, manual watch
+
+**Observed Path**:
+A real directory on disk (found by scanning, never hand-typed by the user) that an externally managed source records as one of the places its skill files live. Drift is detected by re-hashing these paths.
+_Avoid_: expected path, declared path
+
+**Preset Registry**:
+A small built-in map from well-known tool name to default install/update/version commands for Command Sources. User-editable; pre-fills the add-external-tool form.
+_Avoid_: plugin, fingerprint database
+
+**Unregister**:
+The default removal action for an externally managed source: delete the skill-flow record only, leave all files untouched.
+_Avoid_: uninstall (ambiguous with file deletion for these kinds)
+
+**Delete Files**:
+A separate explicit action for externally managed sources: delete the observed-path files only, keep the record. The card becomes Not Installed; a later Install re-creates the files.
+_Avoid_: uninstall, unregister
+
+**Install (external)**:
+The Group Operation that runs a Command Source's install command on a Not Installed card and re-discovers observed paths. Third Group Operation kind alongside Update and Import.
+_Avoid_: re-import, re-deploy
+
+**Version Probe (deferred)**:
+Deferred follow-up: optional version command plus upstream release lookup to light an update-available badge on externally managed cards. Fields land in this issue; probe and badge land later.
+_Avoid_: update check, background polling
+
+### Scope notes
+
+**Discovery Scope (external)**:
+For externally managed registration and drift, skill-flow scans only the roots of currently configured targets (existing `getTargetScanRoots()`). Directories such as `~/.agents/skills` outside configured targets are out of scope until issue #4 lands.
+_Avoid_: whole-home scan, fingerprint auto-classification

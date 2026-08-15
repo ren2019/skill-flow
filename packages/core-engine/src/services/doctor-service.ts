@@ -168,7 +168,7 @@ export class DoctorService {
       }
     }
 
-    await this.reportUnmanagedExternalSkills(lockFile, issues, adapters);
+    await this.reportUnmanagedExternalSkills(manifest, lockFile, issues, adapters);
 
     for (const deployment of activeProjections(lockFile)) {
       const sourceStillExists = manifest.sources.some(
@@ -206,6 +206,7 @@ export class DoctorService {
   }
 
   private async reportUnmanagedExternalSkills(
+    manifest: ManifestFile,
     lockFile: LockFile,
     issues: DoctorIssue[],
     adapters = createChannelAdapters(),
@@ -213,6 +214,15 @@ export class DoctorService {
     const managedTargetPaths = new Set(
       activeProjections(lockFile).map((deployment) => path.resolve(deployment.targetPath)),
     );
+    for (const source of manifest.sources) {
+      if (source.kind !== "watch" && source.kind !== "command") {
+        continue;
+      }
+      const observed = lockFile.sources[source.id]?.observedTargets ?? [];
+      for (const entry of observed) {
+        managedTargetPaths.add(path.resolve(entry.targetPath));
+      }
+    }
     const seenPaths = new Set<string>();
 
     for (const adapter of adapters) {
