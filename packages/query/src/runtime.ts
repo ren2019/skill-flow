@@ -823,6 +823,20 @@ export class SkillFlowApp {
     );
   }
 
+  async deleteExternalSourceFiles(sourceId: string): Promise<Result<{ deleted: string[] }>> {
+    return this.runAuditedMutation(
+      "uninstall",
+      { sourceId, action: "delete-files" },
+      async () => {
+        const result = await this.externalSourceService.deleteExternalSourceFiles(sourceId);
+        if (!result.ok) {
+          return fail(result.errors, result.warnings);
+        }
+        return ok(result.data, result.warnings);
+      },
+    );
+  }
+
   async addWatchSourceByPath(skillPath: string): Promise<Result<{ sourceId: string }>> {
     const resolvedPath = path.resolve(skillPath);
     const observedTargets = await this.detectLocalImportObservedTargets(resolvedPath);
@@ -5628,6 +5642,33 @@ export class SkillFlowApp {
     }>
   > {
     const state = await this.stateStore.readState();
+    const externalIds = sourceIds.filter((sourceId) => {
+      const source = state.manifest.sources.find((item) => item.id === sourceId);
+      return source?.kind === "watch" || source?.kind === "command";
+    });
+    const checkoutIds = sourceIds.filter((sourceId) => !externalIds.includes(sourceId));
+
+    if (externalIds.length > 0) {
+      const externalResult = await this.externalSourceService.unregisterExternalSources(externalIds);
+      if (!externalResult.ok) {
+        return fail(externalResult.errors, externalResult.warnings);
+      }
+    }
+    if (checkoutIds.length === 0) {
+      const refs = externalIds
+        .map((sourceId) => state.manifest.sources.find((source) => source.id === sourceId))
+        .filter((source): source is ManifestFile["sources"][number] => Boolean(source))
+        .map((source) => ({
+          id: source.id,
+          locator: source.locator,
+          displayName: source.displayName,
+        }));
+      return ok({
+        removed: externalIds,
+        removedRefs: refs,
+        warnings: [],
+      });
+    }
     const warnings: string[] = [];
     const removedRefs = sourceIds
       .map((sourceId) => state.manifest.sources.find((source) => source.id === sourceId))
@@ -5640,11 +5681,11 @@ export class SkillFlowApp {
     const importedCleanupWarnings = await this.deploymentReconciler.cleanupImportedTargetPaths({
       manifest: state.manifest,
       lockFile: state.lockFile,
-      sourceIds,
+      sourceIds: checkoutIds,
       adapters: this.createAdaptersForPreferences(state.preferences),
     });
 
-    for (const sourceId of sourceIds) {
+    for (const sourceId of checkoutIds) {
       const projections = state.lockFile.projections.filter(
         (projection) => projection.sourceId === sourceId,
       );
@@ -5693,7 +5734,7 @@ export class SkillFlowApp {
 
     let removed;
     try {
-      removed = await this.sourceAuthorityService.removeSource(sourceIds);
+      removed = await this.sourceAuthorityService.removeSource(checkoutIds);
     } catch (error) {
       return fail({
         code: "GROUP_DELETE_INCOMPLETE",
@@ -5705,7 +5746,7 @@ export class SkillFlowApp {
     }
 
     return ok(
-      { removed: removed.data.removed, removedRefs, warnings },
+      { removed: [...externalIds, ...removed.data.removed], removedRefs, warnings },
       [...importedCleanupWarnings, ...removed.warnings],
     );
   }

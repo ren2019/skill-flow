@@ -10,10 +10,11 @@ import type {
   SourceManifestRecord,
   SourceUpdateDiff,
   SourceUpdateResultItem,
+  Warning,
 } from "@skill-flow/domain/types";
 import { validateExternalSourceCommands } from "@skill-flow/domain/types";
 import type { StateStore } from "@skill-flow/storage/state-store";
-import { hashDirectory, isPathInside, pathExists } from "@skill-flow/integration/utils/fs";
+import { hashDirectory, isPathInside, pathExists, removePath } from "@skill-flow/integration/utils/fs";
 import { fail, ok } from "@skill-flow/integration/utils/result";
 import { deriveSourceId } from "@skill-flow/integration/utils/source-id";
 import { getTargetScanRoots, TARGET_ORDER } from "@skill-flow/integration/utils/constants";
@@ -267,9 +268,105 @@ export class ExternalSourceService {
       });
     }
 
-    const observedPaths = await this.discoverObservedPaths(state, source.displayName);
+    const observedPaths = await this.discoverObservedPaths(state, source.displayName, {
+      excludeSourceId: sourceId,
+    });
     const versionOutput = await this.runVersionCommand(source);
     return this.commitRediscoveredState(source, lock, state, observedPaths, versionOutput);
+  }
+
+  async unregisterExternalSources(sourceIds: string[]): Promise<Result<{ removed: string[] }>> {
+    const removed: string[] = [];
+    for (const sourceId of sourceIds) {
+      const result = await this.unregisterExternalSource(sourceId);
+      if (!result.ok) {
+        return fail(result.errors, result.warnings);
+      }
+      removed.push(sourceId);
+    }
+    return ok({ removed });
+  }
+
+  async unregisterExternalSource(sourceId: string): Promise<Result<{ removed: string }>> {
+    const state = await this.options.stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === sourceId);
+    if (!source || !state.lockFile.sources[sourceId]) {
+      return fail({
+        code: "SOURCE_NOT_FOUND",
+        message: `Skills group id '${sourceId}' is not registered.`,
+      });
+    }
+    if (source.kind !== "watch" && source.kind !== "command") {
+      return fail({
+        code: "EXTERNAL_SOURCE_INVALID",
+        message: `Skills group '${sourceId}' is not externally managed; use the regular uninstall flow.`,
+      });
+    }
+
+    await this.options.stateStore.writeState({
+      ...state,
+      manifest: {
+        ...state.manifest,
+        sources: state.manifest.sources.filter((item) => item.id !== sourceId),
+        bindings: Object.fromEntries(
+          Object.entries(state.manifest.bindings).filter(([id]) => id !== sourceId),
+        ),
+      },
+      lockFile: {
+        ...state.lockFile,
+        sources: Object.fromEntries(
+          Object.entries(state.lockFile.sources).filter(([id]) => id !== sourceId),
+        ),
+        leafInventory: state.lockFile.leafInventory.filter((leaf) => leaf.sourceId !== sourceId),
+        projections: state.lockFile.projections.filter((projection) => projection.sourceId !== sourceId),
+      },
+    });
+
+    return ok({ removed: sourceId });
+  }
+
+  async deleteExternalSourceFiles(sourceId: string): Promise<Result<{ deleted: string[] }>> {
+    const state = await this.options.stateStore.readState();
+    const source = state.manifest.sources.find((item) => item.id === sourceId);
+    const lock = state.lockFile.sources[sourceId];
+    if (!source || !lock) {
+      return fail({
+        code: "SOURCE_NOT_FOUND",
+        message: `Skills group id '${sourceId}' is not registered.`,
+      });
+    }
+    if (source.kind !== "watch" && source.kind !== "command") {
+      return fail({
+        code: "EXTERNAL_SOURCE_INVALID",
+        message: `Skills group '${sourceId}' is not externally managed.`,
+      });
+    }
+
+    const warnings: Warning[] = [];
+    const deleted: string[] = [];
+    for (const observed of lock.observedTargets ?? []) {
+      const resolved = path.resolve(observed.targetPath);
+      if (isPathInside(this.options.stateStore.rootPath, resolved)) {
+        continue;
+      }
+      try {
+        await removePath(resolved);
+        deleted.push(resolved);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+          continue;
+        }
+        warnings.push({
+          code: "EXTERNAL_FILE_DELETE_FAILED",
+          message: `Unable to delete ${resolved}: ${String(error)}`,
+        });
+      }
+    }
+
+    // record kept, now Not Installed
+    await this.commitRediscoveredState(source, lock, state, [], undefined);
+
+    return ok({ deleted }, warnings);
   }
 
   async updateExternalSource(
@@ -414,7 +511,7 @@ export class ExternalSourceService {
     const contentHash = leafs.length > 0 ? await hashDirectory(leafs[0]!.absolutePath) : undefined;
     const nextLock: SourceLockRecord = {
       ...lock,
-      localPath: primaryPath || lock.localPath,
+      localPath: primaryPath,
       revision: {
         provider: "command",
         ...(contentHash ? { contentHash } : {}),

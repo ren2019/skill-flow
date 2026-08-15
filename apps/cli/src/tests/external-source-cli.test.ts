@@ -240,4 +240,49 @@ describe.sequential("externally managed sources (CLI)", () => {
     // update never created a managed checkout
     await expect(fs.access(path.join(sandbox.stateRoot, "source", "command", "up-tool"))).rejects.toThrow();
   });
+
+  test("uninstall unregisters an external group and leaves files untouched", { timeout: 60_000 }, async () => {
+    const dir = await writeTargetSkill("claude", "bye-skill");
+
+    runCli(["add", dir, "--watch"]);
+
+    const output = runCli(["uninstall", "bye-skill"]);
+    expect(output).toContain("Removed: bye-skill");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    const state = await stateStore.readState();
+    expect(state.manifest.sources.find((item) => item.id === "bye-skill")).toBeUndefined();
+    expect(state.lockFile.sources["bye-skill"]).toBeUndefined();
+    // the file survives unregister
+    await expect(fs.access(path.join(dir, "SKILL.md"))).resolves.toBeUndefined();
+  });
+
+  test("delete-files removes observed files, keeps the record, and reinstall works", { timeout: 60_000 }, async () => {
+    const skillDir = await writeTargetSkill("claude", "cycle-tool");
+    const installScript = path.join(sandbox.sandboxRoot, "install-cycle-tool.sh");
+    await fs.writeFile(installScript, [
+      "#!/bin/sh",
+      `mkdir -p "${skillDir}"`,
+      `printf -- '---\\nname: cycle-tool\\ndescription: Back again.\\n---\\n' > "${skillDir}/SKILL.md"`,
+      "",
+    ].join("\n"), { mode: 0o755 });
+
+    runCli(["add", "cycle-tool", "--command", "--install", installScript]);
+
+    const deleteOutput = runCli(["delete-files", "cycle-tool"]);
+    expect(deleteOutput).toContain("now not installed");
+
+    const stateStore = new StateStore(sandbox.stateRoot);
+    let state = await stateStore.readState();
+    expect(state.manifest.sources.find((item) => item.id === "cycle-tool")?.kind).toBe("command");
+    expect(state.lockFile.sources["cycle-tool"]!.leafIds).toEqual([]);
+    await expect(fs.access(path.join(skillDir, "SKILL.md"))).rejects.toThrow();
+
+    // install brings it back
+    const installOutput = runCli(["install", "cycle-tool"]);
+    expect(installOutput).toContain("Installed 'cycle-tool'");
+    state = await stateStore.readState();
+    expect(state.lockFile.sources["cycle-tool"]?.leafIds.length).toBe(1);
+    await expect(fs.access(path.join(skillDir, "SKILL.md"))).resolves.toBeUndefined();
+  });
 });

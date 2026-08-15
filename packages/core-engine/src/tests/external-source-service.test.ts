@@ -382,4 +382,76 @@ describe.sequential("ExternalSourceService", () => {
     expect(result.ok).toBe(false);
     expect(result.errors[0]?.code).toBe("EXTERNAL_COMMAND_FAILED");
   });
+
+  test("unregister removes the record but never touches files", async () => {
+    const dir = await writeTargetSkill("claude", "bye-tool");
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addWatchSource({
+      displayName: "bye-tool",
+      observedPaths: [{ target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: dir }],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const result = await service.unregisterExternalSource(registered.data.manifest.id);
+    expect(result.ok).toBe(true);
+
+    const state = await stateStore.readState();
+    expect(state.manifest.sources.find((item) => item.id === "bye-tool")).toBeUndefined();
+    expect(state.lockFile.sources["bye-tool"]).toBeUndefined();
+    expect(state.lockFile.leafInventory.some((leaf) => leaf.sourceId === "bye-tool")).toBe(false);
+    // the file survives
+    await expect(fs.access(path.join(dir, "SKILL.md"))).resolves.toBeUndefined();
+  });
+
+  test("deleteFiles removes observed-path files and keeps the record as not installed", async () => {
+    const dirA = await writeTargetSkill("claude", "multi-tool");
+    const dirB = await writeTargetSkill("codex", "multi-tool");
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addCommandSource({
+      displayName: "multi-tool",
+      commands: { install: "multi-tool install" },
+      observedPaths: [
+        { target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: dirA },
+        { target: "codex", rootPath: path.join(sandbox.targetsRoot, "codex"), targetPath: dirB },
+      ],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    const result = await service.deleteExternalSourceFiles(registered.data.manifest.id);
+    expect(result.ok).toBe(true);
+
+    await expect(fs.access(path.join(dirA, "SKILL.md"))).rejects.toThrow();
+    await expect(fs.access(path.join(dirB, "SKILL.md"))).rejects.toThrow();
+    const state = await stateStore.readState();
+    // record kept, now not installed
+    expect(state.manifest.sources.find((item) => item.id === "multi-tool")?.kind).toBe("command");
+    expect(state.lockFile.sources["multi-tool"]!.leafIds).toEqual([]);
+  });
+
+  test("deleteFiles skips paths that are already gone without failing", async () => {
+    const dir = await writeTargetSkill("claude", "gone-tool");
+    const { stateStore, service } = makeService();
+    await stateStore.init();
+    const registered = await service.addWatchSource({
+      displayName: "gone-tool",
+      observedPaths: [{ target: "claude-code", rootPath: path.join(sandbox.targetsRoot, "claude"), targetPath: dir }],
+    });
+    expect(registered.ok).toBe(true);
+    if (!registered.ok) {
+      return;
+    }
+
+    await fs.rm(dir, { recursive: true });
+
+    const result = await service.deleteExternalSourceFiles(registered.data.manifest.id);
+    expect(result.ok).toBe(true);
+  });
 });

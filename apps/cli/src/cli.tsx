@@ -401,6 +401,22 @@ program
   });
 
 program
+  .command("delete-files")
+  .argument("<sourceId>", "Externally managed skills group id")
+  .description("Delete an externally managed group's files but keep its registration")
+  .action(async (sourceId: string) => {
+    const result = await app.deleteExternalSourceFiles(sourceId);
+    if (!result.ok) {
+      printErrors(result.errors.map((error) => ({ message: error.message })));
+      process.exitCode = 1;
+      return;
+    }
+    console.log(
+      `Deleted ${result.data.deleted.length} observed path${result.data.deleted.length === 1 ? "" : "s"} for '${sourceId}' (registration kept, now not installed).`,
+    );
+  });
+
+program
   .command("bridge")
   .description("Execute machine protocol requests for desktop/helper integrations")
   .option("--json", "Require JSON request/response envelope")
