@@ -1,0 +1,26 @@
+name: Desktop Active Detail Freshness Dev App
+
+on:
+  push:
+    branches:
+      - ci/desktop-active-detail-freshness-gate
+
+jobs:
+  package-dev-app:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package arm64 development app
+        run: scripts/release/package-desktop-mac-dev.sh
+      - name: Archive development app
+        run: >-
+          ditto -c -k --sequesterRsrc --keepParent
+          "dist/desktop-mac/arm64/Skill Flow.app"
+          "Skill-Flow-dev-arm64.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Skill-Flow-dev-arm64
+          path: Skill-Flow-dev-arm64.zip
+          if-no-files-found: error
+          retention-days: 1
