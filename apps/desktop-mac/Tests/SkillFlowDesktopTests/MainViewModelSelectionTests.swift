@@ -867,6 +867,257 @@ final class MainViewModelSelectionTests: XCTestCase {
         )
     }
 
+    func testCommittedUpdateWithFailedDetailRefreshWarnsOnceAndRetriesOnDetailReentry() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        let addedSkill = TestFixture.LeafState(
+            id: "alpha-c",
+            linkName: "audit",
+            name: "audit",
+            description: "Fresh audit skill.",
+            metadataWarnings: []
+        )
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.updatedAt = "2026-03-27T00:00:00Z"
+        updatedAlpha.leafs.append(addedSkill)
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [addedSkill.id],
+                    removedLeafIds: [],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.reset(state: state)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+        let lastUsableDetail = try XCTUnwrap(model.detailSnapshot(for: "alpha"))
+
+        var failingState = try fixture.readState()
+        failingState.inspectFailuresRemainingBySourceId = ["alpha": 1]
+        try fixture.writeState(failingState)
+
+        await model.updateSource("alpha")
+
+        XCTAssertEqual(try fixture.readState().sources["alpha"]?.updatedAt, "2026-03-27T00:00:00Z")
+        XCTAssertTrue(model.recentlyUpdatedSourceIds.contains("alpha"))
+        XCTAssertFalse(model.isUpdatingSource("alpha"))
+        XCTAssertNil(model.updateOperationPhases["alpha"])
+        XCTAssertEqual(model.toast?.style, .neutral)
+        XCTAssertEqual(
+            model.toast?.message,
+            "The group was updated, but its details could not be refreshed. Reopen the group to retry."
+        )
+        XCTAssertEqual(model.detailSnapshot(for: "alpha")?.skills.map(\.id), lastUsableDetail.skills.map(\.id))
+        XCTAssertFalse(model.hasInspectPayload(for: "alpha"))
+
+        appState.view.currentRoute = .home
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        XCTAssertTrue(
+            DetailRouteBootstrap.shouldFetchInspect(
+                hasInspectPayload: model.hasInspectPayload(for: "alpha"),
+                isInspectRequestInFlight: model.isInspectRequestInFlight(for: "alpha")
+            )
+        )
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha", timeoutNanoseconds: 3_000_000_000)
+
+        XCTAssertTrue(model.hasInspectPayload(for: "alpha"))
+        XCTAssertTrue(model.detailSnapshot(for: "alpha")?.skills.contains(where: { $0.id == addedSkill.id }) == true)
+        XCTAssertEqual(
+            fixture.loggedRequests().filter {
+                $0.command == "inspect" && $0.payload?["sourceId"]?.value as? String == "alpha"
+            }.count,
+            3
+        )
+    }
+
+    func testFailedDetailRefreshRetryRemainsScopedWhenProjectScopeChangesDuringInspect() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.updatedAt = "2026-03-27T00:00:00Z"
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [],
+                    removedLeafIds: [],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.reset(state: state)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+
+        var failingState = try fixture.readState()
+        failingState.inspectDelayMilliseconds = 200
+        failingState.inspectFailuresRemainingBySourceId = ["alpha": 1]
+        try fixture.writeState(failingState)
+
+        let update = Task { @MainActor in
+            await model.updateSource("alpha")
+        }
+        try await fixture.waitForLoggedRequest(command: "inspect", sourceId: "alpha", minimumCount: 2)
+        appState.settings.selectedProjectScope = .project("repo-a")
+        await update.value
+
+        appState.settings.selectedProjectScope = .global
+        XCTAssertFalse(model.hasInspectPayload(for: "alpha"))
+        XCTAssertEqual(model.toast?.style, .neutral)
+    }
+
+    func testUpdateRemovingSelectedSkillFallsBackToFirstRemainingDetailSkill() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        state.sources["alpha"]?.leafs.append(
+            TestFixture.LeafState(
+                id: "alpha-c",
+                linkName: "audit",
+                name: "audit",
+                description: "Audit things.",
+                metadataWarnings: []
+            )
+        )
+        state.sources["alpha"]?.selectedLeafIds = ["alpha-c"]
+        state.sources["alpha"]?.targetLeafIdsByTarget["claude-code"] = ["alpha-c"]
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.updatedAt = "2026-03-27T00:00:00Z"
+        updatedAlpha.leafs.removeAll { $0.id == "alpha-b" }
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [],
+                    removedLeafIds: ["alpha-b"],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.reset(state: state)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+        let container = DetailScreenContainer(
+            state: appState,
+            detailSnapshot: { [weak model] sourceId in model?.detailSnapshot(for: sourceId) }
+        )
+        _ = try XCTUnwrap(container.viewModel)
+        container.screenState.detailShowsGroupOverviewByGroup["alpha"] = false
+        container.screenState.detailSkillIdByGroup["alpha"] = "alpha-b"
+
+        await model.updateSource("alpha")
+        let refreshedDetail = try XCTUnwrap(container.viewModel)
+        DetailRouteBootstrap.applySelections(
+            state: container.screenState,
+            sourceId: "alpha",
+            detail: refreshedDetail
+        )
+
+        XCTAssertEqual(refreshedDetail.skills.map(\.id), ["alpha-c", "alpha-a"])
+        XCTAssertEqual(container.screenState.detailSkillIdByGroup["alpha"], "alpha-c")
+        XCTAssertEqual(
+            DetailRouteBootstrap.displayedDetailSkill(
+                state: container.screenState,
+                sourceId: "alpha",
+                detail: refreshedDetail
+            )?.id,
+            "alpha-c"
+        )
+        XCTAssertEqual(
+            DetailRouteBootstrap.selectedSidebarItemId(state: container.screenState, sourceId: "alpha"),
+            "skill:alpha-c"
+        )
+        XCTAssertEqual(container.screenState.detailShowsGroupOverviewByGroup["alpha"], false)
+    }
+
+    func testUpdateRemovingEverySkillFallsBackToGroupOverviewWithoutGhostSelection() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.updatedAt = "2026-03-27T00:00:00Z"
+        updatedAlpha.leafs = []
+        updatedAlpha.selectedLeafIds = []
+        updatedAlpha.targetLeafIdsByTarget = [:]
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [],
+                    removedLeafIds: ["alpha-a", "alpha-b"],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.reset(state: state)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+        let container = DetailScreenContainer(
+            state: appState,
+            detailSnapshot: { [weak model] sourceId in model?.detailSnapshot(for: sourceId) }
+        )
+        _ = try XCTUnwrap(container.viewModel)
+        container.screenState.detailShowsGroupOverviewByGroup["alpha"] = false
+        container.screenState.detailSkillIdByGroup["alpha"] = "alpha-b"
+        container.screenState.pendingDetailSkillIdByGroup["alpha"] = "alpha-a"
+        container.screenState.detailSelectedTreeItemIdByGroup["alpha"] = "skill:alpha-b"
+
+        await model.updateSource("alpha")
+        let refreshedDetail = try XCTUnwrap(container.viewModel)
+        DetailRouteBootstrap.applySelections(
+            state: container.screenState,
+            sourceId: "alpha",
+            detail: refreshedDetail
+        )
+
+        XCTAssertTrue(refreshedDetail.skills.isEmpty)
+        XCTAssertNil(container.screenState.detailSkillIdByGroup["alpha"])
+        XCTAssertNil(container.screenState.pendingDetailSkillIdByGroup["alpha"])
+        XCTAssertNil(container.screenState.detailSelectedTreeItemIdByGroup["alpha"])
+        XCTAssertEqual(container.screenState.detailShowsGroupOverviewByGroup["alpha"], true)
+        XCTAssertNil(
+            DetailRouteBootstrap.displayedDetailSkill(
+                state: container.screenState,
+                sourceId: "alpha",
+                detail: refreshedDetail
+            )
+        )
+        XCTAssertEqual(
+            DetailRouteBootstrap.selectedSidebarItemId(state: container.screenState, sourceId: "alpha"),
+            "group:alpha"
+        )
+    }
+
     func testNoOpUpdateFromHomeDoesNotInspectInactiveDetail() async throws {
         let fixture = try TestFixture.install()
         try fixture.reset(state: .baseline)
@@ -2513,6 +2764,7 @@ private struct TestFixture {
         var inspectEnrichmentDelayMilliseconds: Int? = nil
         var updateDelayMilliseconds: Int? = nil
         var updateWorkspaceSelectedProjectScope: String? = nil
+        var inspectFailuresRemainingBySourceId: [String: Int] = [:]
         var pendingUpdatesBySourceId: [String: PendingUpdateState] = [:]
 
         static let baseline = State(
@@ -3179,6 +3431,21 @@ private struct TestFixture {
 
       if (request.command === 'inspect') {
         const sourceId = request.payload && request.payload.sourceId;
+        const failuresRemaining = state.inspectFailuresRemainingBySourceId?.[sourceId] || 0;
+        if (failuresRemaining > 0) {
+          state.inspectFailuresRemainingBySourceId[sourceId] = failuresRemaining - 1;
+          writeState(state);
+          const response = JSON.stringify(responseFor(request, false, null, [], [{
+            code: 'inspect_failed',
+            message: 'Detail inspect failed.'
+          }]));
+          if (state.inspectDelayMilliseconds > 0) {
+            setTimeout(() => process.stdout.write(response), state.inspectDelayMilliseconds);
+          } else {
+            process.stdout.write(response);
+          }
+          return;
+        }
         const response = JSON.stringify(responseFor(request, true, buildInspectPayload(state, sourceId), [], []));
         if (state.inspectDelayMilliseconds > 0) {
           setTimeout(() => process.stdout.write(response), state.inspectDelayMilliseconds);

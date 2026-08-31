@@ -267,6 +267,7 @@
 "toast.update.loading" = "%@ を更新中...";
 "toast.update.success" = "%@ を更新しました。";
 "toast.update.failed" = "更新失敗: %@";
+"toast.update.detail_refresh_failed" = "Group は更新されましたが、詳細を更新できませんでした。Group を開き直して再試行してください。";
 "toast.update.summary.single" = "1 グループを更新しました。";
 "toast.update.summary.multiple" = "%@ グループを更新しました。";
 "toast.update.summary.updated_count" = "更新済み %@";

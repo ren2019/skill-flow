@@ -267,6 +267,7 @@
 "toast.update.loading" = "正在更新 %@...";
 "toast.update.success" = "已更新 %@。";
 "toast.update.failed" = "更新失败：%@";
+"toast.update.detail_refresh_failed" = "分组已更新，但详情无法刷新。请重新打开该分组以重试。";
 "toast.update.summary.single" = "已更新 1 个分组。";
 "toast.update.summary.multiple" = "已更新 %@ 个分组。";
 "toast.update.summary.updated_count" = "已更新 %@";

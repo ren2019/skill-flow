@@ -267,6 +267,7 @@
 "toast.update.loading" = "Updating %@...";
 "toast.update.success" = "Updated %@.";
 "toast.update.failed" = "Update failed: %@";
+"toast.update.detail_refresh_failed" = "The group was updated, but its details could not be refreshed. Reopen the group to retry.";
 "toast.update.summary.single" = "Updated 1 group.";
 "toast.update.summary.multiple" = "Updated %@ groups.";
 "toast.update.summary.updated_count" = "Updated %@";

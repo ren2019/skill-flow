@@ -15,7 +15,36 @@ enum DetailRouteBootstrap {
         guard let detail else {
             return
         }
-        if state.detailSkillIdByGroup[sourceId] == nil {
+
+        let skillIds = Set(detail.skills.map(\.id))
+        if !skillIds.isEmpty,
+           let pendingSkillId = state.pendingDetailSkillIdByGroup[sourceId],
+           !skillIds.contains(pendingSkillId) {
+            state.pendingDetailSkillIdByGroup[sourceId] = nil
+            state.detailSkillSelectionTokenByGroup[sourceId] = nextSelectionToken(
+                state.detailSkillSelectionTokenByGroup[sourceId]
+            )
+        }
+        if skillIds.isEmpty {
+            state.detailSkillIdByGroup[sourceId] = nil
+            state.pendingDetailSkillIdByGroup[sourceId] = nil
+            state.detailSkillSelectionTokenByGroup[sourceId] = nextSelectionToken(
+                state.detailSkillSelectionTokenByGroup[sourceId]
+            )
+            state.detailShowsGroupOverviewByGroup[sourceId] = true
+            state.detailSelectedTreeItemIdByGroup[sourceId] = nil
+        } else if let selectedSkillId = state.detailSkillIdByGroup[sourceId],
+                  !skillIds.contains(selectedSkillId) {
+            state.pendingDetailSkillIdByGroup[sourceId] = nil
+            state.detailSkillSelectionTokenByGroup[sourceId] = nextSelectionToken(
+                state.detailSkillSelectionTokenByGroup[sourceId]
+            )
+            state.detailSkillIdByGroup[sourceId] = detail.skills.first?.id
+            if state.detailShowsGroupOverviewByGroup[sourceId] == false,
+               let fallbackSkillId = detail.skills.first?.id {
+                state.detailSelectedTreeItemIdByGroup[sourceId] = detail.fileTree.skillRootItemId(for: fallbackSkillId)
+            }
+        } else if state.detailSkillIdByGroup[sourceId] == nil {
             state.detailSkillIdByGroup[sourceId] = preferredDetailSkillId(for: detail)
         }
         if state.detailDocumentTabIdByGroup[sourceId] == nil {
@@ -183,6 +212,13 @@ struct DetailScreen: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .task(id: sourceId) {
                     await bootstrapDetailRoute(sourceId: sourceId, detail: detail)
+                }
+                .onChange(of: detail?.revision) { _, _ in
+                    DetailRouteBootstrap.applySelections(
+                        state: screenState,
+                        sourceId: sourceId,
+                        detail: container.viewModel
+                    )
                 }
             } else {
                 EmptyView()

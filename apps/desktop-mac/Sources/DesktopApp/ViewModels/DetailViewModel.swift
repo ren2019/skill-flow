@@ -115,6 +115,7 @@ final class DetailViewModel {
     }
 
     let sourceId: String
+    let revision: String
     let title: String
     let originalDisplayName: String
     let subtitle: String
@@ -152,6 +153,7 @@ final class DetailViewModel {
 
     init(snapshot: Snapshot) {
         sourceId = snapshot.sourceId
+        revision = snapshot.revision
         title = snapshot.title
         originalDisplayName = snapshot.originalDisplayName
         subtitle = snapshot.subtitle
