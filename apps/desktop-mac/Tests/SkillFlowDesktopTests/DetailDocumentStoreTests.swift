@@ -375,7 +375,7 @@ final class DetailDocumentStoreTests: XCTestCase {
         return url
     }
 
-    private func XCTAssertThrowsErrorAsync<T>(
+    private func XCTAssertThrowsErrorAsync<T: Sendable>(
         _ expression: @autoclosure () async throws -> T,
         file: StaticString = #filePath,
         line: UInt = #line
