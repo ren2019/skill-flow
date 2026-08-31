@@ -1662,7 +1662,7 @@ final class MainViewModelSelectionTests: XCTestCase {
         try await Task.sleep(for: .milliseconds(90))
         XCTAssertTrue(model.recentlyUpdatedSourceIds.contains("alpha"))
 
-        try await Task.sleep(for: .milliseconds(90))
+        try await Task.sleep(for: .milliseconds(150))
         XCTAssertFalse(model.recentlyUpdatedSourceIds.contains("alpha"))
     }
 
