@@ -4,6 +4,11 @@ import Observation
 @MainActor
 @Observable
 final class SourceManagement {
+    struct InspectResult {
+        let response: BridgeResponse
+        let isCurrent: Bool
+    }
+
     private struct ScopedSourceKey: Hashable {
         let scope: ProjectScopeSelection
         let sourceId: String
@@ -128,6 +133,7 @@ final class SourceManagement {
     private var activeDoctorRequestToken: UInt64?
     @ObservationIgnored private var inspectRequestTasksBySourceId: [ScopedSourceKey: Task<BridgeResponse, Error>] = [:]
     private var inspectRequestTokensBySourceId: [ScopedSourceKey: UInt64] = [:]
+    private var latestInspectRequestTokensBySourceId: [ScopedSourceKey: UInt64] = [:]
     private var inspectRequestTokenSeed: UInt64 = 0
     @ObservationIgnored private var saveStateResetTasksBySourceId: [ScopedSourceKey: Task<Void, Never>] = [:]
     @ObservationIgnored private var recentlyUpdatedClearTasksBySourceId: [ScopedSourceKey: Task<Void, Never>] = [:]
@@ -262,13 +268,22 @@ final class SourceManagement {
         return response
     }
 
-    func selectSource(_ sourceId: String, scope: ProjectScopeSelection) async throws -> BridgeResponse {
-        let response = try await fetchInspectResponse(sourceId: sourceId, scope: scope)
-        if let payload = response.data?.value as? [String: Any] {
-            let key = ScopedSourceKey(scope: scope, sourceId: sourceId)
+    func selectSource(
+        _ sourceId: String,
+        scope: ProjectScopeSelection,
+        forceNewInspect: Bool = false
+    ) async throws -> InspectResult {
+        let key = ScopedSourceKey(scope: scope, sourceId: sourceId)
+        let (response, token) = try await fetchInspectResponse(
+            sourceId: sourceId,
+            scope: scope,
+            forceNewInspect: forceNewInspect
+        )
+        let isCurrent = latestInspectRequestTokensBySourceId[key] == token
+        if isCurrent, let payload = response.data?.value as? [String: Any] {
             inspectedPayloadBySourceId[key] = payload
         }
-        return response
+        return InspectResult(response: response, isCurrent: isCurrent)
     }
 
     func runDoctor() async throws -> ([DoctorIssueRow], [BridgeIssue]) {
@@ -679,10 +694,16 @@ final class SourceManagement {
         }
     }
 
-    private func fetchInspectResponse(sourceId: String, scope: ProjectScopeSelection) async throws -> BridgeResponse {
+    private func fetchInspectResponse(
+        sourceId: String,
+        scope: ProjectScopeSelection,
+        forceNewInspect: Bool
+    ) async throws -> (BridgeResponse, UInt64) {
         let key = ScopedSourceKey(scope: scope, sourceId: sourceId)
-        if let existingTask = inspectRequestTasksBySourceId[key] {
-            return try await existingTask.value
+        if !forceNewInspect,
+           let existingTask = inspectRequestTasksBySourceId[key],
+           let token = inspectRequestTokensBySourceId[key] {
+            return (try await existingTask.value, token)
         }
 
         inspectRequestTokenSeed &+= 1
@@ -690,6 +711,7 @@ final class SourceManagement {
         let task = Task { try await queryFacade.inspect(sourceId: sourceId, scope: key.scope) }
         inspectRequestTasksBySourceId[key] = task
         inspectRequestTokensBySourceId[key] = token
+        latestInspectRequestTokensBySourceId[key] = token
 
         do {
             let response = try await task.value
@@ -697,7 +719,7 @@ final class SourceManagement {
                 inspectRequestTasksBySourceId.removeValue(forKey: key)
                 inspectRequestTokensBySourceId.removeValue(forKey: key)
             }
-            return response
+            return (response, token)
         } catch {
             if inspectRequestTokensBySourceId[key] == token {
                 inspectRequestTasksBySourceId.removeValue(forKey: key)

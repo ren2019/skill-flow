@@ -1032,11 +1032,30 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     }
 
     func selectSource(_ sourceId: String) async {
-        stateManager.selectSource(sourceId)
+        await inspectSource(sourceId, scope: currentProjectScope(), updatesSelection: true)
+    }
+
+    private func inspectSource(
+        _ sourceId: String,
+        scope: ProjectScopeSelection,
+        updatesSelection: Bool,
+        forceNewInspect: Bool = false
+    ) async {
+        if updatesSelection {
+            stateManager.selectSource(sourceId)
+        }
         do {
-            let response = try await sourceManagement.selectSource(sourceId, scope: currentProjectScope())
+            let result = try await sourceManagement.selectSource(
+                sourceId,
+                scope: scope,
+                forceNewInspect: forceNewInspect
+            )
+            guard result.isCurrent, currentProjectScope() == scope else {
+                return
+            }
+            let response = result.response
             if let payload = response.data?.value as? [String: Any] {
-                if let key = scopedSourceKey(sourceId: sourceId, scope: currentProjectScope()) {
+                if let key = scopedSourceKey(sourceId: sourceId, scope: scope) {
                     inspectedPayloadBySourceId[key] = payload
                 }
                 detailLogic.invalidatePreparedDetailContent(for: sourceId)
@@ -1097,10 +1116,19 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     private func performQueuedUpdate(sourceId: String) async {
         do {
             let response = try await sourceManagement.updateSelectedSource(sourceId)
+            let activeDetailSourceId = isActiveDetailSource(sourceId) ? sourceId : nil
             if let response {
-                await synchronizeAfterMutation(response)
+                await synchronizeAfterMutation(
+                    response,
+                    inspectSourceId: activeDetailSourceId,
+                    forceNewInspect: activeDetailSourceId != nil
+                )
             } else {
-                await synchronizeState(refreshDoctor: true)
+                await synchronizeState(
+                    refreshDoctor: true,
+                    inspectSourceId: activeDetailSourceId,
+                    forceNewInspect: activeDetailSourceId != nil
+                )
             }
             registerRecentlyUpdatedSources(from: response?.data?.value)
             showToast(style: .success, text: .plain(updateSummaryMessage(from: response?.data?.value, fallbackCount: 1)))
@@ -1679,17 +1707,36 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
         }
     }
 
-    func synchronizeState(refreshDoctor: Bool, inspectSourceId: String? = nil) async {
+    func synchronizeState(
+        refreshDoctor: Bool,
+        inspectSourceId: String? = nil,
+        forceNewInspect: Bool = false
+    ) async {
+        let inspectScope = currentProjectScope()
         await refreshList()
         if refreshDoctor { await runDoctor() }
         if let inspectSourceId = inspectSourceId?.trimmingCharacters(in: .whitespacesAndNewlines), !inspectSourceId.isEmpty, sourceIds.contains(inspectSourceId) {
-            await selectSource(inspectSourceId)
+            await inspectSource(
+                inspectSourceId,
+                scope: inspectScope,
+                updatesSelection: !forceNewInspect,
+                forceNewInspect: forceNewInspect
+            )
         }
     }
 
-    func synchronizeAfterMutation(_ response: BridgeResponse, inspectSourceId: String? = nil) async {
+    func synchronizeAfterMutation(
+        _ response: BridgeResponse,
+        inspectSourceId: String? = nil,
+        forceNewInspect: Bool = false
+    ) async {
+        let inspectScope = currentProjectScope()
         guard sourceManagement.applyMutationWorkspace(response.data?.value) else {
-            await synchronizeState(refreshDoctor: true, inspectSourceId: inspectSourceId)
+            await synchronizeState(
+                refreshDoctor: true,
+                inspectSourceId: inspectSourceId,
+                forceNewInspect: forceNewInspect
+            )
             return
         }
         detectedTargets = sourceManagement.detectedTargetIds()
@@ -1698,7 +1745,12 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
         if let inspectSourceId = inspectSourceId?.trimmingCharacters(in: .whitespacesAndNewlines),
            !inspectSourceId.isEmpty,
            sourceIds.contains(inspectSourceId) {
-            await selectSource(inspectSourceId)
+            await inspectSource(
+                inspectSourceId,
+                scope: inspectScope,
+                updatesSelection: !forceNewInspect,
+                forceNewInspect: forceNewInspect
+            )
         }
     }
 

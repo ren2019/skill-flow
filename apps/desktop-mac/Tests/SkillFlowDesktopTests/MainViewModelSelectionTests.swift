@@ -669,6 +669,269 @@ final class MainViewModelSelectionTests: XCTestCase {
         XCTAssertEqual(model.recentlyUpdatedSourceIds, ["alpha"])
     }
 
+    func testUpdateSourceRefreshesActiveDetailWithAddedSkillLocalContentMetricAndFileTree() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        let addedSkill = TestFixture.LeafState(
+            id: "alpha-c",
+            linkName: "audit",
+            name: "audit",
+            description: "Short summary.",
+            metadataWarnings: []
+        )
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.updatedAt = "2026-03-27T00:00:00Z"
+        updatedAlpha.leafs.append(addedSkill)
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [addedSkill.id],
+                    removedLeafIds: [],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.reset(state: state)
+
+        let addedSkillDocument = """
+        # Audit Kit
+
+        This full local document includes unmistakable body content.
+
+        ## Workflow
+
+        Inspect prepare publish verify.
+
+        ## Notes
+
+        Alpha beta gamma delta epsilon.
+        """
+        try fixture.writeSkillDocument(
+            sourceId: "alpha",
+            leafId: addedSkill.id,
+            content: addedSkillDocument
+        )
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+
+        XCTAssertFalse(model.detailSnapshot(for: "alpha")?.skills.contains(where: { $0.id == addedSkill.id }) == true)
+
+        await model.updateSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha", timeoutNanoseconds: 3_000_000_000)
+
+        let detail = try XCTUnwrap(model.detailSnapshot(for: "alpha"))
+        let skill = try XCTUnwrap(detail.skills.first(where: { $0.id == addedSkill.id }))
+        XCTAssertEqual(skill.documentContent, addedSkillDocument)
+        XCTAssertEqual(DetailInfoLayout.wordCount(from: skill.documentContent), 21)
+        XCTAssertNotEqual(
+            DetailInfoLayout.wordCount(from: skill.documentContent),
+            DetailInfoLayout.wordCount(from: addedSkill.description)
+        )
+        XCTAssertTrue(
+            detail.fileTree.first?.children.contains(where: {
+                $0.title == addedSkill.id && $0.isSkillRoot && $0.skillId == addedSkill.id
+            }) == true
+        )
+        let requests = fixture.loggedRequests()
+        let updateIndex = try XCTUnwrap(requests.lastIndex(where: { $0.command == "update" }))
+        let postUpdateInspectIndex = try XCTUnwrap(requests.lastIndex(where: { $0.command == "inspect" }))
+        XCTAssertLessThan(updateIndex, postUpdateInspectIndex)
+    }
+
+    func testNoOpUpdateFromActiveDetailPerformsFreshInspectWithoutForcingRemoteEnrichment() async throws {
+        let fixture = try TestFixture.install()
+        try fixture.reset(state: .baseline)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+        let staleDocumentContent = try XCTUnwrap(
+            model.detailSnapshot(for: "alpha")?.skills.first(where: { $0.id == "alpha-a" })?.documentContent
+        )
+        model.detailWarmupDelay = .milliseconds(300)
+
+        let refreshedDocument = """
+        # Browse Refreshed
+
+        A no-op update must still reload this complete local document.
+        """
+        try fixture.writeSkillDocument(
+            sourceId: "alpha",
+            leafId: "alpha-a",
+            content: refreshedDocument
+        )
+
+        var delayedState = try fixture.readState()
+        delayedState.inspectDelayMilliseconds = 200
+        try fixture.writeState(delayedState)
+
+        let update = Task { @MainActor in
+            await model.updateSource("alpha")
+        }
+        try await fixture.waitForLoggedRequest(command: "inspect", sourceId: "alpha", minimumCount: 2)
+        XCTAssertTrue(model.isUpdatingSource("alpha"))
+        await update.value
+
+        let awaitingWarmup = try XCTUnwrap(model.detailSnapshot(for: "alpha"))
+        XCTAssertTrue(awaitingWarmup.fileTree.isEmpty)
+        XCTAssertNotEqual(
+            awaitingWarmup.skills.first(where: { $0.id == "alpha-a" })?.documentContent,
+            staleDocumentContent
+        )
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha", timeoutNanoseconds: 3_000_000_000)
+
+        let skill = try XCTUnwrap(model.detailSnapshot(for: "alpha")?.skills.first(where: { $0.id == "alpha-a" }))
+        XCTAssertEqual(skill.documentContent, refreshedDocument)
+        XCTAssertFalse(model.isUpdatingSource("alpha"))
+        XCTAssertEqual(
+            fixture.loggedRequests().filter {
+                $0.command == "inspect" && $0.payload?["sourceId"]?.value as? String == "alpha"
+            }.count,
+            2
+        )
+        XCTAssertEqual(
+            fixture.loggedRequests().filter {
+                $0.command == "inspect-enrichment" && $0.payload?["sourceId"]?.value as? String == "alpha"
+            }.count,
+            1
+        )
+    }
+
+    func testUpdateSourceDoesNotInspectWhenUpdatedGroupIsNotTheActiveDetail() async throws {
+        let fixture = try TestFixture.install()
+        try fixture.reset(state: .baseline)
+
+        let model = try await fixture.makeModel()
+
+        await model.updateSource("alpha")
+
+        XCTAssertEqual(
+            fixture.loggedRequests().filter {
+                $0.command == "inspect" && $0.payload?["sourceId"]?.value as? String == "alpha"
+            }.count,
+            1
+        )
+    }
+
+    func testPostUpdateInspectSupersedesPreCommitInspectThatFinishesLater() async throws {
+        let fixture = try TestFixture.install()
+        try fixture.reset(state: .baseline)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha")
+
+        var pendingState = try fixture.readState()
+        pendingState.inspectDelayMilliseconds = 400
+        let addedSkill = TestFixture.LeafState(
+            id: "alpha-c",
+            linkName: "audit",
+            name: "audit",
+            description: "Fresh audit skill.",
+            metadataWarnings: []
+        )
+        var updatedAlpha = try XCTUnwrap(pendingState.sources["alpha"])
+        updatedAlpha.leafs.append(addedSkill)
+        pendingState.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [addedSkill.id],
+                    removedLeafIds: [],
+                    invalidatedLeafIds: []
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.writeState(pendingState)
+        try fixture.writeSkillDocument(
+            sourceId: "alpha",
+            leafId: addedSkill.id,
+            content: "# Fresh Audit\n\nPost-update content remains authoritative."
+        )
+
+        let staleInspect = Task { @MainActor in
+            await model.selectSource("alpha")
+        }
+        try await fixture.waitForLoggedRequest(command: "inspect", sourceId: "alpha", minimumCount: 2)
+
+        pendingState.inspectDelayMilliseconds = nil
+        try fixture.writeState(pendingState)
+        await model.updateSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha", timeoutNanoseconds: 3_000_000_000)
+        await staleInspect.value
+
+        XCTAssertTrue(model.detailSnapshot(for: "alpha")?.skills.contains(where: { $0.id == addedSkill.id }) == true)
+        XCTAssertEqual(
+            fixture.loggedRequests().filter {
+                $0.command == "inspect" && $0.payload?["sourceId"]?.value as? String == "alpha"
+            }.count,
+            3
+        )
+    }
+
+    func testPostUpdateWarmupSupersedesPreCommitPreparedContentThatFinishesLater() async throws {
+        let fixture = try TestFixture.install()
+        var state = TestFixture.State.baseline
+        state.sources["alpha"]?.locator = "https://github.com/acme/alpha-old"
+        try fixture.reset(state: state)
+
+        let appState = DesktopAppState()
+        appState.view.currentRoute = .detail(sourceId: "alpha")
+        let model = MainViewModel(bridgeClient: BridgeClient())
+        model.bindRouteState(appState)
+        model.detailWarmupDelay = .milliseconds(400)
+        await model.bootstrap()
+        await model.selectSource("alpha")
+
+        let warmupDeadline = Date().addingTimeInterval(1)
+        while Date() < warmupDeadline,
+              !model.hasPreparedOrScheduledDetailContent(for: "alpha") {
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        XCTAssertTrue(model.hasPreparedOrScheduledDetailContent(for: "alpha"))
+
+        var updatedAlpha = try XCTUnwrap(state.sources["alpha"])
+        updatedAlpha.locator = "https://github.com/acme/alpha-new"
+        state.pendingUpdatesBySourceId = [
+            "alpha": TestFixture.State.PendingUpdateState(
+                result: TestFixture.State.UpdateResultState(
+                    changed: true,
+                    addedLeafIds: [],
+                    removedLeafIds: [],
+                    invalidatedLeafIds: ["alpha-a"]
+                ),
+                nextSource: updatedAlpha
+            )
+        ]
+        try fixture.writeState(state)
+
+        await model.updateSource("alpha")
+        try await fixture.waitForDetailHydration(model, sourceId: "alpha", timeoutNanoseconds: 3_000_000_000)
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        let readme = model.detailSnapshot(for: "alpha")?
+            .groupDocuments
+            .first(where: { $0.title == "README.md" })
+        XCTAssertTrue(readme?.externalURL?.contains("/acme/alpha-new/") == true)
+    }
+
     func testUpdateSourceDoesNotMarkRecentlyUpdatedWhenPayloadIsUnchanged() async throws {
         let fixture = try TestFixture.install()
         var state = TestFixture.State.baseline
@@ -2221,12 +2484,16 @@ private struct TestFixture {
     }
 
     func reset(state: State) throws {
+        try writeState(state)
+        try Data("".utf8).write(to: logURL)
+        try writeSkillDocuments(state: state)
+    }
+
+    func writeState(_ state: State) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(state)
         try data.write(to: stateURL)
-        try Data("".utf8).write(to: logURL)
-        try writeSkillDocuments(state: state)
     }
 
     func readState() throws -> State {
@@ -2338,6 +2605,10 @@ private struct TestFixture {
             .appendingPathComponent(sourceId, isDirectory: true)
             .appendingPathComponent(leafId, isDirectory: true)
             .appendingPathComponent("SKILL.md")
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
