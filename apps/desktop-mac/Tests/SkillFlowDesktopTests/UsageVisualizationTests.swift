@@ -240,11 +240,10 @@ final class UsageVisualizationTests: XCTestCase {
 
     private func relativeLuminance(_ hex: String) -> Double {
         let value = UInt64(hex.dropFirst(), radix: 16) ?? 0
-        let components = [
-            Double((value >> 16) & 0xFF) / 255,
-            Double((value >> 8) & 0xFF) / 255,
-            Double(value & 0xFF) / 255,
-        ]
+        let red = Double((value >> 16) & 0xFF) / 255.0
+        let green = Double((value >> 8) & 0xFF) / 255.0
+        let blue = Double(value & 0xFF) / 255.0
+        let components = [red, green, blue]
         .map { component in
             component <= 0.04045
                 ? component / 12.92
