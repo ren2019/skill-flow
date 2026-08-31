@@ -1126,7 +1126,7 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     private func performQueuedUpdate(sourceId: String) async {
         let operationScope = currentProjectScope()
         do {
-            let response = try await sourceManagement.updateSelectedSource(sourceId, scope: operationScope)
+            let response = try await sourceManagement.updateSelectedSource(sourceId)
             let activeDetailSourceId = currentProjectScope() == operationScope && isActiveDetailSource(sourceId)
                 ? sourceId
                 : nil
@@ -1148,6 +1148,7 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                     presentsInspectFailure: false
                 )
             }
+            sourceManagement.registerRecentlyUpdatedSources(from: response?.data?.value, scope: operationScope)
             if didRefreshRequiredDetail {
                 showToast(style: .success, text: .plain(updateSummaryMessage(from: response?.data?.value, fallbackCount: 1)))
             } else {
@@ -1165,7 +1166,7 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     private func performQueuedBulkUpdate(sourceIds: [String]) async {
         let operationScope = currentProjectScope()
         do {
-            let response = try await sourceManagement.updateSourcesReturningResponse(sourceIds, scope: operationScope)
+            let response = try await sourceManagement.updateSourcesReturningResponse(sourceIds)
             let activeDetailSourceId = currentProjectScope() == operationScope
                 ? sourceIds.first(where: isActiveDetailSource)
                 : nil
@@ -1176,6 +1177,7 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                 preservesCurrentProjectScope: true,
                 presentsInspectFailure: true
             )
+            sourceManagement.registerRecentlyUpdatedSources(from: response.data?.value, scope: operationScope)
             presentBulkUpdateOutcome(requestedCount: sourceIds.count, payload: response.data?.value, warnings: response.warnings)
         } catch {
             showOperationFailureToast(fallbackKey: "toast.update.failed", fallbackArgument: error.localizedDescription, error: error)

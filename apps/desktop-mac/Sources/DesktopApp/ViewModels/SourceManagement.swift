@@ -321,22 +321,13 @@ final class SourceManagement {
         removeStateForSource(sourceId)
     }
 
-    func updateSourcesReturningResponse(
-        _ sourceIds: [String],
-        scope: ProjectScopeSelection
-    ) async throws -> BridgeResponse {
-        let response = try await bridgeClient.updateSources(sourceIds)
-        registerRecentlyUpdatedSources(from: response.data?.value, scope: scope)
-        return response
+    func updateSourcesReturningResponse(_ sourceIds: [String]) async throws -> BridgeResponse {
+        return try await bridgeClient.updateSources(sourceIds)
     }
 
-    func updateSelectedSource(
-        _ sourceId: String,
-        scope: ProjectScopeSelection
-    ) async throws -> BridgeResponse? {
+    func updateSelectedSource(_ sourceId: String) async throws -> BridgeResponse? {
         let result = try await mutationCoordinator.updateSelectedSource(sourceId)
         if case let .submitted(_, response) = result {
-            registerRecentlyUpdatedSources(from: response.data?.value, scope: scope)
             return response
         }
         return nil
@@ -794,7 +785,7 @@ final class SourceManagement {
         }
     }
 
-    private func registerRecentlyUpdatedSources(from value: Any?, scope: ProjectScopeSelection) {
+    func registerRecentlyUpdatedSources(from value: Any?, scope: ProjectScopeSelection) {
         guard
             let payload = value as? [String: Any],
             let items = payload["updated"] as? [[String: Any]]
