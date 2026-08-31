@@ -250,13 +250,19 @@ final class SourceManagement {
     }
 
     @discardableResult
-    func applyMutationWorkspace(_ value: Any?) -> Bool {
+    func applyMutationWorkspace(
+        _ value: Any?,
+        preservesCurrentProjectScope: Bool = false
+    ) -> Bool {
         guard
             let data = value as? [String: Any],
-            let workspace = data["workspace"] as? [String: Any],
+            var workspace = data["workspace"] as? [String: Any],
             workspace["summaries"] is [[String: Any]]
         else {
             return false
+        }
+        if preservesCurrentProjectScope {
+            workspace.removeValue(forKey: "selectedProjectScope")
         }
         parseBootstrapData(workspace)
         return true
@@ -315,16 +321,22 @@ final class SourceManagement {
         removeStateForSource(sourceId)
     }
 
-    func updateSourcesReturningResponse(_ sourceIds: [String]) async throws -> BridgeResponse {
+    func updateSourcesReturningResponse(
+        _ sourceIds: [String],
+        scope: ProjectScopeSelection
+    ) async throws -> BridgeResponse {
         let response = try await bridgeClient.updateSources(sourceIds)
-        registerRecentlyUpdatedSources(from: response.data?.value)
+        registerRecentlyUpdatedSources(from: response.data?.value, scope: scope)
         return response
     }
 
-    func updateSelectedSource(_ sourceId: String) async throws -> BridgeResponse? {
+    func updateSelectedSource(
+        _ sourceId: String,
+        scope: ProjectScopeSelection
+    ) async throws -> BridgeResponse? {
         let result = try await mutationCoordinator.updateSelectedSource(sourceId)
         if case let .submitted(_, response) = result {
-            registerRecentlyUpdatedSources(from: response.data?.value)
+            registerRecentlyUpdatedSources(from: response.data?.value, scope: scope)
             return response
         }
         return nil
@@ -782,7 +794,7 @@ final class SourceManagement {
         }
     }
 
-    private func registerRecentlyUpdatedSources(from value: Any?) {
+    private func registerRecentlyUpdatedSources(from value: Any?, scope: ProjectScopeSelection) {
         guard
             let payload = value as? [String: Any],
             let items = payload["updated"] as? [[String: Any]]
@@ -799,7 +811,7 @@ final class SourceManagement {
                 ((item["addedLeafIds"] as? [String])?.isEmpty == false) ||
                 ((item["removedLeafIds"] as? [String])?.isEmpty == false) ||
                 ((item["invalidatedLeafIds"] as? [String])?.isEmpty == false),
-                let key = scopedSourceKey(sourceId: sourceId, scope: delegate?.currentProjectScopeForSourceManagement() ?? .global)
+                let key = scopedSourceKey(sourceId: sourceId, scope: scope)
             else {
                 continue
             }

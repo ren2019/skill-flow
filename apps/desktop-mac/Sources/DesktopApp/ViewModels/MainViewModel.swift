@@ -1114,14 +1114,18 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     }
 
     private func performQueuedUpdate(sourceId: String) async {
+        let operationScope = currentProjectScope()
         do {
-            let response = try await sourceManagement.updateSelectedSource(sourceId)
-            let activeDetailSourceId = isActiveDetailSource(sourceId) ? sourceId : nil
+            let response = try await sourceManagement.updateSelectedSource(sourceId, scope: operationScope)
+            let activeDetailSourceId = currentProjectScope() == operationScope && isActiveDetailSource(sourceId)
+                ? sourceId
+                : nil
             if let response {
                 await synchronizeAfterMutation(
                     response,
                     inspectSourceId: activeDetailSourceId,
-                    forceNewInspect: activeDetailSourceId != nil
+                    forceNewInspect: activeDetailSourceId != nil,
+                    preservesCurrentProjectScope: true
                 )
             } else {
                 await synchronizeState(
@@ -1130,7 +1134,6 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
                     forceNewInspect: activeDetailSourceId != nil
                 )
             }
-            registerRecentlyUpdatedSources(from: response?.data?.value)
             showToast(style: .success, text: .plain(updateSummaryMessage(from: response?.data?.value, fallbackCount: 1)))
         } catch {
             showOperationFailureToast(fallbackKey: "toast.update.failed", fallbackArgument: error.localizedDescription, error: error)
@@ -1138,10 +1141,18 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
     }
 
     private func performQueuedBulkUpdate(sourceIds: [String]) async {
+        let operationScope = currentProjectScope()
         do {
-            let response = try await sourceManagement.updateSourcesReturningResponse(sourceIds)
-            await synchronizeAfterMutation(response)
-            registerRecentlyUpdatedSources(from: response.data?.value)
+            let response = try await sourceManagement.updateSourcesReturningResponse(sourceIds, scope: operationScope)
+            let activeDetailSourceId = currentProjectScope() == operationScope
+                ? sourceIds.first(where: isActiveDetailSource)
+                : nil
+            await synchronizeAfterMutation(
+                response,
+                inspectSourceId: activeDetailSourceId,
+                forceNewInspect: activeDetailSourceId != nil,
+                preservesCurrentProjectScope: true
+            )
             presentBulkUpdateOutcome(requestedCount: sourceIds.count, payload: response.data?.value, warnings: response.warnings)
         } catch {
             showOperationFailureToast(fallbackKey: "toast.update.failed", fallbackArgument: error.localizedDescription, error: error)
@@ -1715,23 +1726,36 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
         let inspectScope = currentProjectScope()
         await refreshList()
         if refreshDoctor { await runDoctor() }
-        if let inspectSourceId = inspectSourceId?.trimmingCharacters(in: .whitespacesAndNewlines), !inspectSourceId.isEmpty, sourceIds.contains(inspectSourceId) {
-            await inspectSource(
-                inspectSourceId,
-                scope: inspectScope,
-                updatesSelection: !forceNewInspect,
-                forceNewInspect: forceNewInspect
-            )
-        }
+        await inspectAfterSynchronizationIfEligible(
+            inspectSourceId,
+            scope: inspectScope,
+            forceNewInspect: forceNewInspect
+        )
     }
 
     func synchronizeAfterMutation(
         _ response: BridgeResponse,
-        inspectSourceId: String? = nil,
-        forceNewInspect: Bool = false
+        inspectSourceId: String?
+    ) async {
+        await synchronizeAfterMutation(
+            response,
+            inspectSourceId: inspectSourceId,
+            forceNewInspect: false,
+            preservesCurrentProjectScope: false
+        )
+    }
+
+    private func synchronizeAfterMutation(
+        _ response: BridgeResponse,
+        inspectSourceId: String?,
+        forceNewInspect: Bool,
+        preservesCurrentProjectScope: Bool
     ) async {
         let inspectScope = currentProjectScope()
-        guard sourceManagement.applyMutationWorkspace(response.data?.value) else {
+        guard sourceManagement.applyMutationWorkspace(
+            response.data?.value,
+            preservesCurrentProjectScope: preservesCurrentProjectScope
+        ) else {
             await synchronizeState(
                 refreshDoctor: true,
                 inspectSourceId: inspectSourceId,
@@ -1742,16 +1766,31 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
         detectedTargets = sourceManagement.detectedTargetIds()
         stateManager.setLatestWarnings(response.warnings)
         stateManager.setHealthStatus(response.warnings.isEmpty ? .healthy : .warnings)
-        if let inspectSourceId = inspectSourceId?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !inspectSourceId.isEmpty,
-           sourceIds.contains(inspectSourceId) {
-            await inspectSource(
-                inspectSourceId,
-                scope: inspectScope,
-                updatesSelection: !forceNewInspect,
-                forceNewInspect: forceNewInspect
-            )
+        await inspectAfterSynchronizationIfEligible(
+            inspectSourceId,
+            scope: inspectScope,
+            forceNewInspect: forceNewInspect
+        )
+    }
+
+    private func inspectAfterSynchronizationIfEligible(
+        _ sourceId: String?,
+        scope: ProjectScopeSelection,
+        forceNewInspect: Bool
+    ) async {
+        guard let sourceId = sourceId?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !sourceId.isEmpty,
+              sourceIds.contains(sourceId),
+              !forceNewInspect || (currentProjectScope() == scope && isActiveDetailSource(sourceId))
+        else {
+            return
         }
+        await inspectSource(
+            sourceId,
+            scope: scope,
+            updatesSelection: !forceNewInspect,
+            forceNewInspect: forceNewInspect
+        )
     }
 
     func localizedText(_ key: String, _ arguments: [String]) -> PresentationText {
@@ -1926,29 +1965,6 @@ final class MainViewModel: SourceManagementDelegate, ImportLogicDelegate {
         return fallbackCount == 1
             ? localized("toast.update.summary.single")
             : localized("toast.update.summary.multiple", String(fallbackCount))
-    }
-
-    private func registerRecentlyUpdatedSources(from value: Any?) {
-        guard
-            let payload = value as? [String: Any],
-            let items = payload["updated"] as? [[String: Any]]
-        else {
-            return
-        }
-
-        for item in items {
-            let changed = item["changed"] as? Bool == true
-                || item["repaired"] as? Bool == true
-                || ((item["addedLeafIds"] as? [String])?.isEmpty == false)
-                || ((item["removedLeafIds"] as? [String])?.isEmpty == false)
-                || ((item["invalidatedLeafIds"] as? [String])?.isEmpty == false)
-            guard changed,
-                  let sourceId = (item["sourceId"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !sourceId.isEmpty else {
-                continue
-            }
-            sourceManagement.addRecentlyUpdatedSource(sourceId: sourceId, scope: currentProjectScope())
-        }
     }
 
     private func migrateLegacyPinnedSourceIdsIfNeeded() async {
