@@ -137,6 +137,8 @@ final class SourceManagement {
     private var inspectRequestTokenSeed: UInt64 = 0
     @ObservationIgnored private var saveStateResetTasksBySourceId: [ScopedSourceKey: Task<Void, Never>] = [:]
     @ObservationIgnored private var recentlyUpdatedClearTasksBySourceId: [ScopedSourceKey: Task<Void, Never>] = [:]
+    private var recentlyUpdatedClearTokensBySourceId: [ScopedSourceKey: UInt64] = [:]
+    private var recentlyUpdatedClearTokenSeed: UInt64 = 0
     @ObservationIgnored var recentlyUpdatedIndicatorDuration: Duration = .seconds(2)
 
     var sourceIds: [String] {
@@ -401,6 +403,7 @@ final class SourceManagement {
             recentlyUpdatedSourceKeys.filter { allowedSourceIds.contains($0.sourceId) }
         )
         recentlyUpdatedClearTasksBySourceId = recentlyUpdatedClearTasksBySourceId.filter { allowedSourceIds.contains($0.key.sourceId) }
+        recentlyUpdatedClearTokensBySourceId = recentlyUpdatedClearTokensBySourceId.filter { allowedSourceIds.contains($0.key.sourceId) }
     }
 
     func buildInitialDraftFromSummary(summary: WorkflowSummary) -> DraftState {
@@ -814,12 +817,20 @@ final class SourceManagement {
 
     private func scheduleRecentlyUpdatedIndicatorClear(for key: ScopedSourceKey) {
         recentlyUpdatedClearTasksBySourceId[key]?.cancel()
+        recentlyUpdatedClearTokenSeed &+= 1
+        let token = recentlyUpdatedClearTokenSeed
+        recentlyUpdatedClearTokensBySourceId[key] = token
         let delay = recentlyUpdatedIndicatorDuration
         recentlyUpdatedClearTasksBySourceId[key] = Task { @MainActor in
             try? await Task.sleep(for: delay)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled,
+                  recentlyUpdatedClearTokensBySourceId[key] == token
+            else {
+                return
+            }
             recentlyUpdatedSourceKeys.remove(key)
             recentlyUpdatedClearTasksBySourceId.removeValue(forKey: key)
+            recentlyUpdatedClearTokensBySourceId.removeValue(forKey: key)
         }
     }
 
