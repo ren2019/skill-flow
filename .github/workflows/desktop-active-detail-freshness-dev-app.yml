@@ -11,6 +11,8 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Install workspace dependencies
+        run: npm ci
       - name: Package arm64 development app
         run: scripts/release/package-desktop-mac-dev.sh
       - name: Archive development app
