@@ -232,6 +232,7 @@ final class GroupTagControllerTests: XCTestCase {
             "source:beta": [GroupTagPreference(title: "研究", accentRawValue: DesktopAccentColor.yellow.rawValue)],
             "source:gamma": [GroupTagPreference(title: "增长", accentRawValue: DesktopAccentColor.orange.rawValue)]
         ]
+        state.groupTags.tagCollection.orderedTagKeys = ["custom:研究", "custom:增长"]
         state.groupTags.selectedHomeFilterKey = "custom:增长"
         let controller = makeController(state: state)
 
